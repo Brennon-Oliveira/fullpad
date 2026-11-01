@@ -87,7 +87,7 @@ Continuação da Fase 5, ainda só visualização.
 
 | Milestone | Entrega | Critério de aceite |
 |---|---|---|
-| 6.1 | ✅ Enums como caixas, notas como tooltip, `headercolor` nas tabelas | Enum aparece ao lado de quem o usa; cor clara ganha texto escuro |
+| 6.1 | ✅ Enums como caixas ligadas por linha tracejada à coluna que os usa, notas como tooltip, `headercolor` nas tabelas | Enum aparece ligado à coluna; cor clara ganha texto escuro |
 | 6.2 | ✅ TableGroups como molduras coloridas (clusters do dagre) | Tabelas do grupo ficam dentro da moldura, com o nome do grupo |
 | 6.3 | ✅ Hover em coluna/aresta destaca a relação | Passar o mouse numa coluna ilumina as arestas e as colunas do outro lado |
 | 6.4 | ✅ Exportar SVG e PNG | Botões no painel; salva pelo diálogo do sistema, com escrita atômica |

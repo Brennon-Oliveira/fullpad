@@ -1,4 +1,4 @@
-import type { Diagram } from "./model";
+import { type Diagram, enumOf } from "./model";
 
 export const HEADER_H = 30;
 export const ROW_H = 22;
@@ -71,7 +71,7 @@ export function layoutDiagram(d: Diagram, dagre: DagreLike): Layout {
     enumSizes.set(e.id, s);
     g.setNode(enumKey(e.id), { width: s.w, height: s.h });
     for (const t of d.tables) {
-      if (t.columns.some((c) => c.type === e.name || c.type === e.id)) g.setEdge(t.id, enumKey(e.id));
+      if (t.columns.some((c) => enumOf(d.enums, c.type) === e)) g.setEdge(t.id, enumKey(e.id));
     }
   }
 

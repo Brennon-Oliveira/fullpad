@@ -1,5 +1,5 @@
-import { HEADER_H, type Layout, ROW_H, enumKey, groupKey } from "./layout";
-import type { DEnum, DGroup, DRef, DTable, Diagram, Endpoint } from "./model";
+import { type Box, HEADER_H, type Layout, ROW_H, enumKey, groupKey } from "./layout";
+import { type DEnum, type DGroup, type DRef, type DTable, type Diagram, type Endpoint, enumOf } from "./model";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -35,6 +35,41 @@ function rowY(t: DTable, y: number, column: string): number {
   return y + HEADER_H + i * ROW_H + ROW_H / 2;
 }
 
+interface Route {
+  d: string;
+  xa: number;
+  xb: number;
+  /** Sentido em cada ponta (+1 = a aresta sai/entra pela direita). */
+  da: 1 | -1;
+  db: 1 | -1;
+}
+
+/** Caminho ortogonal entre dois pontos de duas caixas, escolhendo o lado conforme a posição relativa. */
+function route(a: Box, ya: number, b: Box, yb: number, same: boolean): Route {
+  if (same) {
+    const x = a.x + a.w;
+    return { d: `M${x},${ya} H${x + 30} V${yb} H${x}`, xa: x, xb: x, da: 1, db: 1 };
+  }
+  if (a.x + a.w <= b.x) {
+    const xa = a.x + a.w, xb = b.x, mid = Math.round((xa + xb) / 2);
+    return { d: `M${xa},${ya} H${mid} V${yb} H${xb}`, xa, xb, da: 1, db: -1 };
+  }
+  if (b.x + b.w <= a.x) {
+    const xa = a.x, xb = b.x + b.w, mid = Math.round((xa + xb) / 2);
+    return { d: `M${xa},${ya} H${mid} V${yb} H${xb}`, xa, xb, da: -1, db: 1 };
+  }
+  const xa = a.x + a.w, xb = b.x + b.w, out = Math.max(xa, xb) + 30;
+  return { d: `M${xa},${ya} H${out} V${yb} H${xb}`, xa, xb, da: 1, db: 1 };
+}
+
+/** Ligação tracejada da coluna que usa um enum até a caixa do enum. */
+function enumLink(t: DTable, col: string, ya: number, a: Box, enumId: string, b: Box): SVGGElement {
+  const { d } = route(a, ya, b, b.y + HEADER_H / 2, false);
+  const g = el("g", { class: "dbml-edge dbml-enumlink", "data-a": colKey(t.id, col), "data-b": enumKey(enumId) });
+  g.append(el("path", { d }), el("path", { d, class: "dbml-hit" }));
+  return g;
+}
+
 function edge(ref: DRef, byId: Map<string, DTable>, layout: Layout): SVGGElement | null {
   const ta = byId.get(ref.from.table);
   const tb = byId.get(ref.to.table);
@@ -43,34 +78,7 @@ function edge(ref: DRef, byId: Map<string, DTable>, layout: Layout): SVGGElement
   if (!ta || !tb || !a || !b) return null;
   const ya = rowY(ta, a.y, ref.from.column);
   const yb = rowY(tb, b.y, ref.to.column);
-
-  // lado de saída/entrada e o sentido (+1 = direita) em cada ponta
-  let xa: number, xb: number, da: 1 | -1, db: 1 | -1, d: string;
-  if (ref.from.table === ref.to.table) {
-    xa = xb = a.x + a.w;
-    da = db = 1;
-    d = `M${xa},${ya} H${xa + 30} V${yb} H${xb}`;
-  } else if (a.x + a.w <= b.x) {
-    xa = a.x + a.w;
-    xb = b.x;
-    da = 1;
-    db = -1;
-    const mid = Math.round((xa + xb) / 2);
-    d = `M${xa},${ya} H${mid} V${yb} H${xb}`;
-  } else if (b.x + b.w <= a.x) {
-    xa = a.x;
-    xb = b.x + b.w;
-    da = -1;
-    db = 1;
-    const mid = Math.round((xa + xb) / 2);
-    d = `M${xa},${ya} H${mid} V${yb} H${xb}`;
-  } else {
-    xa = a.x + a.w;
-    xb = b.x + b.w;
-    da = db = 1;
-    const out = Math.max(xa, xb) + 30;
-    d = `M${xa},${ya} H${out} V${yb} H${xb}`;
-  }
+  const { d, xa, xb, da, db } = route(a, ya, b, yb, ref.from.table === ref.to.table);
 
   const g = el("g", { class: "dbml-edge", "data-a": colKey(ref.from.table, ref.from.column), "data-b": colKey(ref.to.table, ref.to.column) });
   g.append(el("path", { d }), el("path", { d, class: "dbml-hit" })); // o 2º é uma área de hover mais larga
@@ -123,6 +131,14 @@ function groupFrame(grp: DGroup, b: { x: number; y: number; w: number; h: number
 export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement) {
   const byId = new Map(d.tables.map((t) => [t.id, t]));
   const edges = d.refs.map((r) => edge(r, byId, layout)).filter((e): e is SVGGElement => e !== null);
+  const links = d.tables.flatMap((t) => {
+    const tb = layout.boxes.get(t.id)!;
+    return t.columns.flatMap((c) => {
+      const en = enumOf(d.enums, c.type);
+      const eb = en && layout.boxes.get(enumKey(en.id));
+      return en && eb ? [enumLink(t, c.name, rowY(t, tb.y, c.name), tb, en.id, eb)] : [];
+    });
+  });
   const tables = d.tables.map((t) => {
     const b = layout.boxes.get(t.id)!;
     return tableNode(t, b.x, b.y, b.w, b.h);
@@ -135,7 +151,7 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement) {
     const b = layout.boxes.get(groupKey(grp.name));
     return b ? [groupFrame(grp, b)] : [];
   });
-  into.replaceChildren(...groups, ...edges, ...tables, ...enums); // molduras no fundo, arestas sob as tabelas
+  into.replaceChildren(...groups, ...links, ...edges, ...tables, ...enums); // molduras no fundo, arestas sob as tabelas
   wireHover(into);
 }
 

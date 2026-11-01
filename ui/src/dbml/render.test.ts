@@ -64,4 +64,17 @@ describe("renderDiagram", () => {
     expect(g.classList.contains("hovering")).toBe(false);
     expect(g.querySelectorAll(".hl")).toHaveLength(0);
   });
+
+  it("liga a coluna ao enum com uma linha tracejada", () => {
+    const d = parseDbml(
+      interpret,
+      "Table posts { id int [pk]\n status post_status }\nTable tags { id int }\nEnum post_status { draft\n published }",
+    ).diagram!;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g);
+    const links = g.querySelectorAll(".dbml-enumlink");
+    expect(links).toHaveLength(1); // só a coluna `status` usa o enum
+    expect(links[0].getAttribute("data-b")).toBe("enum:post_status");
+    expect(links[0].querySelector("path")?.getAttribute("d")).toMatch(/^M[\d.-]+,[\d.-]+ H/);
+  });
 });

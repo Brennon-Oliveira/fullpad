@@ -101,6 +101,7 @@ button { font: inherit; color: inherit; }
 .dbml-row { fill: transparent; }
 .dbml-row.hl { fill: color-mix(in srgb, var(--accent) 24%, transparent); }
 .hovering .dbml-edge:not(.hl) { opacity: .15; }
+.dbml-enumlink path:not(.dbml-hit) { stroke-dasharray: 5 4; }
 .dbml-edge.hl path { stroke: var(--accent); stroke-width: 2; }
 .dbml-edge.hl text { fill: var(--accent); }
 .dbml-edge path.dbml-hit { stroke: transparent; stroke-width: 12; pointer-events: stroke; }

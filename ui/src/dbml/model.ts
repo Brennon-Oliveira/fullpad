@@ -114,6 +114,11 @@ export interface Report {
 /** Interpreta um texto DBML. Quem chama monta isso com o `Compiler` do parser (carregado sob demanda). */
 export type Interpreter = (text: string) => Report;
 
+/** Enum usado como tipo de coluna (`status post_status`), pelo nome ou pelo id com schema. */
+export function enumOf(enums: DEnum[], type: string): DEnum | undefined {
+  return enums.find((e) => e.name === type || e.id === type);
+}
+
 export const tableId = (schema: string | null | undefined, name: string) => (schema ? `${schema}.${name}` : name);
 
 /**
