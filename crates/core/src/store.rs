@@ -243,6 +243,22 @@ mod tests {
     }
 
     #[test]
+    fn unknown_language_or_mode_does_not_invalidate_the_session() {
+        let (d, s) = store();
+        let t = s.create_note().unwrap();
+        let json = format!(
+            r#"{{"version":1,"active":"{id}","tabs":[{{"id":"{id}","title":"x","cursor":2,"scroll":0.0,"mode":"holografico","language":"mermaid"}}]}}"#,
+            id = t.id
+        );
+        std::fs::write(d.path().join("session.json"), json).unwrap();
+        let loaded = s.load_session().unwrap();
+        assert_eq!(loaded.tabs.len(), 1, "a aba tem que sobreviver");
+        assert_eq!(loaded.tabs[0].language, crate::Language::Auto);
+        assert_eq!(loaded.tabs[0].mode, crate::ViewMode::Rendered);
+        assert!(!d.path().join("session.json.corrupt").exists());
+    }
+
+    #[test]
     fn close_moves_to_trash() {
         let (d, s) = store();
         let t = s.create_note().unwrap();

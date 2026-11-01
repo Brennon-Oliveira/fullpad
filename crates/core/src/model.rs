@@ -5,23 +5,30 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ViewMode {
-    /// Preview ligado: markdown renderizado (live preview).
-    #[default]
-    Rendered,
     /// Preview desligado: texto puro / código.
     Source,
+    /// Preview ligado: markdown renderizado (live preview). Também é o que um valor
+    /// desconhecido (de uma versão mais nova do app) vira, em vez de invalidar a sessão.
+    #[default]
+    #[serde(other)]
+    Rendered,
 }
 
 /// Linguagem escolhida para a aba. `Auto` detecta pelo conteúdo/extensão;
 /// `Plain`, `Markdown` e `Dbml` são escolhas manuais que nunca mudam sozinhas.
+///
+/// Uma linguagem que esta versão não conhece (gravada por uma versão mais nova) vira `Auto`:
+/// sem isso o `session.json` inteiro falharia ao ler e iria para `session.json.corrupt`,
+/// deixando o app sem as abas abertas.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
-    #[default]
-    Auto,
     Plain,
     Markdown,
     Dbml,
+    #[default]
+    #[serde(other)]
+    Auto,
 }
 
 /// Fim de linha usado ao gravar o arquivo (o editor trabalha sempre com `\n`).
