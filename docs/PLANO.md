@@ -98,6 +98,17 @@ Continuação da Fase 5, ainda só visualização.
 
 Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), arrastar tabelas com layout salvo, `!include`/`DiagramView`/migrações.
 
+## Fase 7 — Janelas, visões e ligação código ↔ diagrama
+
+- ✅ 7.1 Abre maximizada.
+- ✅ 7.2 DBML fecha `(`, `[`, `{` e aspas sozinho; Enter entre chaves recua.
+- ✅ 7.3 Passar o mouse no diagrama pinta a linha no código; o cursor do editor destaca o elemento no diagrama (só quando o diagrama é da mesma versão do texto).
+- ✅ 7.4 Markdown renderizado ao lado do código (Ctrl+Shift+E), como o DBML; botão "Visão" na barra de status.
+- ✅ 7.5 Várias janelas: tirar aba arrastando, reordenar, mover entre janelas, voltar para a principal, várias abas por janela; janelas reabertas no mesmo lugar.
+- ✅ 7.6 Preview/diagrama numa janela separada, ligado à mesma aba.
+
+Fica para depois: dividir uma janela em dois editores lado a lado (hoje dois arquivos juntos = duas abas na mesma janela); mover aba entre janelas com o histórico de desfazer; arrastar a aba visualmente "para dentro" de outra janela (hoje solta-se sobre a janela).
+
 ## Pendências de ambiente
 
 - O WSL desta máquina não tem `pkg-config` nem `libwebkit2gtk-4.1-dev`, então o crate `app` não compila nativamente aqui. O `.exe` de Windows sai por cross-compile com `cargo-xwin` (veja `docs/rules/build-windows.md`); o app em si só foi executado no Windows do usuário.
