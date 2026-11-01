@@ -3,6 +3,7 @@ import { redo, selectAll, undo } from "@codemirror/commands";
 import type { EditorState, Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { emit, emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
@@ -12,13 +13,18 @@ import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 import { languageItems, mountMenuBar, viewItems } from "./menus";
-import { showMenu } from "./popup";
+import { type MenuItem, showMenu } from "./popup";
 import { mountStatusBar } from "./statusbar";
+import { attachTabDrag } from "./tabdrag";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
 const DETECT_MS = 600;
 
+const thisWindow = getCurrentWindow();
+const winLabel = thisWindow.label;
+const isMain = winLabel === "main";
+let exiting = false; // o app está fechando: janelas flutuantes só gravam, sem devolver as abas
 let session: Session;
 const states = new Map<string, EditorState>(); // abas já carregadas (guarda undo/seleção)
 const detected = new Map<string, Lang>(); // linguagem detectada no modo automático
@@ -357,7 +363,7 @@ async function flush() {
   await Promise.all(writes);
   if (sessionDirty || ids.length) {
     sessionDirty = false;
-    await enqueue(() => api.saveSession(structuredClone(session)));
+    await enqueue(() => api.saveWindow(structuredClone(session.tabs), session.active));
   }
 }
 
@@ -398,6 +404,7 @@ function renderTabs() {
       const el = document.createElement("div");
       el.className = "tab" + (t.id === session.active ? " active" : "");
       el.role = "tab";
+      el.dataset.id = t.id;
       el.title = t.path ?? (t.title || "Nova nota");
       const label = document.createElement("span");
       label.className = "label";
@@ -412,6 +419,10 @@ function renderTabs() {
       });
       el.addEventListener("click", () => void activate(t.id));
       el.addEventListener("auxclick", (e) => e.button === 1 && void closeTab(t.id));
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        void openTabMenu(t, el);
+      });
       el.append(label, close);
       return el;
     }),
@@ -423,7 +434,7 @@ function renderTabs() {
   add.addEventListener("click", () => void newTab());
   tabsEl.append(add);
   tabsEl.querySelector(".active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  void getCurrentWindow().setTitle(`${tabLabel(activeTab())} — Fullpad`);
+  void thisWindow.setTitle(`${tabLabel(activeTab())} — Fullpad`);
 }
 
 async function loadState(tab: TabState, text?: string): Promise<EditorState> {
@@ -491,6 +502,11 @@ async function closeTab(id: string) {
   session.tabs.splice(idx, 1);
   states.delete(id);
   detected.delete(id);
+  if (session.tabs.length === 0 && !isMain) {
+    await flush();
+    await thisWindow.destroy(); // janela flutuante sem abas some
+    return;
+  }
   if (session.tabs.length === 0) {
     const fresh = await api.newNote();
     session.tabs.push(fresh);
@@ -508,6 +524,117 @@ function cycle(delta: number) {
   const i = session.tabs.findIndex((t) => t.id === session.active);
   const n = session.tabs.length;
   void activate(session.tabs[(i + delta + n) % n].id);
+}
+
+// ---- várias janelas ---------------------------------------------------------
+
+/**
+ * Leva a aba para outra janela (`to`: rótulo ou "new") ou, com `drop`, para onde ela foi solta na
+ * tela. O texto pendente é gravado antes, para a outra janela ler a versão mais recente; o histórico
+ * de desfazer fica para trás.
+ */
+async function sendTab(id: string, to: string, drop?: { x: number; y: number }) {
+  const idx = session.tabs.findIndex((t) => t.id === id);
+  if (idx < 0) return;
+  const tab = session.tabs[idx];
+  if (id === session.active) snapshotActive();
+  if (dirtyNotes.has(id)) {
+    dirtyNotes.delete(id);
+    const text = states.get(id)!.doc.toString();
+    await enqueue(() => api.saveNote(id, text));
+  }
+  const copy = structuredClone(tab);
+  let dest: string;
+  try {
+    dest = await enqueue(() => (drop ? api.dropTab(copy, drop.x, drop.y) : api.moveTab(copy, to)));
+  } catch (e) {
+    await message(String(e), { title: "Erro ao mover a aba", kind: "error" });
+    return;
+  }
+  if (dest === winLabel) return;
+
+  session.tabs.splice(idx, 1);
+  states.delete(id);
+  detected.delete(id);
+  if (session.tabs.length === 0) {
+    if (!isMain) {
+      await thisWindow.destroy();
+      return;
+    }
+    const fresh = await api.newNote();
+    session.tabs.push(fresh);
+    await show(fresh, "");
+  } else if (id === session.active) {
+    await show(session.tabs[Math.min(idx, session.tabs.length - 1)]);
+  } else {
+    renderTabs();
+  }
+  sessionDirty = true;
+  await flush();
+}
+
+/** Menu de contexto da aba: mover para outra janela, fechar. */
+async function openTabMenu(tab: TabState, anchor: HTMLElement) {
+  const others = (await api.listWindows()).filter((w) => w.label !== winLabel);
+  const items: MenuItem[] = [
+    { label: "Mover para uma nova janela", action: () => void sendTab(tab.id, "new") },
+    ...others.map((w): MenuItem => ({ label: `Mover para: ${w.name}`, action: () => void sendTab(tab.id, w.label) })),
+  ];
+  if (!isMain) items.push({ label: "Voltar para a janela principal", action: () => void sendTab(tab.id, "main") });
+  items.push("sep", { label: "Fechar", shortcut: "Ctrl+W", action: () => void closeTab(tab.id) });
+  showMenu(anchor, items, "below");
+}
+
+attachTabDrag(tabsEl, {
+  onReorder(ids) {
+    const byId = new Map(session.tabs.map((t) => [t.id, t]));
+    session.tabs = ids.map((i) => byId.get(i)!).filter(Boolean);
+    sessionDirty = true;
+    scheduleSave();
+    renderTabs();
+  },
+  onTearOff: (id, x, y) => void sendTab(id, "new", { x, y }),
+});
+
+// uma aba chegou de outra janela
+void listen<TabState>("tab-incoming", async (e) => {
+  const tab = e.payload;
+  if (session.tabs.some((t) => t.id === tab.id)) return;
+  snapshotActive();
+  states.delete(tab.id);
+  detected.delete(tab.id);
+  session.tabs.push(tab);
+  await show(tab); // lê o texto gravado pela janela de origem
+  sessionDirty = true;
+  scheduleSave();
+  void thisWindow.setFocus();
+});
+
+// o app vai fechar: grava e avisa a principal
+void listen("app-exit", async () => {
+  exiting = true;
+  await flush();
+  await emitTo("main", "app-exit-ack", winLabel);
+});
+
+/** Principal: pede às outras janelas que gravem e espera as respostas (com limite de tempo). */
+async function closeEverything() {
+  await flush();
+  const others = (await api.listWindows()).map((w) => w.label).filter((l) => l !== "main");
+  if (others.length > 0) {
+    const pending = new Set(others);
+    await new Promise<void>((done) => {
+      const t = window.setTimeout(done, 2500);
+      void listen<string>("app-exit-ack", (e) => {
+        pending.delete(e.payload);
+        if (pending.size === 0) {
+          window.clearTimeout(t);
+          done();
+        }
+      }).then(() => emit("app-exit"));
+    });
+  }
+  await api.exitApp();
 }
 
 // ---- arquivos ---------------------------------------------------------------
@@ -623,11 +750,13 @@ function setLanguage(l: Language) {
 
 const menuActions = {
   newNote: () => void newTab(),
+  newWindow: () => void api.newWindow(),
+  tabToNewWindow: () => void sendTab(session.active!, "new"),
   openFile: () => void openFiles(),
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
   closeTab: () => void closeTab(session.active!),
-  exit: () => void getCurrentWindow().close(),
+  exit: () => void thisWindow.close(),
   undo: () => (undo(view), view.focus()),
   redo: () => (redo(view), view.focus()),
   selectAll: () => (selectAll(view), view.focus()),
@@ -662,7 +791,8 @@ window.addEventListener(
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     const key = e.key.toLowerCase();
     const run = (fn: () => void) => (e.preventDefault(), fn());
-    if ((key === "n" || key === "t") && !e.shiftKey) run(menuActions.newNote);
+    if (key === "n" && e.shiftKey) run(menuActions.newWindow);
+    else if ((key === "n" || key === "t") && !e.shiftKey) run(menuActions.newNote);
     else if (key === "o") run(menuActions.openFile);
     else if (key === "s") run(e.shiftKey ? menuActions.saveAs : menuActions.save);
     else if (key === "w") run(menuActions.closeTab);
@@ -696,10 +826,14 @@ async function boot() {
     view.focus();
   });
 
-  const win = getCurrentWindow();
+  const win = thisWindow;
   await win.onCloseRequested(async (e) => {
     e.preventDefault();
+    if (isMain) return void (await closeEverything());
+    if (exiting) return void (await flush()); // o app encerra sozinho
+    // janela flutuante fechada: as abas voltam para a principal (nada se perde)
     await flush();
+    for (const t of [...session.tabs]) await sendTab(t.id, "main");
     await win.destroy();
   });
   await win.show(); // janela nasce escondida: sem flash branco
@@ -708,5 +842,5 @@ async function boot() {
 boot().catch((e) => {
   console.error(e);
   document.body.textContent = `Erro ao iniciar: ${e}`;
-  void getCurrentWindow().show();
+  void thisWindow.show();
 });

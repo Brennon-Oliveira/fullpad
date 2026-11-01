@@ -20,6 +20,10 @@ export interface TabState {
   eol: Eol;
   encoding: Encoding;
   dirty: boolean;
+  /** Janela onde a aba está ("main" é a principal). */
+  window: string;
+  /** A visão renderizada está numa janela própria. */
+  detached: boolean;
 }
 
 export interface Session {
@@ -33,11 +37,25 @@ export interface Startup {
   active_text: string;
 }
 
+export interface WindowInfo {
+  label: string;
+  name: string;
+}
+
 export const api = {
+  /** Sessão da janela que pergunta: só as abas dela. */
   loadStartup: () => invoke<Startup>("load_startup"),
   readNote: (id: string) => invoke<string>("read_note", { id }),
   saveNote: (id: string, text: string) => invoke<void>("save_note", { id, text }),
-  saveSession: (session: Session) => invoke<void>("save_session", { session }),
+  /** Envia as abas desta janela (na ordem dela) e a ativa. */
+  saveWindow: (tabs: TabState[], active: string | null) => invoke<void>("save_window", { tabs, active }),
+  listWindows: () => invoke<WindowInfo[]>("list_windows"),
+  /** `to`: rótulo de uma janela aberta ou "new". Devolve o rótulo de destino. */
+  moveTab: (tab: TabState, to: string) => invoke<string>("move_tab", { tab, to }),
+  /** Aba solta no ponto (x, y) da tela: vai para a janela que estiver ali, ou para uma nova. */
+  dropTab: (tab: TabState, x: number, y: number) => invoke<string>("drop_tab", { tab, x, y }),
+  newWindow: () => invoke<string>("new_window"),
+  exitApp: () => invoke<void>("exit_app"),
   newNote: () => invoke<TabState>("new_note"),
   closeNote: (id: string) => invoke<void>("close_note", { id }),
   openFile: (path: string) => invoke<{ tab: TabState; text: string }>("open_file", { path }),

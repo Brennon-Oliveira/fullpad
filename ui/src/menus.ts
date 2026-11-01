@@ -4,6 +4,8 @@ import { type MenuItem, closeMenu, showMenu } from "./popup";
 
 export interface MenuActions {
   newNote(): void;
+  newWindow(): void;
+  tabToNewWindow(): void;
   openFile(): void;
   save(): void;
   saveAs(): void;
@@ -59,6 +61,8 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
       label: "Arquivo",
       items: () => [
         { label: "Novo", shortcut: "Ctrl+N", action: a.newNote },
+        { label: "Nova janela", shortcut: "Ctrl+Shift+N", action: a.newWindow },
+        { label: "Mover aba para uma nova janela", action: a.tabToNewWindow },
         { label: "Abrir…", shortcut: "Ctrl+O", action: a.openFile },
         "sep",
         { label: "Salvar", shortcut: "Ctrl+S", action: a.save },

@@ -238,3 +238,7 @@ button { font: inherit; color: inherit; }
 .cm-md-codefirst { border-radius: 6px 6px 0 0; padding-top: 4px !important; }
 .cm-md-codelast { border-radius: 0 0 6px 6px; padding-bottom: 4px !important; }
 .cm-md-fence { color: var(--muted); }
+
+/* ---- arrastar abas ---- */
+.tab.dragging { opacity: .75; background: var(--tab); box-shadow: 0 2px 8px rgba(0,0,0,.35); position: relative; z-index: 1; }
+.tab.torn { opacity: .45; outline: 1px dashed var(--accent); }
