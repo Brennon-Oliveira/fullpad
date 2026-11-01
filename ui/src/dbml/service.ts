@@ -11,6 +11,17 @@ export interface DbmlDiagnostic {
   quickFixes?: { title: string; edits: { start: number; end: number; newText: string }[] }[];
 }
 
+/** Item de autocomplete do provider (formato Monaco; só os campos que usamos). */
+export interface DbmlCompletion {
+  label: string;
+  insertText: string;
+  /** Bitmask do Monaco: 4 = o texto é um snippet (`${1:nome}`). */
+  insertTextRules?: number;
+  /** `CompletionItemKind` do Monaco (5 = tabela, 3 = coluna, 24 = tipo, 9 = configuração, 17 = palavra-chave). */
+  kind?: number;
+  detail?: string;
+}
+
 type Compiler = { interpretFile(entry: unknown): ReturnType<Interpreter> };
 type Layout = { setSource(path: unknown, text: string): void };
 
@@ -20,12 +31,20 @@ export interface DbmlParse {
   MemoryProjectLayout: new (files: Record<string, string>) => Layout;
   Filepath: { from(path: string): unknown };
   DBMLDiagnosticsProvider: new (c: Compiler) => { provideDiagnostics(entry: unknown): DbmlDiagnostic[] };
+  DBMLCompletionItemProvider: new (c: Compiler) => {
+    triggerCharacters: string[];
+    provideCompletionItems(model: unknown, position: unknown, context: unknown, token: unknown): unknown;
+  };
 }
 
 /** Serviço único por janela: painel do diagrama, diagnóstico e autocomplete compartilham o compilador. */
 export interface DbmlService {
   interpret: Interpreter;
   diagnostics(text: string): DbmlDiagnostic[];
+  /** Sugestões para o cursor em `offset` (posição no texto). */
+  completions(text: string, offset: number): DbmlCompletion[];
+  /** Caracteres que, ao serem digitados, já pedem sugestões (`.`, `[`, espaço...). */
+  triggerCharacters: string[];
 }
 
 const ENTRY = "/main.dbml";
@@ -35,6 +54,7 @@ export function createDbmlService(parse: DbmlParse): DbmlService {
   const layout = new parse.MemoryProjectLayout({ [ENTRY]: "" });
   const compiler = new parse.Compiler(layout);
   const diag = new parse.DBMLDiagnosticsProvider(compiler);
+  const completion = new parse.DBMLCompletionItemProvider(compiler);
   let current = "";
 
   /** Aponta o compilador para o texto; ele invalida o cache sozinho quando o texto muda. */
@@ -54,6 +74,21 @@ export function createDbmlService(parse: DbmlParse): DbmlService {
       sync(text);
       return diag.provideDiagnostics(entry);
     },
+    completions(text, offset) {
+      sync(text);
+      // O provider foi escrito para o Monaco, mas só usa `uri` (qual arquivo) e `getOffsetAt(posição)`:
+      // como já temos o deslocamento, o "modelo" devolve ele mesmo e a posição nem precisa ser convertida.
+      const model = {
+        uri: { scheme: "file", path: ENTRY, fsPath: ENTRY, toString: () => `file://${ENTRY}` },
+        getOffsetAt: () => offset,
+      };
+      const res = completion.provideCompletionItems(model, { lineNumber: 1, column: offset + 1 }, { triggerKind: 1 }, {
+        isCancellationRequested: false,
+      }) as { suggestions?: DbmlCompletion[] } | DbmlCompletion[] | Promise<unknown> | undefined;
+      if (!res || "then" in res) return []; // o provider é síncrono; promessa = algo inesperado
+      return Array.isArray(res) ? res : (res.suggestions ?? []);
+    },
+    triggerCharacters: completion.triggerCharacters ?? [],
   };
 }
 

@@ -92,6 +92,7 @@ Continuação da Fase 5, ainda só visualização.
 | 6.3 | ✅ Hover em coluna/aresta destaca a relação | Passar o mouse numa coluna ilumina as arestas e as colunas do outro lado |
 | 6.4 | ✅ Exportar SVG e PNG | Botões no painel; salva pelo diálogo do sistema, com escrita atômica |
 | 6.6 | ✅ Diagnóstico no editor: sublinhado de erros de sintaxe e semânticos (coluna que não existe, tabela duplicada...) com correções sugeridas, usando o `DBMLDiagnosticsProvider` do parser sobre um compilador compartilhado (`ui/src/dbml/service.ts`) | Erro aparece sublinhado no texto com a mensagem no hover, mesmo com o diagrama fechado |
+| 6.7 | ✅ Autocomplete no editor: tipos de coluna, configurações `[...]`, tabelas e colunas em `Ref` (inclusive após `tabela.`), blocos do topo e do corpo da tabela, com snippets. Usa o `DBMLCompletionItemProvider` do parser através de um adaptador mínimo | Digitar `id ` sugere tipos; `[` sugere `pk`, `not null`...; `Ref: a.` sugere as colunas de `a`; Ctrl+Espaço força |
 | 6.5 | ✅ Destaque de sintaxe do DBML no editor (`ui/src/dbmllang.ts`) | Palavras-chave, nomes, tipos, configurações `[...]`, relações (`>`, `?>`...), strings e comentários coloridos; tema claro e escuro |
 
 Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), arrastar tabelas com layout salvo, `!include`/`DiagramView`/migrações.

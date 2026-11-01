@@ -50,3 +50,56 @@ describe("diagnóstico no editor", () => {
     }
   });
 });
+
+import { toCompletionOptions, toSnippetTemplate } from "./editor";
+
+describe("autocomplete", () => {
+  /** `|` marca o cursor. */
+  const at = (marked: string) => {
+    const offset = marked.indexOf("|");
+    const text = marked.replace("|", "");
+    return service.completions(text, offset).map((c) => c.label);
+  };
+
+  it("sugere tipos depois do nome da coluna", () => {
+    const l = at("Table a {\n  id |\n}");
+    expect(l).toEqual(expect.arrayContaining(["integer", "varchar", "text"]));
+  });
+
+  it("sugere configurações dentro dos colchetes", () => {
+    const l = at("Table a { id int [|] }");
+    expect(l).toEqual(expect.arrayContaining(["pk", "primary key", "not null", "unique"]));
+  });
+
+  it("sugere as colunas depois de `tabela.`", () => {
+    expect(at("Table a { id int }\nTable b { x int }\nRef: b.x > a.|")).toEqual(["id"]);
+  });
+
+  it("sugere tabelas do arquivo em um Ref", () => {
+    expect(at("Table a { id int }\nTable b { x int }\nRef: |")).toEqual(expect.arrayContaining(["a", "b"]));
+  });
+
+  it("sugere os blocos no topo e no corpo da tabela", () => {
+    expect(at("|")).toEqual(expect.arrayContaining(["Table", "Enum", "Ref"]));
+    expect(at("Table a {\n  |\n}")).toEqual(expect.arrayContaining(["Note", "indexes"]));
+  });
+
+  it("acompanha o texto que muda (sem resíduo do compilador)", () => {
+    expect(at("Table a { id int }\nRef: |")).toContain("a");
+    expect(at("Table z { id int }\nRef: |")).toEqual(expect.arrayContaining(["z"]));
+    expect(at("Table z { id int }\nRef: |")).not.toContain("a");
+  });
+
+  it("converte os itens para o CodeMirror com o tipo certo", () => {
+    const items = service.completions("Table a { id int }\nRef: ", 24);
+    const opt = toCompletionOptions(items).find((o) => o.label === "a")!;
+    expect(opt.type).toBe("class");
+    const ty = toCompletionOptions(service.completions("Table a {\n  id \n}", 15)).find((o) => o.label === "varchar")!;
+    expect(ty.type).toBe("type");
+  });
+
+  it("converte a sintaxe de snippet do Monaco", () => {
+    expect(toSnippetTemplate("Table ${1:nome} {\n\t$0\n}")).toBe("Table ${1:nome} {\n\t${}\n}");
+    expect(toSnippetTemplate("a $1 b $2")).toBe("a ${1} b ${2}");
+  });
+});
