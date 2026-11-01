@@ -78,3 +78,63 @@ describe("renderDiagram", () => {
     expect(links[0].querySelector("path")?.getAttribute("d")).toMatch(/^M[\d.-]+,[\d.-]+ H/);
   });
 });
+
+describe("ligação com o código", () => {
+  const SRC = "Table users {\n  id int [pk]\n  name text\n}\nTable posts {\n  id int [pk]\n  uid int [ref: > users.id]\n}\nEnum st {\n  a\n  b\n}\n";
+  function setup() {
+    const d = parseDbml(interpret, SRC).diagram!;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    const hovered: (unknown[] | null)[] = [];
+    const r = renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g, { onHover: (s) => hovered.push(s) });
+    return { g, r, hovered };
+  }
+  const at = (needle: string, extra = 0) => SRC.indexOf(needle) + extra;
+
+  it("cursor numa coluna destaca a linha e as relações dela", () => {
+    const { g, r } = setup();
+    expect(r.focusAt(at("name text", 2))).not.toBeNull();
+    const hl = [...g.querySelectorAll(".dbml-row.fc")].map((e) => e.getAttribute("data-k"));
+    expect(hl).toEqual(["users\u001fname"]); // sem relação: só a própria linha
+    expect(g.classList.contains("focusing")).toBe(true);
+
+    r.focusAt(at("id int [pk]", 2)); // users.id tem relação com posts.uid
+    expect([...g.querySelectorAll(".dbml-row.fc")].map((e) => e.getAttribute("data-k")).sort()).toEqual(["posts\u001fuid", "users\u001fid"]);
+    expect(g.querySelectorAll(".dbml-edge.fc")).toHaveLength(1);
+  });
+
+  it("cursor na relação inline destaca a aresta e as duas pontas", () => {
+    const { g, r } = setup();
+    r.focusAt(at("ref: > users.id", 3));
+    expect(g.querySelectorAll(".dbml-edge.fc")).toHaveLength(1);
+    expect(g.querySelectorAll(".dbml-row.fc")).toHaveLength(2);
+  });
+
+  it("cursor no cabeçalho da tabela destaca a tabela; fora de tudo limpa", () => {
+    const { g, r } = setup();
+    r.focusAt(at("Table posts", 2));
+    expect(g.querySelector(".dbml-table.fc")?.getAttribute("data-t")).toBe("posts");
+    r.focusAt(at("Enum st", 2));
+    expect(g.querySelector(".dbml-enum.fc")).not.toBeNull();
+    expect(g.querySelector(".dbml-table.fc")).toBeNull();
+    expect(r.focusAt(null)).toBeNull();
+    expect(g.classList.contains("focusing")).toBe(false);
+    expect(g.querySelector(".fc")).toBeNull();
+  });
+
+  it("mouse sobre coluna, aresta e cabeçalho informa o trecho do texto", () => {
+    const { g, hovered } = setup();
+    const fire = (el: Element | null) => el!.dispatchEvent(new Event("mouseenter"));
+    const text = (s: unknown) => SRC.slice((s as { from: number }).from, (s as { to: number }).to);
+
+    fire(g.querySelector('.dbml-row[data-k="users\u001fname"]'));
+    expect(text(hovered.at(-1)![0])).toBe("name text");
+    fire(g.querySelector(".dbml-edge:not(.dbml-enumlink)"));
+    expect(text(hovered.at(-1)![0])).toContain("ref: > users.id");
+    fire(g.querySelector('.dbml-table[data-t="users"] .dbml-head'));
+    const head = hovered.at(-1)![0] as { from: number; to: number };
+    expect(head.from).toBe(0); // só o início do bloco: o editor pinta a linha da declaração
+    expect(head.to).toBe(0);
+    g.querySelector('.dbml-row[data-k="users\u001fname"]')!.dispatchEvent(new Event("mouseleave"));
+    expect(hovered.at(-1)).toBeNull();
+  });
+});

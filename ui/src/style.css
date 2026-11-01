@@ -178,6 +178,16 @@ button { font: inherit; color: inherit; }
 .dbml-edge path.dbml-hit { stroke: transparent; stroke-width: 12; pointer-events: stroke; }
 .dbml-edge path { fill: none; stroke: var(--muted); stroke-width: 1.4; }
 .dbml-edge text { fill: var(--muted); font: 11px var(--sans); }
+.dbml-row.fc { fill: color-mix(in srgb, var(--accent) 42%, transparent); stroke: var(--accent); stroke-width: 1.5; }
+.dbml-vrow { fill: transparent; }
+.dbml-vrow.fc { fill: color-mix(in srgb, var(--accent) 42%, transparent); stroke: var(--accent); stroke-width: 1.5; }
+.dbml-edge.fc path:not(.dbml-hit) { stroke: var(--accent); stroke-width: 3; }
+.dbml-edge.fc text { fill: var(--accent); font-weight: 700; }
+.dbml-table.fc .dbml-box, .dbml-enum.fc .dbml-box { stroke: var(--accent); stroke-width: 3; }
+.dbml-group.fc rect { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: none; fill: color-mix(in srgb, var(--accent) 16%, transparent); }
+.focusing:not(.hovering) .dbml-edge:not(.fc) { opacity: .2; }
+.focusing:not(.hovering) .dbml-table:not(.kp), .focusing:not(.hovering) .dbml-enum:not(.kp) { opacity: .45; }
+.cm-hint-line { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
 .dbml-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
 .dbml-error { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 12px; font: 12px var(--mono); background: color-mix(in srgb, #d33 22%, var(--bar)); border-top: 1px solid #d33; }
 .dbml-error[hidden] { display: none; }

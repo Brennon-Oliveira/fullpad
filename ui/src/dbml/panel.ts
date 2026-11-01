@@ -2,9 +2,9 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { buildSvg, svgToPng } from "./export";
 import { type DagreLike, type Layout, layoutDiagram } from "./layout";
-import { type Interpreter, parseDbml } from "./model";
+import { type Interpreter, type Span, parseDbml } from "./model";
 import { loadDbmlService } from "./service";
-import { renderDiagram } from "./render";
+import { type Rendered, renderDiagram } from "./render";
 import { attachViewport } from "./viewport";
 
 /** Acima disso o diagrama desliga para não pesar. */
@@ -37,7 +37,15 @@ function div(cls: string, text = ""): HTMLDivElement {
   return d;
 }
 
-export function createDiagramPanel(host: HTMLElement) {
+export interface PanelHooks {
+  /**
+   * Mouse sobre um elemento do diagrama. `rev` diz de qual versão do texto vêm os trechos; quem
+   * recebe só deve usá-los se o texto ainda for essa versão (senão apontariam para o lugar errado).
+   */
+  onHover?(spans: Span[] | null, rev: number): void;
+}
+
+export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("class", "dbml-svg");
   const g = document.createElementNS(NS, "g");
@@ -58,6 +66,11 @@ export function createDiagramPanel(host: HTMLElement) {
 
   let layout: Layout | null = null;
   let lastText: string | null = null;
+  let renderedText: string | null = null; // texto do diagrama que está na tela
+  let latestRev = 0;
+  let renderedRev = -1; // versão do texto a que o diagrama na tela corresponde
+  let rendered: Rendered | null = null;
+  let cursor: { offset: number | null; rev: number } = { offset: null, rev: -1 };
   let seq = 0;
   let fitNext = true;
   let timer: number | undefined;
@@ -85,6 +98,14 @@ export function createDiagramPanel(host: HTMLElement) {
   tool("SVG", "Exportar como SVG", () => void exportAs("svg"));
   tool("PNG", "Exportar como PNG", () => void exportAs("png"));
 
+  /** Destaca o que está sob o cursor do editor, se o diagrama ainda corresponde ao texto dele. */
+  function applyFocus(reveal: boolean) {
+    if (!rendered) return;
+    const live = cursor.offset !== null && cursor.rev === renderedRev;
+    const box = rendered.focusAt(live ? cursor.offset : null);
+    if (box && reveal) viewport.reveal(box);
+  }
+
   async function render(text: string) {
     const my = ++seq;
     if (!libsPromise) message.textContent = "Carregando diagrama…";
@@ -106,13 +127,17 @@ export function createDiagramPanel(host: HTMLElement) {
     const d = res.diagram;
     if (d.tables.length === 0) {
       layout = null;
+      rendered = null;
       g.replaceChildren();
       message.textContent = "Nenhuma tabela. Escreva, por exemplo: Table usuarios { id int [pk] }";
       return;
     }
     message.textContent = "";
     layout = layoutDiagram(d, libs.dagre);
-    renderDiagram(d, layout, g);
+    rendered = renderDiagram(d, layout, g, { onHover: (spans) => hooks.onHover?.(spans, renderedRev) });
+    renderedText = text;
+    if (lastText === text) renderedRev = latestRev;
+    applyFocus(false);
     if (fitNext) {
       fitNext = false;
       fit();
@@ -121,23 +146,38 @@ export function createDiagramPanel(host: HTMLElement) {
 
   return {
     /** Mostra o painel e renderiza já (troca de aba, ligar o preview). `resetView` reenquadra. */
-    show(text: string, resetView: boolean) {
+    show(text: string, resetView: boolean, rev = 0) {
       host.classList.add("on");
+      latestRev = rev;
       if (resetView) fitNext = true;
-      if (text === lastText && !resetView) return;
+      if (text === lastText && !resetView) {
+        if (renderedText === text) renderedRev = rev;
+        return;
+      }
       lastText = text;
       window.clearTimeout(timer);
       void render(text);
     },
     /** Texto mudou: renderiza com debounce. */
-    update(text: string) {
-      if (text === lastText) return;
+    update(text: string, rev = 0) {
+      latestRev = rev;
+      if (text === lastText) {
+        if (renderedText === text) renderedRev = rev;
+        return;
+      }
       lastText = text;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => void render(text), DEBOUNCE_MS);
     },
+    /** O cursor do editor está em `offset` (versão `rev` do texto): destaca o elemento correspondente. */
+    setCursor(offset: number | null, rev: number) {
+      cursor = { offset, rev };
+      applyFocus(true);
+    },
     hide() {
       window.clearTimeout(timer);
+      renderedText = null;
+      renderedRev = -1;
       lastText = null; // o texto pode mudar enquanto escondido: força renderizar ao reabrir
       host.classList.remove("on");
     },

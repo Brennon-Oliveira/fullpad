@@ -5,7 +5,7 @@ import type { ViewUpdate } from "@codemirror/view";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, type Encoding, type Eol, type Language, type Session, type TabState } from "./api";
-import { createState, createView, isDark, tabEffects } from "./editor";
+import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
 import type { DiagramPanel } from "./dbml/panel";
 import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
@@ -133,6 +133,7 @@ function ensureDbmlSupport() {
 let diagram: DiagramPanel | undefined;
 let diagramLoading: Promise<void> | undefined;
 let diagramTab: string | null = null; // aba cujo diagrama está na tela
+let docRev = 0; // muda a cada edição/troca de aba: o diagrama só se liga ao código se for da mesma versão
 
 const diagramWanted = (tab: TabState) => previewOn(tab) && effectiveLang(tab) === "dbml";
 
@@ -147,14 +148,18 @@ function syncDiagram(textChanged = false) {
   const text = view.state.doc.toString();
   const run = () => {
     if (!diagram || !diagramWanted(activeTab())) return;
-    if (textChanged && diagramTab === tab.id) diagram.update(text);
-    else diagram.show(text, diagramTab !== tab.id);
+    if (textChanged && diagramTab === tab.id) diagram.update(text, docRev);
+    else diagram.show(text, diagramTab !== tab.id, docRev);
     diagramTab = tab.id;
+    diagram.setCursor(view.state.selection.main.head, docRev);
   };
   if (diagram) return run();
   diagramEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
   diagramLoading ??= import("./dbml/panel").then((m) => {
-    diagram = m.createDiagramPanel(diagramEl);
+    diagram = m.createDiagramPanel(diagramEl, {
+      // mouse sobre o diagrama → destaca a linha no código (sem selecionar)
+      onHover: (spans, rev) => view.dispatch({ effects: hintLines(spans && rev === docRev ? spans : null) }),
+    });
   });
   void diagramLoading.then(run);
 }
@@ -312,6 +317,7 @@ function scheduleSave() {
 
 function onEditorUpdate(u: ViewUpdate) {
   if (u.docChanged) {
+    docRev++;
     syncDiagram(true);
     const tab = activeTab();
     if (!tab.path) {
@@ -322,6 +328,9 @@ function onEditorUpdate(u: ViewUpdate) {
     markModified(tab);
     scheduleDetect();
     scheduleSizeRefresh();
+  }
+  if (u.selectionSet && !u.docChanged && diagramTab === activeTab().id) {
+    diagram?.setCursor(u.state.selection.main.head, docRev); // cursor → destaque no diagrama
   }
   if (u.docChanged || u.selectionSet) refreshStatus(false);
 }
@@ -378,6 +387,7 @@ async function loadState(tab: TabState, text?: string): Promise<EditorState> {
 async function show(tab: TabState, text?: string) {
   const st = await loadState(tab, text);
   session.active = tab.id;
+  docRev++;
   view.setState(st);
   redetect(tab);
   applyTabConfig();

@@ -3,8 +3,8 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState, type Extension, type StateEffect } from "@codemirror/state";
-import { EditorView, drawSelection, keymap, type ViewUpdate } from "@codemirror/view";
+import { Compartment, EditorState, type Extension, StateEffect, StateField } from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView, drawSelection, keymap, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { codeLanguages } from "./codelangs";
 import { dbmlLanguage } from "./dbmllang";
@@ -58,6 +58,34 @@ const markdownSource = HighlightStyle.define([
   { tag: tags.strikethrough, class: "md-strike" },
   { tag: tags.processingInstruction, class: "md-mark" },
 ]);
+
+/**
+ * Destaque de linhas apontadas de fora (o mouse sobre o diagrama): só pinta o fundo, não seleciona nem
+ * move o cursor. Qualquer edição apaga o destaque, porque os trechos deixariam de valer.
+ */
+const setHint = StateEffect.define<{ from: number; to: number }[] | null>();
+const hintField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    if (tr.docChanged) value = Decoration.none;
+    for (const e of tr.effects) {
+      if (!e.is(setHint)) continue;
+      const doc = tr.state.doc;
+      const lines = new Set<number>();
+      for (const r of e.value ?? []) {
+        const a = doc.lineAt(Math.min(r.from, doc.length)).number;
+        const b = doc.lineAt(Math.min(Math.max(r.to, r.from), doc.length)).number;
+        for (let n = a; n <= b; n++) lines.add(n);
+      }
+      value = Decoration.set([...lines].sort((x, y) => x - y).map((n) => Decoration.line({ class: "cm-hint-line" }).range(doc.line(n).from)));
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+/** Efeito para destacar os trechos (ou limpar, com `null`). */
+export const hintLines = (spans: { from: number; to: number }[] | null) => setHint.of(spans);
 
 const phrases = EditorState.phrases.of({
   Find: "Localizar",
@@ -138,6 +166,7 @@ export function createState(
       themeC.of(EditorView.darkTheme.of(isDark())),
       wrapC.of(EditorView.lineWrapping),
       overwriteC.of([]),
+      hintField,
       syntaxHighlighting(highlight),
       syntaxHighlighting(markdownSource),
       keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),

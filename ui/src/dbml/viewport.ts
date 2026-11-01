@@ -45,6 +45,20 @@ export function attachViewport(svg: SVGSVGElement, g: SVGGElement) {
   svg.addEventListener("pointercancel", end);
 
   return {
+    /** Traz a caixa (coordenadas do layout) à vista, só deslocando; não mexe no zoom. */
+    reveal(box: { x: number; y: number; w: number; h: number }, margin = 24) {
+      const r = svg.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return;
+      const fit = (pos: number, size: number, t: number, view: number): number => {
+        const a = pos * k + t, b = (pos + size) * k + t;
+        if (a >= margin && b <= view - margin) return t; // já visível
+        if ((size * k) > view - 2 * margin) return margin - pos * k; // maior que a tela: alinha o início
+        return view / 2 - (pos + size / 2) * k; // centraliza
+      };
+      tx = fit(box.x, box.w, tx, r.width);
+      ty = fit(box.y, box.h, ty, r.height);
+      apply();
+    },
     /** Ajusta o conteúdo (largura x altura do layout) à área visível. */
     fit(width: number, height: number) {
       const r = svg.getBoundingClientRect();
