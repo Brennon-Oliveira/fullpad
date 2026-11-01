@@ -6,6 +6,11 @@ describe("detectLanguage", () => {
     expect(detectLanguage("", "C:\\notas\\a.md")).toBe("markdown");
     expect(detectLanguage("# titulo\n- a\n- b\n- c", "a.txt")).toBe("plain");
   });
+  it("reconhece DBML só pela extensão", () => {
+    expect(detectLanguage("Table a { id int }", "esquema.dbml")).toBe("dbml");
+    expect(detectLanguage("", "C:\\x\\esquema.DBMLX")).toBe("dbml");
+    expect(detectLanguage("Table a { id int }", null)).toBe("plain");
+  });
   it("detecta markdown em nota avulsa", () => {
     expect(detectLanguage("# Título\ntexto", null)).toBe("markdown");
     expect(detectLanguage("- [ ] a\n- [x] b", null)).toBe("markdown");

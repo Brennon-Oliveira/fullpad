@@ -81,7 +81,27 @@ button { font: inherit; color: inherit; }
 #status .preview input { margin: 0; }
 
 /* ---- editor ---- */
-#editor { flex: 1; min-height: 0; }
+#work { flex: 1; min-height: 0; display: flex; }
+#editor { flex: 1; min-width: 0; min-height: 0; }
+
+/* ---- diagrama DBML (painel dividido) ---- */
+#diagram { display: none; flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--border); background: var(--bg); }
+#diagram.on { display: block; }
+.dbml-svg { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; touch-action: none; }
+.dbml-svg.panning { cursor: grabbing; }
+.dbml-box { fill: var(--bar); stroke: var(--border); stroke-width: 1; }
+.dbml-head { fill: color-mix(in srgb, var(--accent) 28%, var(--bar)); }
+.dbml-title { fill: var(--fg); font: 600 13px var(--sans); }
+.dbml-col { fill: var(--fg); font: 12px var(--mono); }
+.dbml-pk { fill: var(--accent); font-weight: 700; }
+.dbml-type { fill: var(--muted); font: 12px var(--mono); }
+.dbml-edge path { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.dbml-edge text { fill: var(--muted); font: 11px var(--sans); }
+.dbml-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
+.dbml-error { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 12px; font: 12px var(--mono); background: color-mix(in srgb, #d33 22%, var(--bar)); border-top: 1px solid #d33; }
+.dbml-error[hidden] { display: none; }
+.dbml-fit { position: absolute; top: 8px; right: 8px; font: 12px var(--sans); padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bar); color: var(--fg); cursor: pointer; }
+.dbml-fit:hover { background: var(--tab); }
 .cm-editor { height: 100%; background: var(--bg); color: var(--fg); }
 .cm-editor.cm-focused { outline: none; }
 .cm-scroller { font: 15px/1.6 var(--mono); padding: 8px 0; }

@@ -6,8 +6,10 @@ import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plu
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, type Encoding, type Eol, type Language, type Session, type TabState } from "./api";
 import { createState, createView, tabEffects } from "./editor";
+import type { DiagramPanel } from "./dbml/panel";
 import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
+const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 import { languageItems, mountMenuBar } from "./menus";
 import { showMenu } from "./popup";
 import { mountStatusBar } from "./statusbar";
@@ -32,6 +34,7 @@ let lastSize = 0;
 const menubarEl = document.getElementById("menubar")!;
 const tabsEl = document.getElementById("tabs")!;
 const editorEl = document.getElementById("editor")!;
+const diagramEl = document.getElementById("diagram")!;
 const statusEl = document.getElementById("status")!;
 let view: ReturnType<typeof createView>;
 
@@ -67,9 +70,11 @@ function effectiveLang(tab: TabState): Lang {
   return tab.language === "auto" ? (detected.get(tab.id) ?? "plain") : tab.language;
 }
 
+/** Markdown (live preview) e DBML (diagrama) têm visão renderizada; cada um com seu limite de tamanho. */
 function previewAvailable(tab: TabState): boolean {
-  const st = states.get(tab.id);
-  return effectiveLang(tab) === "markdown" && (st?.doc.length ?? 0) <= MAX_PREVIEW_CHARS;
+  const len = states.get(tab.id)?.doc.length ?? 0;
+  const lang = effectiveLang(tab);
+  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS);
 }
 
 function previewOn(tab: TabState): boolean {
@@ -88,12 +93,44 @@ function applyTabConfig() {
   view.dispatch({
     effects: tabEffects({
       markdown: effectiveLang(tab) === "markdown",
-      preview: previewOn(tab),
+      preview: previewOn(tab) && effectiveLang(tab) === "markdown",
       wrap,
       overwrite,
     }),
   });
+  syncDiagram();
   refreshStatus();
+}
+
+// ---- diagrama DBML (carregado sob demanda) ------------------------------------
+
+let diagram: DiagramPanel | undefined;
+let diagramLoading: Promise<void> | undefined;
+let diagramTab: string | null = null; // aba cujo diagrama está na tela
+
+const diagramWanted = (tab: TabState) => previewOn(tab) && effectiveLang(tab) === "dbml";
+
+/** Mostra/esconde o painel conforme a aba ativa. O módulo só é importado na 1ª vez que um DBML pede. */
+function syncDiagram(textChanged = false) {
+  const tab = activeTab();
+  if (!diagramWanted(tab)) {
+    diagram?.hide();
+    diagramTab = null;
+    return;
+  }
+  const text = view.state.doc.toString();
+  const run = () => {
+    if (!diagram || !diagramWanted(activeTab())) return;
+    if (textChanged && diagramTab === tab.id) diagram.update(text);
+    else diagram.show(text, diagramTab !== tab.id);
+    diagramTab = tab.id;
+  };
+  if (diagram) return run();
+  diagramEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
+  diagramLoading ??= import("./dbml/panel").then((m) => {
+    diagram = m.createDiagramPanel(diagramEl);
+  });
+  void diagramLoading.then(run);
 }
 
 function scheduleDetect() {
@@ -117,7 +154,7 @@ const ENC_LABEL: Record<Encoding, string> = {
   utf16be: "UTF-16 BE BOM",
   windows1252: "Windows-1252",
 };
-const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown" };
+const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML" };
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
@@ -249,6 +286,7 @@ function scheduleSave() {
 
 function onEditorUpdate(u: ViewUpdate) {
   if (u.docChanged) {
+    syncDiagram(true);
     const tab = activeTab();
     if (!tab.path) {
       const before = tab.title;
@@ -388,7 +426,7 @@ function cycle(delta: number) {
 // ---- arquivos ---------------------------------------------------------------
 
 const FILTERS = [
-  { name: "Texto e Markdown", extensions: ["md", "markdown", "txt"] },
+  { name: "Texto, Markdown e DBML", extensions: ["md", "markdown", "txt", "dbml", "dbmlx"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 

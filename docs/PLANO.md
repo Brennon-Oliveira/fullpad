@@ -67,6 +67,20 @@ Regra: o documento é sempre texto puro; renderizar nunca reescreve o conteúdo.
 
 **PARADA 4:** versão 1.0. Revisamos o que sobrou e decidimos o que entra depois (sync, exportar HTML/PDF, SQLite+FTS).
 
+## Fase 5 — Diagrama DBML (somente visualização)
+
+Arquivos `.dbml`/`.dbmlx` (ou nota avulsa com a linguagem "DBML" escolhida no menu) ganham um painel de diagrama ao lado do texto, no estilo da extensão [dbmlx](https://github.com/myzenon/dbmlx). Escopo fechado: só ver o esquema. Sem arrastar tabelas e sem arquivo de layout (`.layout.json`), sem `!include`, `DiagramView` ou anotações de migração.
+
+| Milestone | Entrega | Critério de aceite |
+|---|---|---|
+| 5.A | Spike: parser no navegador e custo de bundle | ✅ `@dbml/parse@3.9.0` (175 kB, 49 kB gzip) + `@dagrejs/dagre` (47 kB); o `@dbml/core` (15,7 MB) foi descartado |
+| 5.B | Linguagem DBML (`Language::Dbml`), parse, layout automático, SVG, pan/zoom, erro de sintaxe sem perder o último diagrama | Abrir `.dbml` mostra o painel; digitar atualiza em ~300 ms; Ctrl+E liga/desliga sem mexer no texto |
+| 5.C | Carga sob demanda | O boot não baixa parser nem dagre; só ao pedir o diagrama (chunks separados) |
+
+**PARADA 5:** você abre esquemas DBML reais. Quero saber: o que fica estranho no layout, o que falta mostrar (notas, enums, grupos, índices), esquemas grandes.
+
+Fica para depois: arrastar tabelas e persistir posições (decidir onde guardar o layout de nota avulsa), TableGroups, hover de coluna/aresta, exportar SVG/PNG, roteamento ortogonal elaborado, autocomplete/diagnóstico no editor, `!include`/`DiagramView`/migrações, destaque de sintaxe DBML.
+
 ## Pendências de ambiente
 
 - O WSL desta máquina não tem `pkg-config` nem `libwebkit2gtk-4.1-dev`, então o crate `app` não compila nativamente aqui. O `.exe` de Windows sai por cross-compile com `cargo-xwin` (veja `docs/rules/build-windows.md`); o app em si só foi executado no Windows do usuário.

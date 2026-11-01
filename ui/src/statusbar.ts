@@ -33,7 +33,7 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   const lang = button("lang", "Linguagem");
   const previewLabel = document.createElement("label");
   previewLabel.className = "seg preview";
-  previewLabel.title = "Mostrar markdown renderizado (Ctrl+E)";
+  previewLabel.title = "Mostrar renderizado: markdown ou diagrama DBML (Ctrl+E)";
   const check = document.createElement("input");
   check.type = "checkbox";
   previewLabel.append(check, " Preview");

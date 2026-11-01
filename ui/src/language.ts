@@ -1,6 +1,7 @@
-export type Lang = "plain" | "markdown";
+export type Lang = "plain" | "markdown" | "dbml";
 
 const MD_EXT = new Set(["md", "markdown", "mdown", "mkd", "mdx"]);
+const DBML_EXT = new Set(["dbml", "dbmlx"]);
 const PLAIN_EXT = new Set(["txt", "text", "log", "ini", "cfg", "conf", "csv"]);
 
 function extOf(path: string): string {
@@ -40,6 +41,7 @@ export function detectLanguage(text: string, path: string | null): Lang {
   if (path) {
     const ext = extOf(path);
     if (MD_EXT.has(ext)) return "markdown";
+    if (DBML_EXT.has(ext)) return "dbml";
     if (PLAIN_EXT.has(ext)) return "plain";
   }
   const { score, firstIsHeading } = markdownScore(text);

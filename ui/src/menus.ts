@@ -28,7 +28,7 @@ export function languageItems(a: MenuActions): MenuItem[] {
     checked: cur === l,
     action: () => a.setLanguage(l),
   });
-  return [mk("Automático", "auto"), "sep", mk("Texto simples", "plain"), mk("Markdown", "markdown")];
+  return [mk("Automático", "auto"), "sep", mk("Texto simples", "plain"), mk("Markdown", "markdown"), mk("DBML", "dbml")];
 }
 
 export function mountMenuBar(root: HTMLElement, a: MenuActions) {
@@ -65,7 +65,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
         const c = a.current();
         return [
           {
-            label: "Preview do markdown",
+            label: "Preview (markdown / diagrama DBML)",
             shortcut: "Ctrl+E",
             checked: c.previewOn,
             disabled: !c.previewAvailable,
