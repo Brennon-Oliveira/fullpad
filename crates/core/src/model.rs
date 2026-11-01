@@ -13,7 +13,7 @@ pub enum ViewMode {
 }
 
 /// Linguagem escolhida para a aba. `Auto` detecta pelo conteúdo/extensão;
-/// `Plain` e `Markdown` são escolhas manuais que nunca mudam sozinhas.
+/// `Plain`, `Markdown` e `Dbml` são escolhas manuais que nunca mudam sozinhas.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
@@ -21,6 +21,7 @@ pub enum Language {
     Auto,
     Plain,
     Markdown,
+    Dbml,
 }
 
 /// Fim de linha usado ao gravar o arquivo (o editor trabalha sempre com `\n`).
