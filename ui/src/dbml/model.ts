@@ -3,7 +3,14 @@
  * `rawDb().refs` já traz também os refs inline (`[ref: > t.c]`), então só ele é lido.
  */
 
+/** Trecho do texto de origem (offsets em caracteres), para ligar o diagrama ao código. */
+export interface Span {
+  from: number;
+  to: number;
+}
+
 export interface Column {
+  span?: Span;
   name: string;
   type: string;
   pk: boolean;
@@ -13,6 +20,7 @@ export interface Column {
 }
 
 export interface DTable {
+  span?: Span;
   id: string;
   schema: string | null;
   name: string;
@@ -23,13 +31,15 @@ export interface DTable {
 }
 
 export interface DEnum {
+  span?: Span;
   id: string;
   schema: string | null;
   name: string;
-  values: { name: string; note?: string }[];
+  values: { name: string; note?: string; span?: Span }[];
 }
 
 export interface DGroup {
+  span?: Span;
   name: string;
   color?: string;
   tables: string[]; // ids de tabela
@@ -46,6 +56,7 @@ export interface Endpoint {
 }
 
 export interface DRef {
+  span?: Span;
   from: Endpoint;
   to: Endpoint;
 }
@@ -67,6 +78,11 @@ export type ParseResult = { diagram: Diagram; error?: undefined } | { diagram?: 
 
 // ---- formato bruto do parser (só o que usamos) ----
 
+interface RawToken {
+  start: { offset: number };
+  end: { offset: number };
+}
+
 interface RawEndpoint {
   schemaName?: string | null;
   tableName: string;
@@ -74,6 +90,7 @@ interface RawEndpoint {
   relation: string;
 }
 interface RawField {
+  token?: RawToken;
   name: string;
   type?: { type_name?: string };
   pk?: boolean;
@@ -82,6 +99,7 @@ interface RawField {
   note?: { value?: string };
 }
 interface RawTable {
+  token?: RawToken;
   name: string;
   schemaName?: string | null;
   fields?: RawField[];
@@ -89,18 +107,20 @@ interface RawTable {
   headerColor?: string;
 }
 interface RawEnum {
+  token?: RawToken;
   name: string;
   schemaName?: string | null;
-  values?: { name: string; note?: { value?: string } }[];
+  values?: { token?: RawToken; name: string; note?: { value?: string } }[];
 }
 interface RawGroup {
+  token?: RawToken;
   name: string;
   color?: string;
   tables?: { name: string; schemaName?: string | null }[];
 }
 export interface RawDb {
   tables?: RawTable[];
-  refs?: { endpoints?: RawEndpoint[] }[];
+  refs?: { token?: RawToken; endpoints?: RawEndpoint[] }[];
   enums?: RawEnum[];
   tableGroups?: RawGroup[];
   aliases?: { name: string; kind: string; value: { tableName: string; schemaName?: string | null } }[];
@@ -132,12 +152,16 @@ export function cardinality(rel: string): { card: Card; label: string } {
   return { card: many ? "*" : "1", label: min === "" || min === max ? top : `${min}..${top}` };
 }
 
+const spanOf = (t?: RawToken): Span | undefined => (t ? { from: t.start.offset, to: t.end.offset } : undefined);
+
 export function buildDiagram(raw: RawDb): Diagram {
   const tables: DTable[] = (raw.tables ?? []).map((t) => ({
+    span: spanOf(t.token),
     id: tableId(t.schemaName, t.name),
     schema: t.schemaName ?? null,
     name: t.name,
     columns: (t.fields ?? []).map((f) => ({
+      span: spanOf(f.token),
       name: f.name,
       type: f.type?.type_name ?? "", // já inclui os argumentos, ex.: varchar(80)
       pk: !!f.pk,
@@ -161,26 +185,28 @@ export function buildDiagram(raw: RawDb): Diagram {
   };
 
   const refs: DRef[] = [];
-  const push = (a: RawEndpoint, b: RawEndpoint) => {
+  const push = (a: RawEndpoint, b: RawEndpoint, span?: Span) => {
     const ta = resolve(a);
     const tb = resolve(b);
     const colA = a.fieldNames?.[0];
     const colB = b.fieldNames?.[0];
     if (!ta || !tb || !colA || !colB) return;
-    refs.push({ from: { table: ta, column: colA, ...cardinality(a.relation) }, to: { table: tb, column: colB, ...cardinality(b.relation) } });
+    refs.push({ span, from: { table: ta, column: colA, ...cardinality(a.relation) }, to: { table: tb, column: colB, ...cardinality(b.relation) } });
   };
 
   for (const r of raw.refs ?? []) {
     const [a, b] = r.endpoints ?? [];
-    if (a && b) push(a, b);
+    if (a && b) push(a, b, spanOf(r.token));
   }
   const enums: DEnum[] = (raw.enums ?? []).map((e) => ({
+    span: spanOf(e.token),
     id: tableId(e.schemaName, e.name),
     schema: e.schemaName ?? null,
     name: e.name,
-    values: (e.values ?? []).map((v) => ({ name: v.name, note: v.note?.value })),
+    values: (e.values ?? []).map((v) => ({ name: v.name, note: v.note?.value, span: spanOf(v.token) })),
   }));
   const groups: DGroup[] = (raw.tableGroups ?? []).map((g) => ({
+    span: spanOf(g.token),
     name: g.name,
     color: g.color,
     tables: (g.tables ?? [])

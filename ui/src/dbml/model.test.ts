@@ -43,6 +43,17 @@ describe("parseDbml", () => {
     expect(side(block, "tags").card).toBe("1");
   });
 
+  it("guarda onde cada elemento está no texto", () => {
+    const d = parseDbml(interpret, SRC).diagram!;
+    const text = (sp?: { from: number; to: number }) => SRC.slice(sp!.from, sp!.to);
+    expect(text(d.tables[0].span)).toMatch(/^Table users as U \{[\s\S]*\}$/);
+    expect(text(d.tables[0].columns[1].span)).toContain("name varchar(80)");
+    const inline = d.refs.find((r) => [r.from, r.to].some((e) => e.column === "uid"))!;
+    expect(text(inline.span)).toContain("ref: > U.id");
+    const block = d.refs.find((r) => [r.from, r.to].some((e) => e.table === "tags"))!;
+    expect(text(block.span)).toContain("post_tags.tag > tags.id");
+  });
+
   it("devolve erro com linha e coluna quando o texto é inválido", () => {
     const r = parseDbml(interpret, "Table a { id int }\nTable b { id int [pk }");
     expect(r.diagram).toBeUndefined();
