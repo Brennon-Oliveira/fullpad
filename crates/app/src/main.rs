@@ -8,8 +8,17 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use uuid::Uuid;
 
+/// De quem é uma janela de preview (`preview-<aba>`): quem a abriu, a aba e se é markdown ou DBML.
+#[derive(Clone, Serialize)]
+struct PreviewInfo {
+    owner: String,
+    tab: String,
+    lang: String,
+}
+
 struct AppState {
     store: Store,
+    previews: Mutex<std::collections::HashMap<String, PreviewInfo>>,
     /// Serializa ler-alterar-gravar do `session.json`: várias janelas gravam ao mesmo tempo.
     session_lock: Mutex<()>,
     /// Abas fechadas nesta execução: uma gravação atrasada de uma janela não pode ressuscitá-las.
@@ -233,6 +242,46 @@ async fn new_window(app: AppHandle, state: State<'_, AppState>, window: WebviewW
     place_tab(&app, &state, window.label(), tab, "new", None).await
 }
 
+// ---- visão renderizada em janela própria --------------------------------------
+
+/// Abre (ou traz à frente) a janela com a visão renderizada da aba. Quem a abriu é o "dono": o texto
+/// vem dele, por eventos.
+#[tauri::command]
+async fn open_preview(app: AppHandle, state: State<'_, AppState>, window: WebviewWindow, tab: String, lang: String) -> Result<(), String> {
+    parse_id(&tab)?;
+    let label = format!("preview-{tab}");
+    if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    state.previews.lock().unwrap().insert(label.clone(), PreviewInfo { owner: window.label().to_string(), tab, lang });
+    let win = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("index.html".into()))
+        .title("Preview")
+        .inner_size(760.0, 600.0)
+        .visible(false)
+        .build()
+        .map_err(err)?;
+    if let Some(g) = geometry_of(&window) {
+        let _ = win.set_position(PhysicalPosition::new(g.x + 60, g.y + 60));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn preview_info(state: State<AppState>, window: WebviewWindow) -> Result<PreviewInfo, String> {
+    state.previews.lock().unwrap().get(window.label()).cloned().ok_or_else(|| "janela de preview desconhecida".to_string())
+}
+
+/// Fecha a janela de preview da aba, se houver (sem avisar o dono: foi ele quem pediu).
+#[tauri::command]
+fn close_preview(app: AppHandle, state: State<AppState>, tab: String) {
+    let label = format!("preview-{tab}");
+    state.previews.lock().unwrap().remove(&label);
+    if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.destroy();
+    }
+}
+
 #[tauri::command]
 fn exit_app(app: AppHandle) {
     app.exit(0);
@@ -279,7 +328,7 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState { store, session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()) })
+        .manage(AppState { store, previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()) })
         .setup(|app| {
             // reabre as janelas flutuantes da sessão anterior, no mesmo lugar
             let state = app.state::<AppState>();
@@ -303,6 +352,9 @@ fn main() {
             move_tab,
             drop_tab,
             new_window,
+            open_preview,
+            preview_info,
+            close_preview,
             exit_app
         ])
         .run(tauri::generate_context!())

@@ -55,6 +55,10 @@ export const api = {
   /** Aba solta no ponto (x, y) da tela: vai para a janela que estiver ali, ou para uma nova. */
   dropTab: (tab: TabState, x: number, y: number) => invoke<string>("drop_tab", { tab, x, y }),
   newWindow: () => invoke<string>("new_window"),
+  /** Abre a janela com a visão renderizada da aba (`lang`: "markdown" ou "dbml"). */
+  openPreview: (tab: string, lang: string) => invoke<void>("open_preview", { tab, lang }),
+  previewInfo: () => invoke<{ owner: string; tab: string; lang: string }>("preview_info"),
+  closePreview: (tab: string) => invoke<void>("close_preview", { tab }),
   exitApp: () => invoke<void>("exit_app"),
   newNote: () => invoke<TabState>("new_note"),
   closeNote: (id: string) => invoke<void>("close_note", { id }),

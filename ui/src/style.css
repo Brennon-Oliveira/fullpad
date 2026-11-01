@@ -242,3 +242,7 @@ button { font: inherit; color: inherit; }
 /* ---- arrastar abas ---- */
 .tab.dragging { opacity: .75; background: var(--tab); box-shadow: 0 2px 8px rgba(0,0,0,.35); position: relative; z-index: 1; }
 .tab.torn { opacity: .45; outline: 1px dashed var(--accent); }
+
+/* ---- janela de preview: só a visão renderizada, ocupando tudo ---- */
+.preview-only #menubar, .preview-only #tabs, .preview-only #editor, .preview-only #status { display: none; }
+.preview-only #mdview, .preview-only #diagram { border-left: 0; }

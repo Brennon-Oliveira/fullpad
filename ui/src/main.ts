@@ -3,7 +3,7 @@ import { redo, selectAll, undo } from "@codemirror/commands";
 import type { EditorState, Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { emit, emitTo, listen } from "@tauri-apps/api/event";
+import { type UnlistenFn, emit, emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
@@ -99,6 +99,7 @@ const previewOn = (tab: TabState) => viewKind(tab) !== "source";
 function viewLabel(tab: TabState): string {
   const k = viewKind(tab);
   if (k === "source") return "Código";
+  if (tab.detached) return "Janela separada";
   if (effectiveLang(tab) === "dbml") return "Diagrama";
   return k === "inline" ? "Preview" : "Lado a lado";
 }
@@ -125,6 +126,7 @@ function applyTabConfig() {
   });
   ensureDbmlSupport();
   mdPane?.setDark(isDark());
+  reconcileDetached();
   syncDiagram();
   refreshStatus();
 }
@@ -151,6 +153,105 @@ function ensureDbmlSupport() {
     .finally(() => (dbmlSupportLoading = false));
 }
 
+// ---- visão renderizada em janela separada ------------------------------------------
+
+const previewOpen = new Map<string, UnlistenFn[]>(); // abas com janela de preview aberta
+let pvTimer: number | undefined;
+
+const previewLang = (tab: TabState) => (effectiveLang(tab) === "dbml" ? "dbml" : "markdown");
+
+async function textOf(id: string): Promise<string> {
+  return states.get(id)?.doc.toString() ?? api.readNote(id);
+}
+
+/** Manda o texto atual da aba para a janela de preview dela. */
+async function pushPreview(tab: TabState) {
+  const text = await textOf(tab.id);
+  const cursor = tab.id === session.active ? view.state.selection.main.head : null;
+  await emitTo(`preview-${tab.id}`, "pv-text", { text, rev: docRev, title: tab.title || "Nova nota", cursor }).catch(() => {});
+}
+
+function openPreviewWindow(tab: TabState) {
+  if (previewOpen.has(tab.id)) return;
+  const id = tab.id;
+  const stops: UnlistenFn[] = [];
+  previewOpen.set(id, stops);
+  void (async () => {
+    stops.push(
+      await listen(`pv-ready:${id}`, () => {
+        const t = session.tabs.find((x) => x.id === id);
+        if (t) void pushPreview(t);
+      }),
+      // mouse sobre o diagrama da outra janela → destaca a linha aqui
+      await listen<{ spans: { from: number; to: number }[] | null; rev: number }>(`pv-hover:${id}`, (e) => {
+        const ok = id === session.active && e.payload.rev === docRev;
+        view.dispatch({ effects: hintLines(ok ? e.payload.spans : null) });
+      }),
+      // o usuário fechou a janela de preview: a visão volta para ao lado do código
+      await listen(`pv-closed:${id}`, () => {
+        forgetPreview(id);
+        const t = session.tabs.find((x) => x.id === id);
+        if (!t) return;
+        t.detached = false;
+        sessionDirty = true;
+        scheduleSave();
+        if (id === session.active) applyTabConfig();
+      }),
+    );
+    await api.openPreview(id, previewLang(tab));
+  })().catch((e) => {
+    console.error("falha ao abrir a janela de preview", e);
+    forgetPreview(id);
+  });
+}
+
+function forgetPreview(id: string) {
+  for (const stop of previewOpen.get(id) ?? []) stop();
+  previewOpen.delete(id);
+}
+
+function closePreviewWindow(id: string) {
+  if (!previewOpen.has(id)) return;
+  forgetPreview(id);
+  void api.closePreview(id);
+}
+
+/** Abre/fecha a janela de preview da aba ativa conforme `detached` e a visão atual. */
+function reconcileDetached() {
+  const tab = activeTab();
+  const want = tab.detached && viewKind(tab) !== "source";
+  if (tab.detached && !want) {
+    tab.detached = false; // perdeu a visão renderizada (outra linguagem, texto grande demais…)
+    sessionDirty = true;
+    scheduleSave();
+  }
+  if (want) openPreviewWindow(tab);
+  else closePreviewWindow(tab.id);
+}
+
+/** Texto ou cursor mudou: atualiza a janela de preview da aba ativa. */
+function syncDetached(textChanged: boolean) {
+  const tab = activeTab();
+  if (!tab.detached || !previewOpen.has(tab.id)) return;
+  window.clearTimeout(pvTimer);
+  pvTimer = window.setTimeout(() => void pushPreview(tab), textChanged ? 200 : 0);
+}
+
+function toggleDetached() {
+  const tab = activeTab();
+  if (!previewAvailable(tab)) return;
+  if (tab.detached) tab.detached = false;
+  else {
+    tab.detached = true;
+    if (viewKind(tab) === "source") tab.mode = effectiveLang(tab) === "dbml" ? "rendered" : "split";
+    else if (effectiveLang(tab) === "markdown") tab.mode = "split";
+  }
+  sessionDirty = true;
+  scheduleSave();
+  applyTabConfig();
+  view.focus();
+}
+
 // ---- diagrama DBML (carregado sob demanda) ------------------------------------
 
 let diagram: DiagramPanel | undefined;
@@ -158,13 +259,13 @@ let diagramLoading: Promise<void> | undefined;
 let diagramTab: string | null = null; // aba cujo diagrama está na tela
 let docRev = 0; // muda a cada edição/troca de aba: o diagrama só se liga ao código se for da mesma versão
 
-const diagramWanted = (tab: TabState) => previewOn(tab) && effectiveLang(tab) === "dbml";
+const diagramWanted = (tab: TabState) => previewOn(tab) && !tab.detached && effectiveLang(tab) === "dbml";
 
 // ---- markdown renderizado ao lado do código (carregado sob demanda) ----------------
 
 let mdPane: MarkdownPane | undefined;
 let mdLoading: Promise<void> | undefined;
-const mdWanted = (tab: TabState) => effectiveLang(tab) === "markdown" && viewKind(tab) === "split";
+const mdWanted = (tab: TabState) => effectiveLang(tab) === "markdown" && viewKind(tab) === "split" && !tab.detached;
 
 function syncMdPane(textChanged: boolean) {
   if (!mdWanted(activeTab())) {
@@ -196,6 +297,7 @@ function followScroll() {
 /** Mostra/esconde o painel conforme a aba ativa. O módulo só é importado na 1ª vez que um DBML pede. */
 function syncDiagram(textChanged = false) {
   syncMdPane(textChanged);
+  syncDetached(textChanged);
   const tab = activeTab();
   if (!diagramWanted(tab)) {
     diagram?.hide();
@@ -389,6 +491,9 @@ function onEditorUpdate(u: ViewUpdate) {
   if (u.selectionSet && !u.docChanged && diagramTab === activeTab().id) {
     diagram?.setCursor(u.state.selection.main.head, docRev); // cursor → destaque no diagrama
   }
+  if (u.selectionSet && !u.docChanged && activeTab().detached && previewOpen.has(session.active!)) {
+    void emitTo(`preview-${session.active}`, "pv-cursor", { offset: u.state.selection.main.head, rev: docRev }).catch(() => {});
+  }
   if (u.docChanged || u.selectionSet) refreshStatus(false);
 }
 
@@ -498,6 +603,7 @@ async function closeTab(id: string) {
     dirtyNotes.delete(id);
     await enqueue(() => api.saveNote(id, states.get(id)!.doc.toString()));
   }
+  closePreviewWindow(id);
   await enqueue(() => api.closeNote(id));
   session.tabs.splice(idx, 1);
   states.delete(id);
@@ -542,6 +648,10 @@ async function sendTab(id: string, to: string, drop?: { x: number; y: number }) 
     dirtyNotes.delete(id);
     const text = states.get(id)!.doc.toString();
     await enqueue(() => api.saveNote(id, text));
+  }
+  if (tab.detached) {
+    tab.detached = false; // a janela de preview pertence a esta janela; volta ao lado do código no destino
+    closePreviewWindow(id);
   }
   const copy = structuredClone(tab);
   let dest: string;
@@ -707,8 +817,9 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
 
 function setView(mode: ViewMode) {
   const tab = activeTab();
-  if (!previewAvailable(tab) || tab.mode === mode) return;
+  if (!previewAvailable(tab) || (tab.mode === mode && !tab.detached)) return;
   tab.mode = mode;
+  tab.detached = false; // escolher uma visão traz a preview de volta para a janela
   sessionDirty = true;
   scheduleSave();
   applyTabConfig();
@@ -766,6 +877,7 @@ const menuActions = {
   togglePreview,
   toggleSplit,
   setView,
+  toggleDetached,
   toggleWrap,
   setLanguage,
   current: () => {
@@ -774,6 +886,7 @@ const menuActions = {
       language: tab.language,
       lang: effectiveLang(tab),
       view: tab.mode,
+      detached: tab.detached,
       previewAvailable: previewAvailable(tab),
       wrap,
     };
