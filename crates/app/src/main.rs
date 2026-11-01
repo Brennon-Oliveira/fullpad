@@ -25,6 +25,13 @@ fn parse_id(id: &str) -> Result<Uuid, String> {
     Uuid::parse_str(id).map_err(err)
 }
 
+/// Grava um arquivo exportado (SVG/PNG do diagrama) no caminho escolhido pelo usuário no diálogo
+/// "Salvar". Escrita atômica, como todo arquivo do usuário.
+#[tauri::command]
+fn export_file(path: PathBuf, bytes: Vec<u8>) -> Result<(), String> {
+    fullpad_core::atomic::write_atomic(&path, &bytes).map_err(err)
+}
+
 /// Carrega a sessão; garante que exista ao menos uma aba.
 #[tauri::command]
 fn load_startup(state: State<AppState>) -> Result<Startup, String> {
@@ -118,7 +125,8 @@ fn main() {
             new_note,
             close_note,
             open_file,
-            save_file
+            save_file,
+            export_file
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Fullpad");

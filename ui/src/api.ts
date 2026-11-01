@@ -38,6 +38,7 @@ export const api = {
   newNote: () => invoke<TabState>("new_note"),
   closeNote: (id: string) => invoke<void>("close_note", { id }),
   openFile: (path: string) => invoke<{ tab: TabState; text: string }>("open_file", { path }),
+  exportFile: (path: string, bytes: number[]) => invoke<void>("export_file", { path, bytes }),
   saveFile: (id: string, path: string, text: string, encoding: Encoding, eol: Eol) =>
     invoke<void>("save_file", { id, path, text, encoding, eol }),
 };
