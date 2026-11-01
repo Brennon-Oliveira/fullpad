@@ -10,6 +10,7 @@ O roteiro de entrega por fases está em [PLANO.md](PLANO.md). Siga-o: cada fase 
 crates/core   persistência (sessão, notas, arquivos, escrita atômica, lixeira). Sem UI, testável.
 crates/app    Tauri 2: comandos IPC (load_startup, read_note, save_note, save_session, new_note, close_note, open_file, save_file, export_file), janela, single-instance.
 ui/           TypeScript + CodeMirror 6 + Vite (abas, editor, live preview, menus, barra de status).
+ui/src/dbmllang.ts  destaque de sintaxe do DBML (CodeMirror StreamLanguage; pequeno, entra no bundle de abertura).
 ui/src/dbml/  diagrama DBML (parse → modelo → layout dagre → SVG, pan/zoom). Carregado só sob demanda.
 ```
 

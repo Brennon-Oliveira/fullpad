@@ -93,6 +93,7 @@ function applyTabConfig() {
   view.dispatch({
     effects: tabEffects({
       markdown: effectiveLang(tab) === "markdown",
+      dbml: effectiveLang(tab) === "dbml",
       preview: previewOn(tab) && effectiveLang(tab) === "markdown",
       wrap,
       overwrite,

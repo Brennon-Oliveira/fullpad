@@ -5,6 +5,7 @@ import { searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { dbmlLanguage } from "./dbmllang";
 import { livePreview } from "./livepreview";
 
 const langC = new Compartment();
@@ -23,6 +24,18 @@ const highlight = HighlightStyle.define([
   { tag: tags.quote, color: "var(--muted)" },
   { tag: tags.processingInstruction, color: "var(--muted)" },
   { tag: tags.contentSeparator, color: "var(--muted)" },
+  // DBML (e qualquer linguagem com tokens de código)
+  { tag: tags.comment, color: "var(--syn-comment)", fontStyle: "italic" },
+  { tag: tags.keyword, color: "var(--syn-keyword)", fontWeight: "bold" },
+  { tag: tags.string, color: "var(--syn-string)" },
+  { tag: tags.special(tags.string), color: "var(--syn-string)" },
+  { tag: tags.number, color: "var(--syn-number)" },
+  { tag: tags.atom, color: "var(--syn-number)" },
+  { tag: tags.typeName, color: "var(--syn-type)" },
+  { tag: tags.definition(tags.variableName), color: "var(--syn-def)", fontWeight: "bold" },
+  { tag: tags.propertyName, color: "var(--syn-prop)" },
+  { tag: tags.operator, color: "var(--syn-op)", fontWeight: "bold" },
+  { tag: [tags.bracket, tags.punctuation], color: "var(--muted)" },
 ]);
 
 const phrases = EditorState.phrases.of({
@@ -43,6 +56,7 @@ const phrases = EditorState.phrases.of({
 
 export interface TabConfig {
   markdown: boolean;
+  dbml: boolean;
   preview: boolean;
   wrap: boolean;
   overwrite: boolean;
@@ -65,7 +79,7 @@ const overwriteExt = [
 
 export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
   return [
-    langC.reconfigure(c.markdown ? markdown({ base: markdownLanguage }) : []),
+    langC.reconfigure(c.markdown ? markdown({ base: markdownLanguage }) : c.dbml ? dbmlLanguage : []),
     previewC.reconfigure(c.preview ? livePreview() : []),
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),

@@ -8,6 +8,14 @@
   --border: #d1d5db;
   --accent: #2563eb;
   --code-bg: #f1f3f5;
+  --syn-comment: #6a737d;
+  --syn-keyword: #8250df;
+  --syn-string: #0a7d3b;
+  --syn-number: #b35900;
+  --syn-type: #0a7f94;
+  --syn-def: #0550ae;
+  --syn-prop: #8a6100;
+  --syn-op: #cf222e;
   --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   --sans: system-ui, "Segoe UI", sans-serif;
 }
@@ -21,6 +29,14 @@
     --border: #34363b;
     --accent: #6ea8fe;
     --code-bg: #2a2c31;
+    --syn-comment: #7f8794;
+    --syn-keyword: #c792ea;
+    --syn-string: #a5d6a7;
+    --syn-number: #f0a36b;
+    --syn-type: #7fd0e0;
+    --syn-def: #82aaff;
+    --syn-prop: #e6c07b;
+    --syn-op: #ff7a90;
   }
 }
 * { box-sizing: border-box; }

@@ -79,7 +79,7 @@ Arquivos `.dbml`/`.dbmlx` (ou nota avulsa com a linguagem "DBML" escolhida no me
 
 **PARADA 5:** você abre esquemas DBML reais. Quero saber: o que fica estranho no layout, o que falta mostrar (notas, enums, grupos, índices), esquemas grandes.
 
-Fica para depois: arrastar tabelas e persistir posições (decidir onde guardar o layout de nota avulsa), TableGroups, hover de coluna/aresta, exportar SVG/PNG, roteamento ortogonal elaborado, autocomplete/diagnóstico no editor, `!include`/`DiagramView`/migrações, destaque de sintaxe DBML.
+Fica para depois: arrastar tabelas e persistir posições (decidir onde guardar o layout de nota avulsa), TableGroups, hover de coluna/aresta, exportar SVG/PNG, roteamento ortogonal elaborado, autocomplete/diagnóstico no editor, `!include`/`DiagramView`/migrações.
 
 ## Fase 6 — Diagrama DBML: conforto (Fase D)
 
@@ -91,8 +91,9 @@ Continuação da Fase 5, ainda só visualização.
 | 6.2 | ✅ TableGroups como molduras coloridas (clusters do dagre) | Tabelas do grupo ficam dentro da moldura, com o nome do grupo |
 | 6.3 | ✅ Hover em coluna/aresta destaca a relação | Passar o mouse numa coluna ilumina as arestas e as colunas do outro lado |
 | 6.4 | ✅ Exportar SVG e PNG | Botões no painel; salva pelo diálogo do sistema, com escrita atômica |
+| 6.5 | ✅ Destaque de sintaxe do DBML no editor (`ui/src/dbmllang.ts`) | Palavras-chave, nomes, tipos, configurações `[...]`, relações (`>`, `?>`...), strings e comentários coloridos; tema claro e escuro |
 
-Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), autocomplete/diagnóstico no editor, arrastar tabelas com layout salvo, `!include`/`DiagramView`/migrações.
+Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), autocomplete/diagnóstico no editor (o destaque já existe), arrastar tabelas com layout salvo, `!include`/`DiagramView`/migrações.
 
 ## Pendências de ambiente
 
