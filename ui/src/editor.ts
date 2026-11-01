@@ -11,6 +11,7 @@ import { livePreview } from "./livepreview";
 
 const langC = new Compartment();
 const previewC = new Compartment();
+const themeC = new Compartment(); // claro/escuro: o CodeMirror ajusta o próprio tema padrão por isso
 const supportC = new Compartment(); // recursos extras da linguagem (carregados sob demanda)
 const wrapC = new Compartment();
 const overwriteC = new Compartment();
@@ -75,6 +76,8 @@ const phrases = EditorState.phrases.of({
 export interface TabConfig {
   markdown: boolean;
   dbml: boolean;
+  /** Tema escuro do sistema: sem isso o CodeMirror pinta popups e seleção como se fosse claro. */
+  dark: boolean;
   /** Diagnóstico/autocomplete da linguagem; `undefined` enquanto carrega ou quando não há. */
   support?: Extension;
   preview: boolean;
@@ -102,9 +105,15 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
     langC.reconfigure(c.markdown ? markdown({ base: markdownLanguage, codeLanguages }) : c.dbml ? dbmlLanguage : []),
     previewC.reconfigure(c.preview ? livePreview() : []),
     supportC.reconfigure(c.support ?? []),
+    themeC.reconfigure(EditorView.darkTheme.of(c.dark)),
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),
   ];
+}
+
+/** O app segue o tema do sistema (veja o CSS); aqui só avisamos o CodeMirror. */
+export function isDark(): boolean {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 }
 
 export function createState(
@@ -122,6 +131,7 @@ export function createState(
       langC.of([]),
       previewC.of([]),
       supportC.of([]),
+      themeC.of(EditorView.darkTheme.of(isDark())),
       wrapC.of(EditorView.lineWrapping),
       overwriteC.of([]),
       syntaxHighlighting(highlight),

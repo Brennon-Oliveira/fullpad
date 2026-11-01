@@ -5,7 +5,7 @@ import type { ViewUpdate } from "@codemirror/view";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, type Encoding, type Eol, type Language, type Session, type TabState } from "./api";
-import { createState, createView, tabEffects } from "./editor";
+import { createState, createView, isDark, tabEffects } from "./editor";
 import type { DiagramPanel } from "./dbml/panel";
 import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
@@ -94,6 +94,7 @@ function applyTabConfig() {
     effects: tabEffects({
       markdown: effectiveLang(tab) === "markdown",
       dbml: effectiveLang(tab) === "dbml",
+      dark: isDark(),
       support: effectiveLang(tab) === "dbml" ? dbmlSupport : undefined,
       preview: previewOn(tab) && effectiveLang(tab) === "markdown",
       wrap,
@@ -104,6 +105,9 @@ function applyTabConfig() {
   syncDiagram();
   refreshStatus();
 }
+
+// O tema segue o sistema: quando muda, reaplica na aba ativa (as outras pegam ao serem mostradas).
+window.matchMedia?.("(prefers-color-scheme: dark)").addEventListener("change", () => applyTabConfig());
 
 // ---- recursos de editor do DBML (diagnóstico; carregados sob demanda) -----------
 
