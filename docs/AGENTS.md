@@ -12,10 +12,12 @@ crates/app    Tauri 2: comandos IPC (load_startup, read_note, save_note, save_se
 ui/           TypeScript + CodeMirror 6 + Vite (abas, editor, live preview, menus, barra de status).
 ui/src/codelangs.ts  linguagens dos blocos de código do markdown (carga sob demanda; para acrescentar uma, é só mais uma entrada).
 ui/src/dbmllang.ts  destaque de sintaxe do DBML (CodeMirror StreamLanguage; pequeno, entra no bundle de abertura).
+ui/src/mdpreview.ts  painel do markdown renderizado (somente leitura) para a visão lado a lado; carga sob demanda.
 ui/src/dbml/  diagrama DBML (parse → modelo → layout dagre → SVG, pan/zoom). Carregado só sob demanda.
 ```
 
 - A UI conversa com o Rust só por comandos IPC (`ui/src/api.ts` ↔ `crates/app/src/main.rs`). Lógica de dados vive em `crates/core`, não em `app`.
+- Visão do arquivo (`mode` da aba): `source` (só código), `rendered` (markdown renderizado no próprio texto; no DBML, diagrama ao lado) ou `split` (código e renderizado lado a lado; Ctrl+Shift+E). Menu Visualizar e botão "Visão" da barra de status.
 - O documento é sempre texto puro; renderizar markdown ou DBML nunca reescreve o conteúdo.
 - DBML: o painel, o diagnóstico (e o autocomplete) compartilham um único `Compiler` em `ui/src/dbml/service.ts`; `ui/src/dbml/editor.ts` entrega os recursos de editor por `import()` dinâmico. `.dbml`/`.dbmlx` ou escolha manual no menu Linguagem (sem detecção por conteúdo). O diagrama usa `@dbml/parse` **v11** (entende a sintaxe nova: relações opcionais `?>`/`<?`, `Records`; o `@dbml/core` pesa 15 MB e a 3.9 não conhece a sintaxe nova) com um `MemoryProjectLayout` de um arquivo só e `@dagrejs/dagre`, ambos via `import()` dinâmico em `ui/src/dbml/panel.ts`: **nada de `dbml/` pode ser importado estaticamente a partir de `main.ts`**, para não pesar a abertura do app. Só visualização por enquanto (sem posições salvas). O modelo guarda o trecho do texto de cada elemento (`span`): passar o mouse no diagrama pinta a linha no código (`hintLines` em `editor.ts`, sem selecionar) e o cursor do editor destaca o elemento no diagrama (`Rendered.focusAt`). Os dois só valem se o diagrama for da mesma versão do texto (`docRev`), senão os trechos apontariam para o lugar errado.
 - Dados em `%APPDATA%\fullpad` / `~/.local/share/fullpad`. `FULLPAD_DATA_DIR=/caminho` sobrescreve (use para testar sem mexer nas notas reais).

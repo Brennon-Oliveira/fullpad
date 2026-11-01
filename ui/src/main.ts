@@ -4,13 +4,14 @@ import type { EditorState, Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, type Encoding, type Eol, type Language, type Session, type TabState } from "./api";
+import { api, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
 import type { DiagramPanel } from "./dbml/panel";
+import type { MarkdownPane } from "./mdpreview";
 import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
-import { languageItems, mountMenuBar } from "./menus";
+import { languageItems, mountMenuBar, viewItems } from "./menus";
 import { showMenu } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import "./style.css";
@@ -35,6 +36,7 @@ const menubarEl = document.getElementById("menubar")!;
 const tabsEl = document.getElementById("tabs")!;
 const editorEl = document.getElementById("editor")!;
 const diagramEl = document.getElementById("diagram")!;
+const mdEl = document.getElementById("mdview")!;
 const statusEl = document.getElementById("status")!;
 let view: ReturnType<typeof createView>;
 
@@ -77,8 +79,22 @@ function previewAvailable(tab: TabState): boolean {
   return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS);
 }
 
-function previewOn(tab: TabState): boolean {
-  return previewAvailable(tab) && tab.mode === "rendered";
+/** Como o arquivo aparece: só código, renderizado no próprio texto (markdown) ou ao lado do código. */
+type ViewKind = "source" | "inline" | "split";
+
+function viewKind(tab: TabState): ViewKind {
+  if (!previewAvailable(tab) || tab.mode === "source") return "source";
+  if (effectiveLang(tab) === "dbml") return "split"; // o diagrama sempre fica ao lado
+  return tab.mode === "split" ? "split" : "inline";
+}
+
+const previewOn = (tab: TabState) => viewKind(tab) !== "source";
+
+function viewLabel(tab: TabState): string {
+  const k = viewKind(tab);
+  if (k === "source") return "Código";
+  if (effectiveLang(tab) === "dbml") return "Diagrama";
+  return k === "inline" ? "Preview" : "Lado a lado";
 }
 
 function redetect(tab: TabState) {
@@ -96,12 +112,13 @@ function applyTabConfig() {
       dbml: effectiveLang(tab) === "dbml",
       dark: isDark(),
       support: effectiveLang(tab) === "dbml" ? dbmlSupport : undefined,
-      preview: previewOn(tab) && effectiveLang(tab) === "markdown",
+      preview: viewKind(tab) === "inline" && effectiveLang(tab) === "markdown",
       wrap,
       overwrite,
     }),
   });
   ensureDbmlSupport();
+  mdPane?.setDark(isDark());
   syncDiagram();
   refreshStatus();
 }
@@ -137,8 +154,42 @@ let docRev = 0; // muda a cada edição/troca de aba: o diagrama só se liga ao 
 
 const diagramWanted = (tab: TabState) => previewOn(tab) && effectiveLang(tab) === "dbml";
 
+// ---- markdown renderizado ao lado do código (carregado sob demanda) ----------------
+
+let mdPane: MarkdownPane | undefined;
+let mdLoading: Promise<void> | undefined;
+const mdWanted = (tab: TabState) => effectiveLang(tab) === "markdown" && viewKind(tab) === "split";
+
+function syncMdPane(textChanged: boolean) {
+  if (!mdWanted(activeTab())) {
+    mdPane?.hide();
+    mdEl.classList.remove("on");
+    return;
+  }
+  mdEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
+  mdLoading ??= import("./mdpreview").then((m) => {
+    mdPane = m.createMarkdownPane(mdEl);
+  });
+  void mdLoading.then(() => {
+    if (!mdPane || !mdWanted(activeTab())) return;
+    const text = view.state.doc.toString();
+    if (textChanged) mdPane.update(text);
+    else mdPane.show(text);
+    followScroll();
+  });
+}
+
+/** O painel renderizado acompanha o scroll do código (proporcional). */
+function followScroll() {
+  if (!mdPane || !mdWanted(activeTab())) return;
+  const s = view.scrollDOM;
+  const room = s.scrollHeight - s.clientHeight;
+  mdPane.scrollToFraction(room > 0 ? s.scrollTop / room : 0);
+}
+
 /** Mostra/esconde o painel conforme a aba ativa. O módulo só é importado na 1ª vez que um DBML pede. */
 function syncDiagram(textChanged = false) {
+  syncMdPane(textChanged);
   const tab = activeTab();
   if (!diagramWanted(tab)) {
     diagram?.hide();
@@ -209,8 +260,8 @@ function refreshStatus(recomputeSize = true) {
   if (recomputeSize) lastSize = computeSize();
   status.update({
     languageLabel: langLabel(tab),
-    previewAvailable: previewAvailable(tab),
-    previewOn: previewOn(tab),
+    viewLabel: viewLabel(tab),
+    viewAvailable: previewAvailable(tab),
     size: lastSize,
     lines: st.doc.lines,
     ln: line.number,
@@ -239,7 +290,7 @@ function markModified(tab: TabState) {
 
 const status = mountStatusBar(statusEl, {
   onLanguage: (a) => showMenu(a, languageItems(menuActions), "above"),
-  onPreview: () => togglePreview(),
+  onView: (a) => showMenu(a, viewItems(menuActions), "above"),
   onEol: (a) =>
     showMenu(
       a,
@@ -527,14 +578,24 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
 
 // ---- ações ------------------------------------------------------------------
 
-function togglePreview() {
+function setView(mode: ViewMode) {
   const tab = activeTab();
-  if (!previewAvailable(tab)) return;
-  tab.mode = tab.mode === "rendered" ? "source" : "rendered";
+  if (!previewAvailable(tab) || tab.mode === mode) return;
+  tab.mode = mode;
   sessionDirty = true;
   scheduleSave();
   applyTabConfig();
   view.focus();
+}
+
+/** Ctrl+E: liga/desliga a visão renderizada (no markdown, a do próprio texto). */
+function togglePreview() {
+  setView(viewKind(activeTab()) === "source" ? "rendered" : "source");
+}
+
+/** Ctrl+Shift+E: liga/desliga a visão lado a lado. */
+function toggleSplit() {
+  setView(viewKind(activeTab()) === "split" ? "source" : "split");
 }
 
 function toggleWrap() {
@@ -574,14 +635,17 @@ const menuActions = {
   replace: () => openSearchPanel(view),
   gotoLine: () => gotoLine(view),
   togglePreview,
+  toggleSplit,
+  setView,
   toggleWrap,
   setLanguage,
   current: () => {
     const tab = activeTab();
     return {
       language: tab.language,
+      lang: effectiveLang(tab),
+      view: tab.mode,
       previewAvailable: previewAvailable(tab),
-      previewOn: previewOn(tab),
       wrap,
     };
   },
@@ -602,7 +666,7 @@ window.addEventListener(
     else if (key === "o") run(menuActions.openFile);
     else if (key === "s") run(e.shiftKey ? menuActions.saveAs : menuActions.save);
     else if (key === "w") run(menuActions.closeTab);
-    else if (key === "e") run(togglePreview);
+    else if (key === "e") run(e.shiftKey ? toggleSplit : togglePreview);
     else if (e.key === "Tab") run(() => cycle(e.shiftKey ? -1 : 1));
   },
   true,
@@ -623,6 +687,7 @@ async function boot() {
   states.set(tab.id, st);
   view = createView(editorEl, st);
   mountMenuBar(menubarEl, menuActions);
+  view.scrollDOM.addEventListener("scroll", followScroll, { passive: true });
   redetect(tab);
   applyTabConfig();
   renderTabs();

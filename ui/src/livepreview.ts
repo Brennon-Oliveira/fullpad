@@ -77,11 +77,12 @@ export interface Built {
 export function buildPreview(
   state: EditorState,
   ranges: readonly { from: number; to: number }[],
+  selection: readonly { from: number; to: number }[] = state.selection.ranges,
 ): Built {
   const all: Range<Decoration>[] = [];
   const atomic: Range<Decoration>[] = [];
   const doc = state.doc;
-  const sel = state.selection.ranges;
+  const sel = selection;
   const touches = (from: number, to: number) => sel.some((r) => r.from <= to && r.to >= from);
   const inside = (from: number, to: number) => sel.some((r) => r.from < to && r.to > from);
   const lineTouched = (pos: number) => {
@@ -198,7 +199,12 @@ export function buildPreview(
   return { all: Decoration.set(all, true), atomic: Decoration.set(atomic, true) };
 }
 
-const previewPlugin = ViewPlugin.fromClass(
+/**
+ * `fixed`: visão só de leitura (painel ao lado do código). Não há cursor para revelar a sintaxe, então
+ * tudo fica renderizado o tempo todo.
+ */
+function makePlugin(fixed: boolean) {
+  return ViewPlugin.fromClass(
   class {
     all: DecorationSet = Decoration.none;
     atomic: DecorationSet = Decoration.none;
@@ -209,7 +215,7 @@ const previewPlugin = ViewPlugin.fromClass(
       if (
         u.docChanged ||
         u.viewportChanged ||
-        u.selectionSet ||
+        (u.selectionSet && !fixed) ||
         syntaxTree(u.startState) !== syntaxTree(u.state)
       ) {
         this.rebuild(u.view);
@@ -220,7 +226,7 @@ const previewPlugin = ViewPlugin.fromClass(
         this.all = this.atomic = Decoration.none;
         return;
       }
-      const b = buildPreview(view.state, view.visibleRanges);
+      const b = buildPreview(view.state, view.visibleRanges, fixed ? [] : undefined);
       this.all = b.all;
       this.atomic = b.atomic;
     }
@@ -230,8 +236,12 @@ const previewPlugin = ViewPlugin.fromClass(
     provide: (p) =>
       EditorView.atomicRanges.of((view) => view.plugin(p)?.atomic ?? Decoration.none),
   },
-);
+  );
+}
 
-export function livePreview(): Extension {
-  return [previewPlugin, EditorView.editorAttributes.of({ class: "cm-preview" })];
+const previewPlugin = makePlugin(false);
+const fixedPlugin = makePlugin(true);
+
+export function livePreview(opts: { fixed?: boolean } = {}): Extension {
+  return [opts.fixed ? fixedPlugin : previewPlugin, EditorView.editorAttributes.of({ class: "cm-preview" })];
 }

@@ -103,6 +103,9 @@ const phrases = EditorState.phrases.of({
   go: "ir",
 });
 
+/** Cores de sintaxe, para outras visões do mesmo texto (o painel do markdown renderizado). */
+export const syntaxColors: Extension = syntaxHighlighting(highlight);
+
 export interface TabConfig {
   markdown: boolean;
   dbml: boolean;

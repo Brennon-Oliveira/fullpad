@@ -98,9 +98,9 @@ button { font: inherit; color: inherit; }
 #status .seg:first-child { border-left: 0; }
 #status button.seg { cursor: pointer; }
 #status button.seg:hover { background: var(--tab); }
-#status .preview { cursor: pointer; user-select: none; }
-#status .preview.disabled { opacity: .45; cursor: default; }
-#status .preview input { margin: 0; }
+
+
+
 
 /* ---- editor ---- */
 #work { flex: 1; min-height: 0; display: flex; }
@@ -156,6 +156,8 @@ button { font: inherit; color: inherit; }
 .cm-editor .cm-diagnosticAction:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 
 /* ---- diagrama DBML (painel dividido) ---- */
+#mdview { display: none; flex: 1; min-width: 0; min-height: 0; border-left: 1px solid var(--border); }
+#mdview.on { display: block; }
 #diagram { display: none; flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--border); background: var(--bg); }
 #diagram.on { display: block; }
 .dbml-svg { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; touch-action: none; }

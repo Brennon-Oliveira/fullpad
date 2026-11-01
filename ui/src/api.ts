@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type ViewMode = "rendered" | "source";
+export type ViewMode = "rendered" | "source" | "split";
 export type Language = "auto" | "plain" | "markdown" | "dbml";
 export type Eol = "lf" | "crlf";
 export type Encoding = "utf8" | "utf8-bom" | "utf16le" | "utf16be" | "windows1252";
@@ -11,7 +11,10 @@ export interface TabState {
   path: string | null;
   cursor: number;
   scroll: number;
-  /** "rendered" = visão renderizada ligada (preview do markdown ou diagrama do DBML). */
+  /**
+   * Visão do arquivo: "source" = só código; "rendered" = markdown renderizado no próprio texto (no DBML,
+   * o diagrama ao lado); "split" = código e visão renderizada lado a lado.
+   */
   mode: ViewMode;
   language: Language;
   eol: Eol;

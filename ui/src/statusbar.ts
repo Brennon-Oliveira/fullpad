@@ -1,7 +1,8 @@
 export interface StatusInfo {
   languageLabel: string;
-  previewAvailable: boolean;
-  previewOn: boolean;
+  /** Rótulo da visão atual ("Código", "Preview", "Lado a lado"...). */
+  viewLabel: string;
+  viewAvailable: boolean;
   size: number;
   lines: number;
   ln: number;
@@ -14,7 +15,7 @@ export interface StatusInfo {
 
 export interface StatusHandlers {
   onLanguage(anchor: HTMLElement): void;
-  onPreview(): void;
+  onView(anchor: HTMLElement): void;
   onEol(anchor: HTMLElement): void;
   onEncoding(anchor: HTMLElement): void;
   onOverwrite(): void;
@@ -31,12 +32,7 @@ function button(cls: string, title: string): HTMLButtonElement {
 
 export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   const lang = button("lang", "Linguagem");
-  const previewLabel = document.createElement("label");
-  previewLabel.className = "seg preview";
-  previewLabel.title = "Mostrar renderizado: markdown ou diagrama DBML (Ctrl+E)";
-  const check = document.createElement("input");
-  check.type = "checkbox";
-  previewLabel.append(check, " Preview");
+  const view = button("view", "Como mostrar o arquivo: código, renderizado ou lado a lado (Ctrl+E)");
   const spacer = document.createElement("div");
   spacer.className = "spacer";
   const size = document.createElement("span");
@@ -48,19 +44,18 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   const ins = button("ins", "Inserir/Sobrescrever (Insert)");
 
   lang.addEventListener("click", () => h.onLanguage(lang));
-  check.addEventListener("change", () => h.onPreview());
+  view.addEventListener("click", () => h.onView(view));
   eol.addEventListener("click", () => h.onEol(eol));
   enc.addEventListener("click", () => h.onEncoding(enc));
   ins.addEventListener("click", () => h.onOverwrite());
 
-  root.append(lang, previewLabel, spacer, size, cursor, eol, enc, ins);
+  root.append(lang, view, spacer, size, cursor, eol, enc, ins);
 
   return {
     update(i: StatusInfo) {
       lang.textContent = i.languageLabel;
-      check.checked = i.previewOn;
-      check.disabled = !i.previewAvailable;
-      previewLabel.classList.toggle("disabled", !i.previewAvailable);
+      view.textContent = `Visão: ${i.viewLabel} ▾`;
+      view.disabled = !i.viewAvailable;
       size.textContent = `tamanho: ${nf.format(i.size)}   linhas: ${nf.format(i.lines)}`;
       cursor.textContent = `Ln: ${nf.format(i.ln)}   Col: ${nf.format(i.col)}   Pos: ${nf.format(i.pos)}`;
       eol.textContent = i.eolLabel;

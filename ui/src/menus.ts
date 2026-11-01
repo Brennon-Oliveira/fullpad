@@ -1,4 +1,5 @@
-import type { Language } from "./api";
+import type { Language, ViewMode } from "./api";
+import type { Lang } from "./language";
 import { type MenuItem, closeMenu, showMenu } from "./popup";
 
 export interface MenuActions {
@@ -15,10 +16,31 @@ export interface MenuActions {
   replace(): void;
   gotoLine(): void;
   togglePreview(): void;
+  toggleSplit(): void;
+  setView(m: ViewMode): void;
   toggleWrap(): void;
   setLanguage(l: Language): void;
   /** Estado atual para marcar checks e desabilitar itens. */
-  current(): { language: Language; previewAvailable: boolean; previewOn: boolean; wrap: boolean };
+  current(): { language: Language; lang: Lang; view: ViewMode; previewAvailable: boolean; wrap: boolean };
+}
+
+/** Opções de visão do arquivo (menu Visualizar e botão da barra de status). */
+export function viewItems(a: MenuActions): MenuItem[] {
+  const c = a.current();
+  const off = !c.previewAvailable;
+  const item = (label: string, mode: ViewMode, shortcut?: string): MenuItem => ({
+    label,
+    shortcut,
+    checked: c.view === mode || (c.lang === "dbml" && mode === "split" && c.view === "rendered"),
+    disabled: off,
+    action: () => a.setView(mode),
+  });
+  if (c.lang === "dbml") return [item("Somente código", "source"), item("Código e diagrama lado a lado", "split", "Ctrl+E")];
+  return [
+    item("Somente código", "source"),
+    item("Preview no próprio texto", "rendered", "Ctrl+E"),
+    item("Código e preview lado a lado", "split", "Ctrl+Shift+E"),
+  ];
 }
 
 export function languageItems(a: MenuActions): MenuItem[] {
@@ -64,13 +86,8 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
       items: () => {
         const c = a.current();
         return [
-          {
-            label: "Preview (markdown / diagrama DBML)",
-            shortcut: "Ctrl+E",
-            checked: c.previewOn,
-            disabled: !c.previewAvailable,
-            action: a.togglePreview,
-          },
+          ...viewItems(a),
+          "sep",
           { label: "Quebra de linha", checked: c.wrap, action: a.toggleWrap },
         ];
       },

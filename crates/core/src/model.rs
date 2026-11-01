@@ -7,6 +7,8 @@ use uuid::Uuid;
 pub enum ViewMode {
     /// Preview desligado: texto puro / código.
     Source,
+    /// Código e visão renderizada lado a lado (markdown renderizado, ou o diagrama no DBML).
+    Split,
     /// Preview ligado: markdown renderizado (live preview). Também é o que um valor
     /// desconhecido (de uma versão mais nova do app) vira, em vez de invalidar a sessão.
     #[default]

@@ -259,6 +259,16 @@ mod tests {
     }
 
     #[test]
+    fn split_view_mode_survives_session_roundtrip() {
+        let (_d, s) = store();
+        let mut tab = s.create_note().unwrap();
+        tab.mode = crate::ViewMode::Split;
+        let session = Session { version: 1, active: Some(tab.id), tabs: vec![tab] };
+        s.save_session(&session).unwrap();
+        assert_eq!(s.load_session().unwrap().tabs[0].mode, crate::ViewMode::Split);
+    }
+
+    #[test]
     fn close_moves_to_trash() {
         let (d, s) = store();
         let t = s.create_note().unwrap();
