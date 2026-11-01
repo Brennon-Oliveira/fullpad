@@ -175,7 +175,18 @@ export const dbmlParser: StreamParser<State> = {
     }
   },
 
-  languageData: { commentTokens: { line: "//", block: { open: "/*", close: "*/" } } },
+  // Recuo: um nível por `{` aberto (o `}` que abre a linha volta um nível). O CodeMirror usa isso ao
+  // dar Enter entre `{` e `}`.
+  indent(state, textAfter, cx) {
+    if (state.block || state.multi) return null;
+    const depth = state.stack.length - (/^\s*\}/.test(textAfter) ? 1 : 0);
+    return Math.max(0, depth) * cx.unit;
+  },
+
+  languageData: {
+    commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
+    closeBrackets: { brackets: ["(", "[", "{", "'", '"', "`"] },
+  },
 };
 
 export const dbmlLanguage = StreamLanguage.define(dbmlParser);

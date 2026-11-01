@@ -1,3 +1,4 @@
+import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -13,6 +14,7 @@ const langC = new Compartment();
 const previewC = new Compartment();
 const themeC = new Compartment(); // claro/escuro: o CodeMirror ajusta o próprio tema padrão por isso
 const supportC = new Compartment(); // recursos extras da linguagem (carregados sob demanda)
+const bracketsC = new Compartment(); // fecha ( [ { e aspas sozinho (DBML)
 const wrapC = new Compartment();
 const overwriteC = new Compartment();
 
@@ -105,6 +107,7 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
     langC.reconfigure(c.markdown ? markdown({ base: markdownLanguage, codeLanguages }) : c.dbml ? dbmlLanguage : []),
     previewC.reconfigure(c.preview ? livePreview() : []),
     supportC.reconfigure(c.support ?? []),
+    bracketsC.reconfigure(c.dbml ? closeBrackets() : []),
     themeC.reconfigure(EditorView.darkTheme.of(c.dark)),
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),
@@ -131,12 +134,13 @@ export function createState(
       langC.of([]),
       previewC.of([]),
       supportC.of([]),
+      bracketsC.of([]),
       themeC.of(EditorView.darkTheme.of(isDark())),
       wrapC.of(EditorView.lineWrapping),
       overwriteC.of([]),
       syntaxHighlighting(highlight),
       syntaxHighlighting(markdownSource),
-      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+      keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
       EditorView.updateListener.of(onUpdate),
     ],
   });
