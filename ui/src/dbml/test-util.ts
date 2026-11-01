@@ -1,10 +1,9 @@
 import { createRequire } from "node:module";
-import type { Interpreter } from "./model";
+import { type DbmlParse, createDbmlService } from "./service";
 
 // O pacote ESM importa lodash de um jeito que o Node puro não aceita; o CJS funciona igual.
-const { Compiler, MemoryProjectLayout, Filepath } = createRequire(import.meta.url)("@dbml/parse");
-const entry = Filepath.from("/main.dbml");
+const parse = createRequire(import.meta.url)("@dbml/parse") as DbmlParse;
 
-/** Mesmo caminho do painel (`panel.ts`), para os testes exercitarem o parser real. */
-export const interpret: Interpreter = (text) =>
-  new Compiler(new MemoryProjectLayout({ "/main.dbml": text })).interpretFile(entry);
+/** Mesmo serviço do app (`service.ts`), para os testes exercitarem o parser real. */
+export const service = createDbmlService(parse);
+export const interpret = service.interpret;

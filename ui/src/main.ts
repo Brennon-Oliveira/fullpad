@@ -1,6 +1,6 @@
 import { gotoLine, openSearchPanel } from "@codemirror/search";
 import { redo, selectAll, undo } from "@codemirror/commands";
-import type { EditorState } from "@codemirror/state";
+import type { EditorState, Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -94,13 +94,34 @@ function applyTabConfig() {
     effects: tabEffects({
       markdown: effectiveLang(tab) === "markdown",
       dbml: effectiveLang(tab) === "dbml",
+      support: effectiveLang(tab) === "dbml" ? dbmlSupport : undefined,
       preview: previewOn(tab) && effectiveLang(tab) === "markdown",
       wrap,
       overwrite,
     }),
   });
+  ensureDbmlSupport();
   syncDiagram();
   refreshStatus();
+}
+
+// ---- recursos de editor do DBML (diagnóstico; carregados sob demanda) -----------
+
+let dbmlSupport: Extension | undefined;
+let dbmlSupportLoading = false;
+
+/** Carrega o parser na 1ª vez que uma aba DBML aparece e reaplica a configuração com ele. */
+function ensureDbmlSupport() {
+  if (dbmlSupport || dbmlSupportLoading || effectiveLang(activeTab()) !== "dbml") return;
+  dbmlSupportLoading = true;
+  import("./dbml/editor")
+    .then((m) => m.dbmlEditorSupport())
+    .then((ext) => {
+      dbmlSupport = ext;
+      if (effectiveLang(activeTab()) === "dbml") applyTabConfig();
+    })
+    .catch((e) => console.error("falha ao carregar o suporte a DBML", e))
+    .finally(() => (dbmlSupportLoading = false));
 }
 
 // ---- diagrama DBML (carregado sob demanda) ------------------------------------

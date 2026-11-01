@@ -2,7 +2,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
+import { Compartment, EditorState, type Extension, type StateEffect } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { dbmlLanguage } from "./dbmllang";
@@ -10,6 +10,7 @@ import { livePreview } from "./livepreview";
 
 const langC = new Compartment();
 const previewC = new Compartment();
+const supportC = new Compartment(); // recursos extras da linguagem (carregados sob demanda)
 const wrapC = new Compartment();
 const overwriteC = new Compartment();
 
@@ -57,6 +58,8 @@ const phrases = EditorState.phrases.of({
 export interface TabConfig {
   markdown: boolean;
   dbml: boolean;
+  /** Diagnóstico/autocomplete da linguagem; `undefined` enquanto carrega ou quando não há. */
+  support?: Extension;
   preview: boolean;
   wrap: boolean;
   overwrite: boolean;
@@ -81,6 +84,7 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
   return [
     langC.reconfigure(c.markdown ? markdown({ base: markdownLanguage }) : c.dbml ? dbmlLanguage : []),
     previewC.reconfigure(c.preview ? livePreview() : []),
+    supportC.reconfigure(c.support ?? []),
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),
   ];
@@ -100,6 +104,7 @@ export function createState(
       phrases,
       langC.of([]),
       previewC.of([]),
+      supportC.of([]),
       wrapC.of(EditorView.lineWrapping),
       overwriteC.of([]),
       syntaxHighlighting(highlight),

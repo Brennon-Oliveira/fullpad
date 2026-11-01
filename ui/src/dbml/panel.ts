@@ -3,6 +3,7 @@ import { api } from "../api";
 import { buildSvg, svgToPng } from "./export";
 import { type DagreLike, type Layout, layoutDiagram } from "./layout";
 import { type Interpreter, parseDbml } from "./model";
+import { loadDbmlService } from "./service";
 import { renderDiagram } from "./render";
 import { attachViewport } from "./viewport";
 
@@ -17,25 +18,13 @@ interface Libs {
   dagre: DagreLike;
 }
 
-const ENTRY = "/main.dbml";
-
-/** O que usamos do módulo @dbml/parse (v11: o projeto é um layout em memória com um único arquivo). */
-interface DbmlParse {
-  Compiler: new (layout: unknown) => { interpretFile(entry: unknown): ReturnType<Interpreter> };
-  MemoryProjectLayout: new (files: Record<string, string>) => unknown;
-  Filepath: { from(path: string): unknown };
-}
-
-// Carga sob demanda: nada disso entra no bundle de abertura do app.
+// O parser vem do serviço compartilhado (service.ts); o dagre só serve ao diagrama e carrega aqui.
 let libsPromise: Promise<Libs> | undefined;
 function loadLibs(): Promise<Libs> {
-  libsPromise ??= Promise.all([import("@dbml/parse"), import("@dagrejs/dagre")]).then(([p, d]) => {
+  libsPromise ??= Promise.all([loadDbmlService(), import("@dagrejs/dagre")]).then(([svc, d]) => {
     const mod = d as unknown as { default?: DagreLike; layout?: unknown };
     const dagre = (typeof mod.layout === "function" ? mod : mod.default) as DagreLike;
-    const { Compiler, MemoryProjectLayout, Filepath } = p as unknown as DbmlParse;
-    const entry = Filepath.from(ENTRY);
-    const interpret: Interpreter = (text) => new Compiler(new MemoryProjectLayout({ [ENTRY]: text })).interpretFile(entry);
-    return { interpret, dagre };
+    return { interpret: svc.interpret, dagre };
   });
   libsPromise.catch(() => (libsPromise = undefined)); // permite tentar de novo
   return libsPromise;
