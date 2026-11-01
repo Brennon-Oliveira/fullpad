@@ -148,6 +148,17 @@ button { font: inherit; color: inherit; }
 .cm-panels { background: var(--bar); color: var(--fg); border-color: var(--border); }
 .cm-panels input, .cm-panels button { font: inherit; }
 
+/* ---- cores do markdown no modo código (o preview renderizado tem as suas) ---- */
+.cm-editor:not(.cm-preview) .md-heading { color: var(--syn-def); }
+.cm-editor:not(.cm-preview) .md-list { color: var(--syn-op); font-weight: bold; }
+.cm-editor:not(.cm-preview) .md-code { color: var(--syn-string); background: var(--code-bg); border-radius: 3px; }
+.cm-editor:not(.cm-preview) .md-link { color: var(--syn-def); text-decoration: underline; }
+.cm-editor:not(.cm-preview) .md-url { color: var(--syn-comment); }
+.cm-editor:not(.cm-preview) .md-info { color: var(--syn-prop); }
+.cm-editor:not(.cm-preview) .md-quote { color: var(--syn-comment); font-style: italic; }
+.cm-editor:not(.cm-preview) .md-strike { color: var(--syn-comment); }
+.cm-editor:not(.cm-preview) .md-mark { color: var(--syn-keyword); }
+
 /* ---- preview do markdown ---- */
 .cm-preview .cm-scroller { font-family: var(--sans); font-size: 16px; line-height: 1.7; }
 .cm-preview .cm-content { max-width: 52rem; margin: 0 auto; }

@@ -5,6 +5,7 @@ import { searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState, type Extension, type StateEffect } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { codeLanguages } from "./codelangs";
 import { dbmlLanguage } from "./dbmllang";
 import { livePreview } from "./livepreview";
 
@@ -37,6 +38,22 @@ const highlight = HighlightStyle.define([
   { tag: tags.propertyName, color: "var(--syn-prop)" },
   { tag: tags.operator, color: "var(--syn-op)", fontWeight: "bold" },
   { tag: [tags.bracket, tags.punctuation], color: "var(--muted)" },
+]);
+
+/**
+ * Cores do markdown no modo código. São classes (e não cores fixas) para o CSS poder desligá-las no
+ * preview renderizado, onde o `livepreview` já estiliza os mesmos elementos.
+ */
+const markdownSource = HighlightStyle.define([
+  { tag: tags.heading, class: "md-heading" },
+  { tag: tags.list, class: "md-list" },
+  { tag: tags.monospace, class: "md-code" },
+  { tag: tags.link, class: "md-link" },
+  { tag: tags.url, class: "md-url" },
+  { tag: tags.labelName, class: "md-info" },
+  { tag: tags.quote, class: "md-quote" },
+  { tag: tags.strikethrough, class: "md-strike" },
+  { tag: tags.processingInstruction, class: "md-mark" },
 ]);
 
 const phrases = EditorState.phrases.of({
@@ -82,7 +99,7 @@ const overwriteExt = [
 
 export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
   return [
-    langC.reconfigure(c.markdown ? markdown({ base: markdownLanguage }) : c.dbml ? dbmlLanguage : []),
+    langC.reconfigure(c.markdown ? markdown({ base: markdownLanguage, codeLanguages }) : c.dbml ? dbmlLanguage : []),
     previewC.reconfigure(c.preview ? livePreview() : []),
     supportC.reconfigure(c.support ?? []),
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
@@ -108,6 +125,7 @@ export function createState(
       wrapC.of(EditorView.lineWrapping),
       overwriteC.of([]),
       syntaxHighlighting(highlight),
+      syntaxHighlighting(markdownSource),
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
       EditorView.updateListener.of(onUpdate),
     ],
