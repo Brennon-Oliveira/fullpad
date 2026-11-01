@@ -28,6 +28,8 @@ function withNote<T extends SVGElement>(e: T, note?: string): T {
   return e;
 }
 
+const colKey = (table: string, column: string) => `${table}\u001f${column}`;
+
 function rowY(t: DTable, y: number, column: string): number {
   const i = Math.max(0, t.columns.findIndex((c) => c.name === column));
   return y + HEADER_H + i * ROW_H + ROW_H / 2;
@@ -70,8 +72,8 @@ function edge(ref: DRef, byId: Map<string, DTable>, layout: Layout): SVGGElement
     d = `M${xa},${ya} H${out} V${yb} H${xb}`;
   }
 
-  const g = el("g", { class: "dbml-edge" });
-  g.append(el("path", { d }));
+  const g = el("g", { class: "dbml-edge", "data-a": colKey(ref.from.table, ref.from.column), "data-b": colKey(ref.to.table, ref.to.column) });
+  g.append(el("path", { d }), el("path", { d, class: "dbml-hit" })); // o 2º é uma área de hover mais larga
   const label = (e: Endpoint, x: number, y: number, dir: 1 | -1) =>
     el("text", { x: x + dir * 6, y: y - 4, "text-anchor": dir === 1 ? "start" : "end" }, e.card === "*" ? "n" : "1");
   g.append(label(ref.from, xa, ya, da), label(ref.to, xb, yb, db));
@@ -90,6 +92,7 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
   g.append(withNote(title, t.note));
   t.columns.forEach((c, i) => {
     const cy = HEADER_H + i * ROW_H + ROW_H / 2 + 4;
+    g.append(el("rect", { class: "dbml-row", "data-k": colKey(t.id, c.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H }));
     g.append(withNote(el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name), c.note));
     g.append(el("text", { class: "dbml-type", x: w - 10, y: cy, "text-anchor": "end" }, c.type));
   });
@@ -133,4 +136,33 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement) {
     return b ? [groupFrame(grp, b)] : [];
   });
   into.replaceChildren(...groups, ...edges, ...tables, ...enums); // molduras no fundo, arestas sob as tabelas
+  wireHover(into);
+}
+
+/** Passar o mouse numa coluna ou aresta destaca a relação e esmaece o resto. */
+function wireHover(root: SVGGElement) {
+  const rows = [...root.querySelectorAll<SVGElement>(".dbml-row")];
+  const edges = [...root.querySelectorAll<SVGElement>(".dbml-edge")];
+  const ends = (e: SVGElement) => [e.getAttribute("data-a")!, e.getAttribute("data-b")!];
+
+  const light = (keys: Set<string>, on: Set<SVGElement>) => {
+    for (const row of rows) row.classList.toggle("hl", keys.has(row.getAttribute("data-k")!));
+    for (const e of edges) e.classList.toggle("hl", on.has(e));
+    root.classList.toggle("hovering", on.size > 0);
+  };
+  const clear = () => light(new Set(), new Set());
+
+  for (const row of rows) {
+    row.addEventListener("mouseenter", () => {
+      const k = row.getAttribute("data-k")!;
+      const on = new Set(edges.filter((e) => ends(e).includes(k)));
+      const keys = new Set([k, ...[...on].flatMap(ends)]);
+      light(keys, on);
+    });
+    row.addEventListener("mouseleave", clear);
+  }
+  for (const e of edges) {
+    e.addEventListener("mouseenter", () => light(new Set(ends(e)), new Set([e])));
+    e.addEventListener("mouseleave", clear);
+  }
 }

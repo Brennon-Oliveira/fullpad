@@ -98,6 +98,12 @@ button { font: inherit; color: inherit; }
 .dbml-enum-head { fill: color-mix(in srgb, var(--muted) 30%, var(--bar)); }
 .dbml-group rect { fill: color-mix(in srgb, var(--accent) 8%, transparent); stroke: var(--border); stroke-dasharray: 5 4; }
 .dbml-group text { fill: var(--muted); font: 600 11px var(--sans); }
+.dbml-row { fill: transparent; }
+.dbml-row.hl { fill: color-mix(in srgb, var(--accent) 24%, transparent); }
+.hovering .dbml-edge:not(.hl) { opacity: .15; }
+.dbml-edge.hl path { stroke: var(--accent); stroke-width: 2; }
+.dbml-edge.hl text { fill: var(--accent); }
+.dbml-edge path.dbml-hit { stroke: transparent; stroke-width: 12; pointer-events: stroke; }
 .dbml-edge path { fill: none; stroke: var(--muted); stroke-width: 1.4; }
 .dbml-edge text { fill: var(--muted); font: 11px var(--sans); }
 .dbml-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }

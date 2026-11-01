@@ -47,4 +47,22 @@ describe("renderDiagram", () => {
       expect(b.y + b.h).toBeLessThanOrEqual(inGroup.y + inGroup.h);
     }
   });
+
+  it("hover numa coluna destaca a aresta e a coluna do outro lado", () => {
+    const d = parseDbml(
+      Compiler,
+      "Table users { id int [pk] }\nTable posts { id int [pk]\n uid int [ref: > users.id] }\nTable tags { id int [pk] }\nTable pt { tag int [ref: > tags.id] }",
+    ).diagram!;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g);
+    const row = (t: string, c: string) => g.querySelector(`.dbml-row[data-k="${t}\u001f${c}"]`)!;
+    row("posts", "uid").dispatchEvent(new MouseEvent("mouseenter"));
+    expect(g.classList.contains("hovering")).toBe(true);
+    expect(row("users", "id").classList.contains("hl")).toBe(true);
+    expect(row("tags", "id").classList.contains("hl")).toBe(false);
+    expect(g.querySelectorAll(".dbml-edge.hl")).toHaveLength(1);
+    row("posts", "uid").dispatchEvent(new MouseEvent("mouseleave"));
+    expect(g.classList.contains("hovering")).toBe(false);
+    expect(g.querySelectorAll(".hl")).toHaveLength(0);
+  });
 });
