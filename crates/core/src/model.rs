@@ -59,6 +59,13 @@ pub enum Encoding {
     Windows1252,
 }
 
+/// Janela que abriu o app (e que, ao fechar, encerra tudo).
+pub const MAIN_WINDOW: &str = "main";
+
+fn main_window() -> String {
+    MAIN_WINDOW.to_string()
+}
+
 /// Estado de uma aba. O conteúdo NÃO fica aqui: vive em `notes/<id>.md`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TabState {
@@ -85,6 +92,12 @@ pub struct TabState {
     /// Aba ligada a arquivo com edições ainda não gravadas nele.
     #[serde(default)]
     pub dirty: bool,
+    /// Janela onde a aba está. Sessões antigas não têm o campo: tudo estava na principal.
+    #[serde(default = "main_window")]
+    pub window: String,
+    /// A visão renderizada (preview/diagrama) está numa janela própria, ligada a esta aba.
+    #[serde(default)]
+    pub detached: bool,
 }
 
 impl TabState {
@@ -100,15 +113,40 @@ impl TabState {
             eol: Eol::platform_default(),
             encoding: Encoding::default(),
             dirty: false,
+            window: main_window(),
+            detached: false,
         }
     }
 }
 
+/// Posição e tamanho (pixels físicos) de uma janela flutuante, para reabri-la no mesmo lugar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Geometry {
+    pub x: i32,
+    pub y: i32,
+    pub w: u32,
+    pub h: u32,
+}
+
+/// Janela flutuante (as abas dela têm `TabState::window` igual ao `label`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindowState {
+    pub label: String,
+    #[serde(default)]
+    pub active: Option<Uuid>,
+    #[serde(default)]
+    pub geometry: Option<Geometry>,
+}
+
+/// Todas as abas de todas as janelas, na ordem de gravação. `active` é a aba ativa da janela
+/// principal (formato antigo, mantido); as das flutuantes ficam em `windows`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Session {
     pub version: u32,
     pub tabs: Vec<TabState>,
     pub active: Option<Uuid>,
+    #[serde(default)]
+    pub windows: Vec<WindowState>,
 }
 
 impl Session {
@@ -119,6 +157,7 @@ impl Session {
             version: Self::CURRENT_VERSION,
             tabs: Vec::new(),
             active: None,
+            windows: Vec::new(),
         }
     }
 }

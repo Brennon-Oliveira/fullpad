@@ -66,9 +66,8 @@ impl Store {
             }
         };
         session.tabs.retain(|t| self.note_path(t.id).exists());
-        if session.active.is_none_or(|a| !session.tabs.iter().any(|t| t.id == a)) {
-            session.active = session.tabs.first().map(|t| t.id);
-        }
+        session.active = session.active_of(crate::MAIN_WINDOW);
+        session.prune_windows();
         Ok(session)
     }
 
@@ -166,6 +165,7 @@ mod tests {
             version: Session::CURRENT_VERSION,
             active: Some(tab.id),
             tabs: vec![tab.clone()],
+            windows: vec![],
         };
         s.save_session(&session).unwrap();
 
@@ -191,6 +191,7 @@ mod tests {
             version: 1,
             active: Some(ghost.id),
             tabs: vec![ghost, a.clone()],
+            windows: vec![],
         };
         s.save_session(&session).unwrap();
         let loaded = s.load_session().unwrap();
@@ -263,7 +264,7 @@ mod tests {
         let (_d, s) = store();
         let mut tab = s.create_note().unwrap();
         tab.mode = crate::ViewMode::Split;
-        let session = Session { version: 1, active: Some(tab.id), tabs: vec![tab] };
+        let session = Session { version: 1, active: Some(tab.id), tabs: vec![tab], windows: vec![] };
         s.save_session(&session).unwrap();
         assert_eq!(s.load_session().unwrap().tabs[0].mode, crate::ViewMode::Split);
     }
