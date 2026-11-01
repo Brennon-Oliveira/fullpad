@@ -69,5 +69,5 @@ Regra: o documento é sempre texto puro; renderizar nunca reescreve o conteúdo.
 
 ## Pendências de ambiente
 
-- O WSL desta máquina não tem `pkg-config` nem `libwebkit2gtk-4.1-dev`, então só `core` e a UI foram compilados e testados aqui. O crate `app` precisa ser compilado no seu ambiente de destino (Windows) ou depois de instalar as libs listadas no README.
+- O WSL desta máquina não tem `pkg-config` nem `libwebkit2gtk-4.1-dev`, então o crate `app` não compila nativamente aqui. O `.exe` de Windows sai por cross-compile com `cargo-xwin` (veja `docs/rules/build-windows.md`); o app em si só foi executado no Windows do usuário.
 - Ícones atuais são um quadrado azul provisório; trocar por `pnpm tauri icon <imagem>` quando tiver um.

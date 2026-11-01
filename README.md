@@ -25,7 +25,7 @@ cargo tauri build                                   # instalador / binário
 cargo test -p fullpad-core                          # testes do core (na raiz)
 ```
 
-O CI (`.github/workflows/build.yml`) gera o `.exe` do Windows como artifact.
+O `.exe` do Windows é gerado localmente por cross-compile no WSL (veja `docs/rules/build-windows.md`). Ainda não há pipeline no GitHub.
 
 - **Windows**: precisa do WebView2 (já vem no Win10/11) e do Build Tools (MSVC).
 - **Linux**: `sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev pkg-config build-essential`.

@@ -29,7 +29,7 @@ cd crates/app && cargo tauri dev      # app em desenvolvimento
 cd crates/app && cargo tauri build    # instalador / binário
 ```
 
-O CI (`.github/workflows/build.yml`) roda `cargo test -p fullpad-core` e gera artifacts de Windows e Linux. Neste WSL só `core` e a UI compilam (faltam libs do webkit para `app`); veja "Pendências de ambiente" no PLANO.
+Não há pipeline de CI por enquanto (nenhum workflow do GitHub); testes e build rodam localmente. Neste WSL só `core` e a UI compilam nativamente (faltam libs do webkit para `app`); o `app` para Windows sai por cross-compile ([rules/build-windows.md](rules/build-windows.md)). Veja "Pendências de ambiente" no PLANO.
 
 ## Convenções
 
@@ -37,6 +37,7 @@ O CI (`.github/workflows/build.yml`) roda `cargo test -p fullpad-core` e gera ar
 - Mudou comportamento, arquitetura, comando ou convenção: atualize `docs/` no mesmo commit (veja [rules/harness.md](rules/harness.md)).
 - Commits: [rules/commits.md](rules/commits.md).
 - Persistência (`crates/core`): [rules/persistencia.md](rules/persistencia.md).
+- Ao terminar qualquer ajuste, gere o build de Windows e reporte o resultado: [rules/build-windows.md](rules/build-windows.md).
 
 ## Segurança
 
