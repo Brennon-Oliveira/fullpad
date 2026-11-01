@@ -1,3 +1,6 @@
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { api } from "../api";
+import { buildSvg, svgToPng } from "./export";
 import { type DagreLike, type Layout, layoutDiagram } from "./layout";
 import { type CompilerLike, parseDbml } from "./model";
 import { renderDiagram } from "./render";
@@ -42,11 +45,15 @@ export function createDiagramPanel(host: HTMLElement) {
   const message = div("dbml-msg"); // vazio / carregando
   const error = div("dbml-error");
   error.hidden = true;
-  const fitBtn = document.createElement("button");
-  fitBtn.className = "dbml-fit";
-  fitBtn.textContent = "Ajustar";
-  fitBtn.title = "Ajustar à tela";
-  host.replaceChildren(svg, message, error, fitBtn);
+  const tools = div("dbml-tools");
+  const tool = (label: string, title: string, run: () => void) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.title = title;
+    b.addEventListener("click", run);
+    tools.append(b);
+  };
+  host.replaceChildren(svg, message, error, tools);
 
   let layout: Layout | null = null;
   let lastText: string | null = null;
@@ -55,8 +62,27 @@ export function createDiagramPanel(host: HTMLElement) {
   let timer: number | undefined;
 
   const fit = () => layout && viewport.fit(layout.width, layout.height);
-  fitBtn.addEventListener("click", fit);
   svg.addEventListener("dblclick", fit);
+
+  async function exportAs(kind: "svg" | "png") {
+    if (!layout) return;
+    try {
+      const path = await saveDialog({
+        defaultPath: `diagrama.${kind}`,
+        filters: [{ name: kind === "svg" ? "SVG" : "PNG", extensions: [kind] }],
+      });
+      if (!path) return;
+      const { svg: text, width, height } = buildSvg(g, layout, getComputedStyle(host).backgroundColor);
+      const bytes = kind === "svg" ? new TextEncoder().encode(text) : await svgToPng(text, width, height);
+      await api.exportFile(path, Array.from(bytes));
+    } catch (e) {
+      error.hidden = false;
+      error.textContent = `Não foi possível exportar: ${e}`;
+    }
+  }
+  tool("Ajustar", "Ajustar à tela (ou duplo clique)", fit);
+  tool("SVG", "Exportar como SVG", () => void exportAs("svg"));
+  tool("PNG", "Exportar como PNG", () => void exportAs("png"));
 
   async function render(text: string) {
     const my = ++seq;

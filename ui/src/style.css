@@ -109,8 +109,9 @@ button { font: inherit; color: inherit; }
 .dbml-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
 .dbml-error { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 12px; font: 12px var(--mono); background: color-mix(in srgb, #d33 22%, var(--bar)); border-top: 1px solid #d33; }
 .dbml-error[hidden] { display: none; }
-.dbml-fit { position: absolute; top: 8px; right: 8px; font: 12px var(--sans); padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bar); color: var(--fg); cursor: pointer; }
-.dbml-fit:hover { background: var(--tab); }
+.dbml-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.dbml-tools button { font: 12px var(--sans); padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bar); color: var(--fg); cursor: pointer; }
+.dbml-tools button:hover { background: var(--tab); }
 .cm-editor { height: 100%; background: var(--bg); color: var(--fg); }
 .cm-editor.cm-focused { outline: none; }
 .cm-scroller { font: 15px/1.6 var(--mono); padding: 8px 0; }
