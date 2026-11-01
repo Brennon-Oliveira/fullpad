@@ -75,7 +75,7 @@ function edge(ref: DRef, byId: Map<string, DTable>, layout: Layout): SVGGElement
   const g = el("g", { class: "dbml-edge", "data-a": colKey(ref.from.table, ref.from.column), "data-b": colKey(ref.to.table, ref.to.column) });
   g.append(el("path", { d }), el("path", { d, class: "dbml-hit" })); // o 2º é uma área de hover mais larga
   const label = (e: Endpoint, x: number, y: number, dir: 1 | -1) =>
-    el("text", { x: x + dir * 6, y: y - 4, "text-anchor": dir === 1 ? "start" : "end" }, e.card === "*" ? "n" : "1");
+    el("text", { x: x + dir * 6, y: y - 4, "text-anchor": dir === 1 ? "start" : "end" }, e.label);
   g.append(label(ref.from, xa, ya, da), label(ref.to, xb, yb, db));
   return g;
 }

@@ -2,7 +2,7 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { buildSvg, svgToPng } from "./export";
 import { type DagreLike, type Layout, layoutDiagram } from "./layout";
-import { type CompilerLike, parseDbml } from "./model";
+import { type Interpreter, parseDbml } from "./model";
 import { renderDiagram } from "./render";
 import { attachViewport } from "./viewport";
 
@@ -13,8 +13,17 @@ const DEBOUNCE_MS = 300;
 const NS = "http://www.w3.org/2000/svg";
 
 interface Libs {
-  Compiler: new () => CompilerLike;
+  interpret: Interpreter;
   dagre: DagreLike;
+}
+
+const ENTRY = "/main.dbml";
+
+/** O que usamos do módulo @dbml/parse (v11: o projeto é um layout em memória com um único arquivo). */
+interface DbmlParse {
+  Compiler: new (layout: unknown) => { interpretFile(entry: unknown): ReturnType<Interpreter> };
+  MemoryProjectLayout: new (files: Record<string, string>) => unknown;
+  Filepath: { from(path: string): unknown };
 }
 
 // Carga sob demanda: nada disso entra no bundle de abertura do app.
@@ -23,7 +32,10 @@ function loadLibs(): Promise<Libs> {
   libsPromise ??= Promise.all([import("@dbml/parse"), import("@dagrejs/dagre")]).then(([p, d]) => {
     const mod = d as unknown as { default?: DagreLike; layout?: unknown };
     const dagre = (typeof mod.layout === "function" ? mod : mod.default) as DagreLike;
-    return { Compiler: p.Compiler as Libs["Compiler"], dagre };
+    const { Compiler, MemoryProjectLayout, Filepath } = p as unknown as DbmlParse;
+    const entry = Filepath.from(ENTRY);
+    const interpret: Interpreter = (text) => new Compiler(new MemoryProjectLayout({ [ENTRY]: text })).interpretFile(entry);
+    return { interpret, dagre };
   });
   libsPromise.catch(() => (libsPromise = undefined)); // permite tentar de novo
   return libsPromise;
@@ -95,7 +107,7 @@ export function createDiagramPanel(host: HTMLElement) {
       return;
     }
     if (my !== seq) return; // chegou texto mais novo
-    const res = parseDbml(libs.Compiler, text);
+    const res = parseDbml(libs.interpret, text);
     if (res.error) {
       error.hidden = false;
       error.textContent = `Linha ${res.error.line}, col. ${res.error.column}: ${res.error.message}`;

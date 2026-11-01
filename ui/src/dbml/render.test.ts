@@ -1,17 +1,16 @@
 // @vitest-environment jsdom
-import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import * as dagre from "@dagrejs/dagre";
 import { type DagreLike, layoutDiagram } from "./layout";
-import { type CompilerLike, parseDbml } from "./model";
+import { parseDbml } from "./model";
+import { interpret } from "./test-util";
 import { renderDiagram } from "./render";
 
-const { Compiler } = createRequire(import.meta.url)("@dbml/parse") as { Compiler: new () => CompilerLike };
 
 describe("renderDiagram", () => {
   it("desenha uma tabela por tabela e uma aresta por ref", () => {
     const d = parseDbml(
-      Compiler,
+      interpret,
       "Table users { id int [pk] }\nTable posts { id int [pk]\n uid int [ref: > users.id] }\nTable notas { id int [pk]\n ref_id int }\nRef: notas.ref_id > notas.id",
     ).diagram!;
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -25,7 +24,7 @@ describe("renderDiagram", () => {
 
   it("desenha enums, grupos e a cor do cabeçalho", () => {
     const d = parseDbml(
-      Compiler,
+      interpret,
       "Table users [headercolor: #ffd700, note: 'gente'] { id int [pk]\n role papel }\nTable posts { id int [pk] }\nEnum papel { admin\n user [note: 'comum'] }\nTableGroup blog [color: #E67E22] { users\n posts }",
     ).diagram!;
     const l = layoutDiagram(d, dagre as unknown as DagreLike);
@@ -50,7 +49,7 @@ describe("renderDiagram", () => {
 
   it("hover numa coluna destaca a aresta e a coluna do outro lado", () => {
     const d = parseDbml(
-      Compiler,
+      interpret,
       "Table users { id int [pk] }\nTable posts { id int [pk]\n uid int [ref: > users.id] }\nTable tags { id int [pk] }\nTable pt { tag int [ref: > tags.id] }",
     ).diagram!;
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");

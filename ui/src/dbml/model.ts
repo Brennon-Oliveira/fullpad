@@ -41,6 +41,8 @@ export interface Endpoint {
   table: string; // id da tabela
   column: string;
   card: Card;
+  /** Texto na ponta da aresta: "1", "n", "0..1", "0..n", "1..n"... */
+  label: string;
 }
 
 export interface DRef {
@@ -104,18 +106,26 @@ export interface RawDb {
   aliases?: { name: string; kind: string; value: { tableName: string; schemaName?: string | null } }[];
 }
 
-/** Mínimo do `Compiler` do @dbml/parse que precisamos (facilita testar e carregar sob demanda). */
-export interface CompilerLike {
-  setSource(src: string): void;
-  parse: {
-    rawDb(): RawDb | undefined;
-    errors(): { diagnostic: string; nodeOrToken?: { startPos?: { line: number; column: number } } }[];
-  };
+/** Resultado de interpretar um arquivo no @dbml/parse (só o que usamos). */
+export interface Report {
+  getValue(): RawDb | undefined;
+  getErrors(): { diagnostic: string; nodeOrToken?: { startPos?: { line: number; column: number } } }[];
 }
+/** Interpreta um texto DBML. Quem chama monta isso com o `Compiler` do parser (carregado sob demanda). */
+export type Interpreter = (text: string) => Report;
 
 export const tableId = (schema: string | null | undefined, name: string) => (schema ? `${schema}.${name}` : name);
 
-const asCard = (r: string): Card => (r === "*" ? "*" : "1");
+/**
+ * Cardinalidade do parser: "1", "*", "0..1", "0..*", "1..*"... Devolve o lado (um/muitos) e o rótulo.
+ * Os operadores opcionais (`?>`, `<?`, `?-?`) chegam como mínimo 0.
+ */
+export function cardinality(rel: string): { card: Card; label: string } {
+  const [min, max] = rel.includes("..") ? rel.split("..") : [rel === "*" ? "" : rel, rel];
+  const many = max === "*" || Number(max) > 1;
+  const top = many ? "n" : max;
+  return { card: many ? "*" : "1", label: min === "" || min === max ? top : `${min}..${top}` };
+}
 
 export function buildDiagram(raw: RawDb): Diagram {
   const tables: DTable[] = (raw.tables ?? []).map((t) => ({
@@ -146,18 +156,18 @@ export function buildDiagram(raw: RawDb): Diagram {
   };
 
   const refs: DRef[] = [];
-  const push = (a: RawEndpoint, ca: Card, b: RawEndpoint, cb: Card) => {
+  const push = (a: RawEndpoint, b: RawEndpoint) => {
     const ta = resolve(a);
     const tb = resolve(b);
     const colA = a.fieldNames?.[0];
     const colB = b.fieldNames?.[0];
     if (!ta || !tb || !colA || !colB) return;
-    refs.push({ from: { table: ta, column: colA, card: ca }, to: { table: tb, column: colB, card: cb } });
+    refs.push({ from: { table: ta, column: colA, ...cardinality(a.relation) }, to: { table: tb, column: colB, ...cardinality(b.relation) } });
   };
 
   for (const r of raw.refs ?? []) {
     const [a, b] = r.endpoints ?? [];
-    if (a && b) push(a, asCard(a.relation), b, asCard(b.relation));
+    if (a && b) push(a, b);
   }
   const enums: DEnum[] = (raw.enums ?? []).map((e) => ({
     id: tableId(e.schemaName, e.name),
@@ -176,16 +186,15 @@ export function buildDiagram(raw: RawDb): Diagram {
 }
 
 /** Parseia o texto. Erros de sintaxe voltam como `error` (o chamador mantém o último diagrama válido). */
-export function parseDbml(Compiler: new () => CompilerLike, text: string): ParseResult {
-  const c = new Compiler();
-  c.setSource(text);
-  const errors = c.parse.errors();
+export function parseDbml(interpret: Interpreter, text: string): ParseResult {
+  const rep = interpret(text);
+  const errors = rep.getErrors();
   if (errors.length > 0) {
     const e = errors[0];
     const pos = e.nodeOrToken?.startPos;
     return { error: { message: e.diagnostic, line: (pos?.line ?? 0) + 1, column: (pos?.column ?? 0) + 1 } };
   }
-  const raw = c.parse.rawDb();
+  const raw = rep.getValue();
   if (!raw) return { error: { message: "Não foi possível interpretar o DBML.", line: 1, column: 1 } };
   return { diagram: buildDiagram(raw) };
 }

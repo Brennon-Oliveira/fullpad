@@ -1,16 +1,15 @@
 // @vitest-environment jsdom
-import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import * as dagre from "@dagrejs/dagre";
 import { bounds, buildSvg } from "./export";
 import { type DagreLike, layoutDiagram } from "./layout";
-import { type CompilerLike, parseDbml } from "./model";
+import { parseDbml } from "./model";
+import { interpret } from "./test-util";
 import { renderDiagram } from "./render";
 
-const { Compiler } = createRequire(import.meta.url)("@dbml/parse") as { Compiler: new () => CompilerLike };
 
 function setup() {
-  const d = parseDbml(Compiler, "Table users { id int [pk] }\nTable posts { id int [pk]\n uid int [ref: > users.id] }").diagram!;
+  const d = parseDbml(interpret, "Table users { id int [pk] }\nTable posts { id int [pk]\n uid int [ref: > users.id] }").diagram!;
   const layout = layoutDiagram(d, dagre as unknown as DagreLike);
   const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
   g.setAttribute("transform", "translate(10 20) scale(0.5)");

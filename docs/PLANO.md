@@ -73,7 +73,7 @@ Arquivos `.dbml`/`.dbmlx` (ou nota avulsa com a linguagem "DBML" escolhida no me
 
 | Milestone | Entrega | Critério de aceite |
 |---|---|---|
-| 5.A | Spike: parser no navegador e custo de bundle | ✅ `@dbml/parse@3.9.0` (175 kB, 49 kB gzip) + `@dagrejs/dagre` (47 kB); o `@dbml/core` (15,7 MB) foi descartado |
+| 5.A | Spike: parser no navegador e custo de bundle | ✅ `@dbml/parse` (442 kB, 110 kB gzip na v11) + `@dagrejs/dagre` (47 kB); o `@dbml/core` (15,7 MB) foi descartado. Começou na 3.9.0 e subiu para a v11 ao aparecer esquema com `?>` (a 3.9 dá "Unexpected token '?'") |
 | 5.B | Linguagem DBML (`Language::Dbml`), parse, layout automático, SVG, pan/zoom, erro de sintaxe sem perder o último diagrama | Abrir `.dbml` mostra o painel; digitar atualiza em ~300 ms; Ctrl+E liga/desliga sem mexer no texto |
 | 5.C | Carga sob demanda | O boot não baixa parser nem dagre; só ao pedir o diagrama (chunks separados) |
 
