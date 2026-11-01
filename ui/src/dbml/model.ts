@@ -9,6 +9,7 @@ export interface Column {
   pk: boolean;
   notNull: boolean;
   unique: boolean;
+  note?: string;
 }
 
 export interface DTable {
@@ -16,6 +17,22 @@ export interface DTable {
   schema: string | null;
   name: string;
   columns: Column[];
+  note?: string;
+  /** Cor do cabeçalho (`headercolor:`), como veio no texto. */
+  color?: string;
+}
+
+export interface DEnum {
+  id: string;
+  schema: string | null;
+  name: string;
+  values: { name: string; note?: string }[];
+}
+
+export interface DGroup {
+  name: string;
+  color?: string;
+  tables: string[]; // ids de tabela
 }
 
 export type Card = "1" | "*";
@@ -34,6 +51,8 @@ export interface DRef {
 export interface Diagram {
   tables: DTable[];
   refs: DRef[];
+  enums: DEnum[];
+  groups: DGroup[];
 }
 
 export interface ParseError {
@@ -58,15 +77,30 @@ interface RawField {
   pk?: boolean;
   not_null?: boolean;
   unique?: boolean;
+  note?: { value?: string };
 }
 interface RawTable {
   name: string;
   schemaName?: string | null;
   fields?: RawField[];
+  note?: { value?: string };
+  headerColor?: string;
+}
+interface RawEnum {
+  name: string;
+  schemaName?: string | null;
+  values?: { name: string; note?: { value?: string } }[];
+}
+interface RawGroup {
+  name: string;
+  color?: string;
+  tables?: { name: string; schemaName?: string | null }[];
 }
 export interface RawDb {
   tables?: RawTable[];
   refs?: { endpoints?: RawEndpoint[] }[];
+  enums?: RawEnum[];
+  tableGroups?: RawGroup[];
   aliases?: { name: string; kind: string; value: { tableName: string; schemaName?: string | null } }[];
 }
 
@@ -94,7 +128,10 @@ export function buildDiagram(raw: RawDb): Diagram {
       pk: !!f.pk,
       notNull: !!f.not_null,
       unique: !!f.unique,
+      note: f.note?.value,
     })),
+    note: t.note?.value,
+    color: t.headerColor,
   }));
   const ids = new Set(tables.map((t) => t.id));
   const aliases = new Map<string, string>();
@@ -122,7 +159,20 @@ export function buildDiagram(raw: RawDb): Diagram {
     const [a, b] = r.endpoints ?? [];
     if (a && b) push(a, asCard(a.relation), b, asCard(b.relation));
   }
-  return { tables, refs };
+  const enums: DEnum[] = (raw.enums ?? []).map((e) => ({
+    id: tableId(e.schemaName, e.name),
+    schema: e.schemaName ?? null,
+    name: e.name,
+    values: (e.values ?? []).map((v) => ({ name: v.name, note: v.note?.value })),
+  }));
+  const groups: DGroup[] = (raw.tableGroups ?? []).map((g) => ({
+    name: g.name,
+    color: g.color,
+    tables: (g.tables ?? [])
+      .map((t) => resolve({ schemaName: t.schemaName || null, tableName: t.name, relation: "" }))
+      .filter((id): id is string => id !== null),
+  }));
+  return { tables, refs, enums, groups };
 }
 
 /** Parseia o texto. Erros de sintaxe voltam como `error` (o chamador mantém o último diagrama válido). */

@@ -22,4 +22,29 @@ describe("renderDiagram", () => {
     expect(g.querySelector(".dbml-pk")?.textContent).toBe("id");
     expect(g.querySelector(".dbml-edge path")?.getAttribute("d")).toMatch(/^M[\d.-]+,[\d.-]+ H/);
   });
+
+  it("desenha enums, grupos e a cor do cabeçalho", () => {
+    const d = parseDbml(
+      Compiler,
+      "Table users [headercolor: #ffd700, note: 'gente'] { id int [pk]\n role papel }\nTable posts { id int [pk] }\nEnum papel { admin\n user [note: 'comum'] }\nTableGroup blog [color: #E67E22] { users\n posts }",
+    ).diagram!;
+    const l = layoutDiagram(d, dagre as unknown as DagreLike);
+    expect(l.boxes.has("group:blog")).toBe(true);
+    expect(l.boxes.has("enum:papel")).toBe(true);
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    renderDiagram(d, l, g);
+    expect(g.querySelectorAll(".dbml-enum")).toHaveLength(1);
+    expect(g.querySelectorAll(".dbml-group")).toHaveLength(1);
+    expect(g.querySelector(".dbml-head")?.getAttribute("style")).toContain("#ffd700");
+    expect(g.querySelector(".dbml-title")?.getAttribute("style")).toContain("#111"); // amarelo → texto escuro
+    expect(g.querySelector("title")?.textContent).toBe("gente");
+    const inGroup = l.boxes.get("group:blog")!;
+    for (const id of ["users", "posts"]) {
+      const b = l.boxes.get(id)!;
+      expect(b.x).toBeGreaterThanOrEqual(inGroup.x);
+      expect(b.x + b.w).toBeLessThanOrEqual(inGroup.x + inGroup.w);
+      expect(b.y).toBeGreaterThanOrEqual(inGroup.y);
+      expect(b.y + b.h).toBeLessThanOrEqual(inGroup.y + inGroup.h);
+    }
+  });
 });

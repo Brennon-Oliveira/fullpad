@@ -81,6 +81,19 @@ Arquivos `.dbml`/`.dbmlx` (ou nota avulsa com a linguagem "DBML" escolhida no me
 
 Fica para depois: arrastar tabelas e persistir posições (decidir onde guardar o layout de nota avulsa), TableGroups, hover de coluna/aresta, exportar SVG/PNG, roteamento ortogonal elaborado, autocomplete/diagnóstico no editor, `!include`/`DiagramView`/migrações, destaque de sintaxe DBML.
 
+## Fase 6 — Diagrama DBML: conforto (Fase D)
+
+Continuação da Fase 5, ainda só visualização.
+
+| Milestone | Entrega | Critério de aceite |
+|---|---|---|
+| 6.1 | ✅ Enums como caixas, notas como tooltip, `headercolor` nas tabelas | Enum aparece ao lado de quem o usa; cor clara ganha texto escuro |
+| 6.2 | ✅ TableGroups como molduras coloridas (clusters do dagre) | Tabelas do grupo ficam dentro da moldura, com o nome do grupo |
+| 6.3 | ⬜ Hover em coluna/aresta destaca a relação | Passar o mouse numa coluna ilumina as arestas e as colunas do outro lado |
+| 6.4 | ⬜ Exportar SVG e PNG | Botões no painel; salva pelo diálogo do sistema, com escrita atômica |
+
+Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), autocomplete/diagnóstico no editor, arrastar tabelas com layout salvo, `!include`/`DiagramView`/migrações.
+
 ## Pendências de ambiente
 
 - O WSL desta máquina não tem `pkg-config` nem `libwebkit2gtk-4.1-dev`, então o crate `app` não compila nativamente aqui. O `.exe` de Windows sai por cross-compile com `cargo-xwin` (veja `docs/rules/build-windows.md`); o app em si só foi executado no Windows do usuário.

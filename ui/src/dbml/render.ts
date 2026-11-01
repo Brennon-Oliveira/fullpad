@@ -1,5 +1,5 @@
-import { HEADER_H, type Layout, ROW_H } from "./layout";
-import type { DRef, DTable, Diagram, Endpoint } from "./model";
+import { HEADER_H, type Layout, ROW_H, enumKey, groupKey } from "./layout";
+import type { DEnum, DGroup, DRef, DTable, Diagram, Endpoint } from "./model";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -11,6 +11,20 @@ function el<K extends keyof SVGElementTagNameMap>(
   const e = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
   if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/** Texto escuro ou claro por cima de uma cor de cabeçalho (#rgb / #rrggbb); `null` se não for hex. */
+export function contrastOn(color: string): string | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return null;
+  const h = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#111" : "#fff";
+}
+
+function withNote<T extends SVGElement>(e: T, note?: string): T {
+  if (note) e.append(el("title", {}, note)); // tooltip nativo
   return e;
 }
 
@@ -67,13 +81,38 @@ function edge(ref: DRef, byId: Map<string, DTable>, layout: Layout): SVGGElement
 function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGElement {
   const g = el("g", { class: "dbml-table", transform: `translate(${x} ${y})` });
   g.append(el("rect", { class: "dbml-box", width: w, height: h, rx: 6 }));
-  g.append(el("path", { class: "dbml-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` }));
-  g.append(el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, t.schema ? `${t.schema}.${t.name}` : t.name));
+  const head = el("path", { class: "dbml-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` });
+  const ink = t.color ? contrastOn(t.color) : null;
+  if (t.color && ink) head.setAttribute("style", `fill:${t.color}`);
+  g.append(head);
+  const title = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, t.schema ? `${t.schema}.${t.name}` : t.name);
+  if (ink) title.setAttribute("style", `fill:${ink}`);
+  g.append(withNote(title, t.note));
   t.columns.forEach((c, i) => {
     const cy = HEADER_H + i * ROW_H + ROW_H / 2 + 4;
-    g.append(el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name));
+    g.append(withNote(el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name), c.note));
     g.append(el("text", { class: "dbml-type", x: w - 10, y: cy, "text-anchor": "end" }, c.type));
   });
+  return g;
+}
+
+function enumNode(e: DEnum, x: number, y: number, w: number, h: number): SVGGElement {
+  const g = el("g", { class: "dbml-enum", transform: `translate(${x} ${y})` });
+  g.append(el("rect", { class: "dbml-box", width: w, height: h, rx: 6 }));
+  g.append(el("path", { class: "dbml-head dbml-enum-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` }));
+  g.append(el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, `enum ${e.schema ? `${e.schema}.` : ""}${e.name}`));
+  e.values.forEach((v, i) => {
+    g.append(withNote(el("text", { class: "dbml-col", x: 10, y: HEADER_H + i * ROW_H + ROW_H / 2 + 4 }, v.name), v.note));
+  });
+  return g;
+}
+
+function groupFrame(grp: DGroup, b: { x: number; y: number; w: number; h: number }): SVGGElement {
+  const g = el("g", { class: "dbml-group" });
+  const color = grp.color && contrastOn(grp.color) ? grp.color : null;
+  const rect = el("rect", { x: b.x, y: b.y, width: b.w, height: b.h, rx: 10 });
+  if (color) rect.setAttribute("style", `fill:${color}1f;stroke:${color}`);
+  g.append(rect, el("text", { x: b.x + 12, y: b.y + 17 }, grp.name));
   return g;
 }
 
@@ -85,5 +124,13 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement) {
     const b = layout.boxes.get(t.id)!;
     return tableNode(t, b.x, b.y, b.w, b.h);
   });
-  into.replaceChildren(...edges, ...tables); // arestas por baixo das tabelas
+  const enums = d.enums.map((e) => {
+    const b = layout.boxes.get(enumKey(e.id))!;
+    return enumNode(e, b.x, b.y, b.w, b.h);
+  });
+  const groups = d.groups.flatMap((grp) => {
+    const b = layout.boxes.get(groupKey(grp.name));
+    return b ? [groupFrame(grp, b)] : [];
+  });
+  into.replaceChildren(...groups, ...edges, ...tables, ...enums); // molduras no fundo, arestas sob as tabelas
 }

@@ -55,7 +55,7 @@ describe("parseDbml", () => {
 
   it("texto vazio gera diagrama vazio", () => {
     const r = parseDbml(Compiler, "");
-    expect(r.diagram).toEqual({ tables: [], refs: [] });
+    expect(r.diagram).toEqual({ tables: [], refs: [], enums: [], groups: [] });
   });
 });
 

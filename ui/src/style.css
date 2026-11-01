@@ -95,6 +95,9 @@ button { font: inherit; color: inherit; }
 .dbml-col { fill: var(--fg); font: 12px var(--mono); }
 .dbml-pk { fill: var(--accent); font-weight: 700; }
 .dbml-type { fill: var(--muted); font: 12px var(--mono); }
+.dbml-enum-head { fill: color-mix(in srgb, var(--muted) 30%, var(--bar)); }
+.dbml-group rect { fill: color-mix(in srgb, var(--accent) 8%, transparent); stroke: var(--border); stroke-dasharray: 5 4; }
+.dbml-group text { fill: var(--muted); font: 600 11px var(--sans); }
 .dbml-edge path { fill: none; stroke: var(--muted); stroke-width: 1.4; }
 .dbml-edge text { fill: var(--muted); font: 11px var(--sans); }
 .dbml-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
