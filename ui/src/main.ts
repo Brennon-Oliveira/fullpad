@@ -896,12 +896,6 @@ function makeSplitter(n: Extract<Node, { t: "split" }>, i: number, container: HT
       { label: "Dividir igualmente", action: apply(() => (n.sizes = n.kids.map(() => 1))) },
     ]);
   };
-  grip.addEventListener("pointerdown", (e) => e.stopPropagation());
-  grip.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const r = grip.getBoundingClientRect();
-    menu(r.right, r.top);
-  });
   sp.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     menu(e.clientX, e.clientY);
@@ -916,13 +910,20 @@ function makeSplitter(n: Extract<Node, { t: "split" }>, i: number, container: HT
     const total = row ? rect.width : rect.height;
     const start = row ? e.clientX : e.clientY;
     const base = [...n.sizes];
+    const onGrip = e.target === grip;
+    const [x0, y0] = [e.clientX, e.clientY];
     const move = (ev: PointerEvent) => {
       n.sizes = resizeSizes(base, i, ((row ? ev.clientX : ev.clientY) - start) / total);
       const kids = [...container.children].filter((c) => !c.classList.contains("splitter")) as HTMLElement[];
       kids.forEach((k, j) => (k.style.flex = `${n.sizes[j]} 1 0`));
     };
-    const up = () => {
+    const up = (ev: PointerEvent) => {
       sp.classList.remove("active");
+      // clicar (sem arrastar) nos pontinhos abre o menu; arrastar a partir deles redimensiona como no resto da divisa
+      if (ev.type === "pointerup" && onGrip && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) {
+        const r = grip.getBoundingClientRect();
+        menu(r.right, r.top);
+      }
       sp.removeEventListener("pointermove", move);
       sp.removeEventListener("pointerup", up);
       sp.removeEventListener("pointercancel", up);
