@@ -26,6 +26,8 @@ export interface TabState {
   detached: boolean;
   /** Painel (grupo de abas) da janela em que a aba aparece. */
   group: number;
+  /** Nota de versão: fechar apaga de vez, sem ir para o histórico de abas fechadas. */
+  release_notes?: boolean;
 }
 
 export interface Session {
@@ -86,6 +88,10 @@ export const api = {
   downloadUpdate: () => invoke<void>("download_update"),
   /** Instala a versão baixada: o app encerra. Grave tudo antes. */
   installUpdate: () => invoke<void>("install_update"),
+  /** Nota nova com a nota de versão do app em execução. */
+  releaseNotes: () => invoke<{ tab: TabState; text: string }>("release_notes"),
+  /** A nota de versão, só na primeira abertura depois de uma atualização. */
+  startupReleaseNotes: () => invoke<{ tab: TabState; text: string } | null>("startup_release_notes"),
   exitApp: () => invoke<void>("exit_app"),
   newNote: () => invoke<TabState>("new_note"),
   closeNote: (id: string) => invoke<void>("close_note", { id }),

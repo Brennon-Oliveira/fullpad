@@ -31,6 +31,7 @@ export interface MenuActions {
   splitDown(): void;
   setLanguage(l: Language): void;
   checkUpdates(): void;
+  releaseNotes(): void;
   /** Estado atual para marcar checks e desabilitar itens. */
   current(): { language: Language; lang: Lang; view: ViewMode; detached: boolean; previewAvailable: boolean; wrap: boolean };
 }
@@ -141,7 +142,13 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
       },
     },
     { label: "Linguagem", items: () => languageItems(a) },
-    { label: "Ajuda", items: () => [{ label: "Verificar atualizações…", action: a.checkUpdates }] },
+    {
+      label: "Ajuda",
+      items: () => [
+        { label: "Ver nota de versão", action: a.releaseNotes },
+        { label: "Verificar atualizações…", action: a.checkUpdates },
+      ],
+    },
   ];
 
   let open: HTMLElement | null = null;

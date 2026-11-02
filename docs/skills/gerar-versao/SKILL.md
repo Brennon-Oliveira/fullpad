@@ -56,16 +56,21 @@ A versão nova precisa ser maior que a do release mais recente: o updater só of
 
 ## 4. Notas de versão
 
-Em português, para quem usa o app, não para quem programa. Elas aparecem **no diálogo de atualização do app** e na página do release, então seja curto: no máximo uns 8 itens.
+Em português, para quem usa o app, não para quem programa. Elas aparecem em três lugares: **no diálogo de atualização**, na **nota de versão** que o app abre depois de atualizar (e em Ajuda > "Ver nota de versão") e na página do release. Seja curto: no máximo uns 8 itens.
 
-```
-Novidades
+Escreva em `crates/app/release-notes.md` (substituindo o conteúdo da versão anterior; o app embute esse arquivo e põe o título "Nota de versão V<versão>" em cima, então não escreva título de primeiro nível):
+
+```markdown
+## Novidades
+
 - <o que dá para fazer agora>
 
-Correções
+## Correções
+
 - <o que deixou de dar errado>
 
-Melhorias
+## Melhorias
+
 - <mais rápido, mais estável...>
 ```
 
@@ -74,7 +79,7 @@ Melhorias
 - `docs`, `test`, `build`, `ci`, `chore` ficam de fora, a não ser que mudem algo para o usuário (ex.: o instalador).
 - Mudança incompatível: diga o que muda e o que a pessoa precisa fazer.
 
-Grave as notas num arquivo do scratchpad (`NOTES_FILE`).
+O `scripts/release.sh` lê esse mesmo arquivo para o release e para o `latest.json` (no diálogo, sem os `#`).
 
 ## 5. Confirmar com o usuário
 
@@ -90,14 +95,14 @@ pnpm --dir ui exec vitest run
 PUBLISH=0 scripts/release.sh       # build local: instalador assinado + latest.json
 ```
 
-Confira que a primeira linha `version` do `Cargo.toml` é a do `[package]`. Falhou um teste ou o build: pare, desfaça a mudança de versão (`git checkout crates/app/Cargo.toml Cargo.lock`) e relate a saída.
+Confira que a primeira linha `version` do `Cargo.toml` é a do `[package]`. Falhou um teste ou o build: pare, desfaça a mudança de versão e as notas (`git checkout crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md`) e relate a saída.
 
 ## 7. Commit e tag
 
 ```sh
-git add crates/app/Cargo.toml Cargo.lock
+git add crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md
 git commit -m "chore(versao): <nova>" -m "<notas>"   # com as linhas de atribuição da sessão
-git tag -a v<nova> -F "$NOTES_FILE"
+git tag -a v<nova> -m "Fullpad <nova>" -m "$(cat crates/app/release-notes.md)"
 git push origin main v<nova>
 ```
 
@@ -106,7 +111,7 @@ A tag anotada guarda as notas: `git show v<nova>` diz o que entrou em cada vers�
 ## 8. Publicar
 
 ```sh
-BUILD=0 NOTES_FILE="$NOTES_FILE" scripts/release.sh
+BUILD=0 scripts/release.sh
 ```
 
 Publica o instalador já gerado e o `latest.json` como release `v<nova>`.

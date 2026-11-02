@@ -101,6 +101,10 @@ pub struct TabState {
     /// Grupo (painel) da janela em que a aba aparece. Quem decide e interpreta é a UI.
     #[serde(default)]
     pub group: u32,
+    /// Nota de versão aberta pelo app (depois de atualizar, ou em Ajuda > "Ver nota de versão").
+    /// O texto vem embutido no app: fechar apaga de vez, sem passar pelo histórico de abas fechadas.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub release_notes: bool,
 }
 
 impl TabState {
@@ -119,6 +123,7 @@ impl TabState {
             window: main_window(),
             detached: false,
             group: 0,
+            release_notes: false,
         }
     }
 }

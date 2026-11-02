@@ -1560,6 +1560,29 @@ async function openRequested() {
   await openPaths(paths); // a janela já foi trazida à frente pelo Rust (single-instance)
 }
 
+/** Abre a nota de versão: a que já estiver aberta nesta janela ou uma nova. */
+async function showReleaseNotes(opened?: { tab: TabState; text: string } | null) {
+  const title = `Nota de versão V${await getVersion()}`;
+  const existing = session.tabs.find((t) => t.release_notes && t.title === title);
+  if (existing) {
+    // a da atualização chegou, mas já havia uma aberta: a nova não é usada
+    if (opened) await api.closeNote(opened.tab.id).catch(() => {});
+    await activate(existing.id);
+    return;
+  }
+  try {
+    const { tab, text } = opened ?? (await api.releaseNotes());
+    snapshotActive();
+    placeInGroup(tab, cur);
+    await show(tab, text);
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível abrir a nota de versão", kind: "error" });
+    return;
+  }
+  sessionDirty = true;
+  scheduleSave();
+}
+
 async function openPaths(paths: string[]) {
   for (const path of paths) {
     const existing = session.tabs.find((t) => t.path === path);
@@ -1605,6 +1628,7 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
   }
   dirtyNotes.delete(tab.id);
   tab.path = path;
+  tab.release_notes = false; // virou arquivo do usuário: fechar volta a passar pelo histórico
   tab.title = baseName(path);
   tab.dirty = false;
   if (tab.id === session.active) {
@@ -1679,6 +1703,7 @@ const menuActions = {
   copyHtml: () => void copyHtml(),
   exit: () => void thisWindow.close(),
   checkUpdates: () => void checkUpdates(true),
+  releaseNotes: () => void showReleaseNotes(),
   undo: () => (undo(cur.view), cur.view.focus()),
   redo: () => (redo(cur.view), cur.view.focus()),
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
@@ -1808,6 +1833,7 @@ async function boot() {
   if (isMain) {
     void listen("open-paths", () => void openRequested());
     void openRequested();
+    void api.startupReleaseNotes().then((n) => n && showReleaseNotes(n)); // acabou de atualizar
     window.setTimeout(() => void checkUpdates(false), 5000); // sem atrapalhar a abertura
   }
   for (const t of pendingIn.splice(0)) await receiveTab(t);

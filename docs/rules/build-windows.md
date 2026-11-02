@@ -58,4 +58,5 @@ O app usa o `tauri-plugin-updater` (só do lado do Rust: `check_update`, `downlo
 Para publicar, use a skill `gerar-versao` ([../skills/gerar-versao/SKILL.md](../skills/gerar-versao/SKILL.md)): ela calcula a versão pelos commits, escreve as notas, cria a tag `v<versão>` e chama o script. Por baixo:
 
 1. Suba `version` em `crates/app/Cargo.toml` (o updater só oferece versão maior).
-2. `NOTES="o que mudou" scripts/release.sh`: gera o instalador assinado, monta o `latest.json` e cria o release `v<versão>` com os dois arquivos. `PUBLISH=0` só gera.
+2. Escreva as notas em `crates/app/release-notes.md` (markdown; vão embutidas no app como a nota de versão que abre depois de atualizar).
+3. `scripts/release.sh`: gera o instalador assinado, monta o `latest.json` e cria o release `v<versão>` com os dois arquivos. `PUBLISH=0` só gera.

@@ -48,7 +48,12 @@ struct AppState {
     /// Versão nova achada por `check_update` e, depois de `download_update`, o instalador baixado.
     update: Mutex<Option<tauri_plugin_updater::Update>>,
     update_bytes: Mutex<Option<Vec<u8>>>,
+    /// O app acabou de ser atualizado: a janela principal abre a nota de versão uma vez.
+    just_updated: Mutex<bool>,
 }
+
+/// Notas da versão em execução, embutidas no app (a skill `gerar-versao` escreve este arquivo).
+const RELEASE_NOTES: &str = include_str!("../release-notes.md");
 
 /// Caminhos de arquivo dos argumentos (sem o executável e sem opções), absolutos: uma segunda
 /// instância pode ter sido chamada de outra pasta.
@@ -101,6 +106,23 @@ fn install_update(state: State<AppState>) -> Result<(), String> {
     let update = state.update.lock().unwrap().clone().ok_or("nenhuma atualização pendente")?;
     let bytes = state.update_bytes.lock().unwrap().take().ok_or("a atualização não foi baixada")?;
     update.install(bytes).map_err(err)
+}
+
+/// Abre a nota de versão (Ajuda > "Ver nota de versão"): uma nota nova com as notas embutidas.
+#[tauri::command]
+fn release_notes(app: AppHandle, state: State<AppState>) -> Result<OpenedFile, String> {
+    let version = app.package_info().version.to_string();
+    let (tab, text) = state.store.create_release_notes(&version, RELEASE_NOTES).map_err(err)?;
+    Ok(OpenedFile { tab, text })
+}
+
+/// Na primeira abertura depois de uma atualização, a nota de versão (uma vez só).
+#[tauri::command]
+fn startup_release_notes(app: AppHandle, state: State<AppState>) -> Result<Option<OpenedFile>, String> {
+    if !std::mem::take(&mut *state.just_updated.lock().unwrap()) {
+        return Ok(None);
+    }
+    release_notes(app, state).map(Some)
 }
 
 /// Entrega (e esvazia) os arquivos pedidos na linha de comando.
@@ -651,10 +673,16 @@ fn main() {
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
         self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()),
         open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()),
-        update: Mutex::new(None), update_bytes: Mutex::new(None) })
+        update: Mutex::new(None), update_bytes: Mutex::new(None), just_updated: Mutex::new(false) })
         .setup(|app| {
             // reabre as janelas flutuantes da sessão anterior, no mesmo lugar
             let state = app.state::<AppState>();
+            // antes de qualquer janela ler a sessão: numa instalação nova ela ainda não existe
+            let version = app.package_info().version.to_string();
+            match state.store.note_running_version(&version) {
+                Ok(updated) => *state.just_updated.lock().unwrap() = updated,
+                Err(e) => eprintln!("versão em execução não gravada: {e}"),
+            }
             let session = state.store.load_session().map_err(|e| e.to_string())?;
             for label in session.floating_labels() {
                 build_window(app.handle(), &label, session.geometry_of(&label), None)?;
@@ -690,7 +718,9 @@ fn main() {
             take_open_paths,
             check_update,
             download_update,
-            install_update
+            install_update,
+            release_notes,
+            startup_release_notes
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Fullpad");

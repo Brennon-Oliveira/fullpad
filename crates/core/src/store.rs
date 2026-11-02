@@ -1,7 +1,7 @@
 use crate::atomic::write_atomic;
 use crate::fileio;
 use crate::error::{Error, IoContext, Result};
-use crate::model::{ClosedTab, Encoding, Eol, Session, TabState};
+use crate::model::{ClosedTab, Encoding, Eol, Language, Session, TabState, ViewMode};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -89,6 +89,37 @@ impl Store {
         Ok(TabState::new(id))
     }
 
+    /// Nota de versão: markdown, aberta renderizada, com o título "Nota de versão V<versão>".
+    pub fn create_release_notes(&self, version: &str, notes: &str) -> Result<(TabState, String)> {
+        let title = format!("Nota de versão V{version}");
+        let text = format!("# {title}\n\n{}\n", notes.trim());
+        let mut tab = self.create_note()?;
+        self.write_note(tab.id, &text)?;
+        tab.title = title;
+        tab.language = Language::Markdown;
+        tab.mode = ViewMode::Rendered;
+        tab.release_notes = true;
+        Ok((tab, text))
+    }
+
+    /// Registra a versão em execução e diz se o app acabou de ser atualizado: a versão gravada da
+    /// última execução é outra. Sem versão gravada (até a 0.2.1 o app não gravava), conta como
+    /// atualização se já havia sessão; numa instalação nova, não.
+    pub fn note_running_version(&self, version: &str) -> Result<bool> {
+        let path = self.root.join("version");
+        let previous = match std::fs::read_to_string(&path) {
+            Ok(v) => Some(v.trim().to_string()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(Error::Io { path, source: e }),
+        };
+        if previous.as_deref() == Some(version) {
+            return Ok(false);
+        }
+        let used_before = previous.is_some() || self.session_path().exists();
+        write_atomic(&path, version.as_bytes())?;
+        Ok(used_before)
+    }
+
     pub fn read_note(&self, id: Uuid) -> Result<String> {
         let path = self.note_path(id);
         let bytes = std::fs::read(&path).at(&path)?;
@@ -144,6 +175,14 @@ impl Store {
     /// Fecha a aba guardando o estado dela (título, arquivo, linguagem…) ao lado do texto, para
     /// poder reabri-la depois (`list_closed`/`restore_note`).
     pub fn close_tab(&self, tab: &TabState) -> Result<()> {
+        if tab.release_notes {
+            // texto embutido no app (refeito em "Ver nota de versão"): não vai para o histórico
+            let path = self.note_path(tab.id);
+            return match std::fs::remove_file(&path) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(Error::Io { path, source: e }),
+                _ => Ok(()),
+            };
+        }
         let closed_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -194,6 +233,52 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let s = Store::new(dir.path());
         (dir, s)
+    }
+
+    #[test]
+    fn release_notes_close_without_history() {
+        let (_d, s) = store();
+        let (tab, text) = s.create_release_notes("1.2.3", "## Novidades\n- algo\n").unwrap();
+        assert_eq!(tab.title, "Nota de versão V1.2.3");
+        assert!(text.starts_with("# Nota de versão V1.2.3\n\n## Novidades"));
+        assert_eq!(s.read_note(tab.id).unwrap(), text);
+        s.close_tab(&tab).unwrap();
+        assert!(s.list_closed(10).is_empty());
+        assert!(s.read_note(tab.id).is_err());
+
+        // uma nota comum continua indo para o histórico
+        let other = s.create_note().unwrap();
+        s.close_tab(&other).unwrap();
+        assert_eq!(s.list_closed(10).len(), 1);
+    }
+
+    #[test]
+    fn release_notes_flag_survives_session_roundtrip() {
+        let (_d, s) = store();
+        let (tab, _) = s.create_release_notes("1.0.0", "x").unwrap();
+        let mut session = Session::empty();
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        assert!(s.load_session().unwrap().tabs[0].release_notes);
+        // abas comuns não gravam o campo
+        let plain = serde_json::to_string(&TabState::new(Uuid::new_v4())).unwrap();
+        assert!(!plain.contains("release_notes"));
+    }
+
+    #[test]
+    fn running_version_detects_updates() {
+        let (_d, s) = store();
+        assert!(!s.note_running_version("0.3.0").unwrap(), "instalação nova não é atualização");
+        assert!(!s.note_running_version("0.3.0").unwrap(), "mesma versão");
+        assert!(s.note_running_version("0.3.1").unwrap(), "versão nova");
+        assert!(!s.note_running_version("0.3.1").unwrap());
+    }
+
+    #[test]
+    fn running_version_without_record_counts_existing_session() {
+        let (_d, s) = store();
+        s.save_session(&Session::empty()).unwrap(); // usado por uma versão que não gravava a versão
+        assert!(s.note_running_version("0.3.0").unwrap());
     }
 
     #[test]
