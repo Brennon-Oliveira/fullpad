@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { insertionIndex, slideOffsets } from "./tabdrag";
+import { dropIndex, insertionIndex, slideOffsets } from "./tabdrag";
 
 describe("insertionIndex", () => {
   const centers = [50, 150, 250];
@@ -24,5 +24,20 @@ describe("slideOffsets", () => {
   });
   it("sem mudança de lugar, ninguém se mexe", () => {
     expect(slideOffsets(w, 2, 2)).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe("dropIndex", () => {
+  // abas de 60, 300 e 100 px, coladas
+  const lefts = [0, 60, 360];
+  const widths = [60, 300, 100];
+  it("a aba larga troca com a pequena assim que sua borda passa do centro dela", () => {
+    expect(dropIndex(lefts, widths, 1, 60)).toBe(1); // parada
+    expect(dropIndex(lefts, widths, 1, 40)).toBe(1); // ainda não passou do centro (30)
+    expect(dropIndex(lefts, widths, 1, 20)).toBe(0); // passou
+  });
+  it("para a direita vale a borda direita", () => {
+    expect(dropIndex(lefts, widths, 1, 100)).toBe(1); // direita em 400 < centro de 410
+    expect(dropIndex(lefts, widths, 1, 120)).toBe(2);
   });
 });

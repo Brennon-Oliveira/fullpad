@@ -28,6 +28,20 @@ export function insertionIndex(centers: number[], x: number): number {
   return i < 0 ? centers.length : i;
 }
 
+/**
+ * Posição final da aba `from` quando ela está com a borda esquerda em `left`. Vale a borda da frente
+ * (a esquerda ao ir para a esquerda, a direita ao ir para a direita) contra o centro de cada vizinha:
+ * comparar centros com centros impede trocar com uma aba bem menor, porque o centro de uma aba larga
+ * nunca chega ao da pequena.
+ */
+export function dropIndex(lefts: number[], widths: number[], from: number, left: number): number {
+  const right = left + widths[from];
+  let to = from;
+  for (let j = from - 1; j >= 0 && left < lefts[j] + widths[j] / 2; j--) to = j;
+  for (let j = from + 1; j < lefts.length && right > lefts[j] + widths[j] / 2; j++) to = j;
+  return to;
+}
+
 /** Para onde cada aba desliza quando a aba `from` é solta na posição `to`: deslocamento em px. */
 export function slideOffsets(widths: number[], from: number, to: number): number[] {
   const w = widths[from];
@@ -110,9 +124,7 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
     const dx = Math.max(minDx, Math.min(maxDx, e.clientX - d.x0));
     d.el.style.transition = "none";
     d.el.style.transform = `translateX(${dx}px)`;
-    const centre = d.lefts[d.from] + d.widths[d.from] / 2 + dx;
-    // posição final = quantas das outras estão antes do centro da aba arrastada
-    d.to = d.els.filter((_, j) => j !== d.from && d.lefts[j] + d.widths[j] / 2 < centre).length;
+    d.to = dropIndex(d.lefts, d.widths, d.from, d.lefts[d.from] + dx);
     const shift = slideOffsets(d.widths, d.from, d.to);
     d.els.forEach((t, j) => {
       if (j !== d.from) t.style.transform = shift[j] ? `translateX(${shift[j]}px)` : "";
