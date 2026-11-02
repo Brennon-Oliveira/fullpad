@@ -1115,24 +1115,21 @@ type DropTarget =
 
 /**
  * Ao dividir pela borda `side` do painel `g`: só ele, ou o bloco inteiro a que ele pertence (uma pilha
- * de painéis). Vale o bloco quando o ponteiro está colado na borda da janela/bloco (24px) ou na altura
- * (ou largura) de uma divisa interna do bloco (36px): "alinhado no meio da divisa".
+ * de painéis). Pelo eixo da pilha, o bloco é dividido em terços: o terço do meio vale o bloco todo, e
+ * os terços de cima e de baixo (ou esquerda e direita) valem só o painel daquele lado.
  */
 function blockPath(g: Group, side: Side, cx: number, cy: number): number[] {
   const cands = wrapCandidates(layout.root, g.id, side);
-  let best = cands[0];
-  for (const c of cands.slice(1)) {
+  const alongY = side === "left" || side === "right"; // a pilha é vertical: o que importa é a altura
+  for (const c of [...cands.slice(1)].reverse()) { // do maior bloco para o menor
     const node = nodeAt(layout.root, c);
     const el = node && nodeEls.get(node);
     if (!node || node.t !== "split" || !el) continue;
     const r = el.getBoundingClientRect();
-    const edge = side === "left" ? cx - r.left : side === "right" ? r.right - cx : side === "top" ? cy - r.top : r.bottom - cy;
-    const horizontalLine = side === "left" || side === "right"; // a pilha é vertical: as divisas são linhas horizontais
-    const kids = [...el.children].filter((k) => !k.classList.contains("splitter")).map((k) => k.getBoundingClientRect());
-    const nearDivider = kids.slice(0, -1).some((k) => Math.abs((horizontalLine ? cy - k.bottom : cx - k.right)) <= 36);
-    if (edge <= 24 || nearDivider) best = c;
+    const [from, size, at] = alongY ? [r.top, r.height, cy] : [r.left, r.width, cx];
+    if (at >= from + size / 3 && at <= from + (2 * size) / 3) return c;
   }
-  return best;
+  return cands[0];
 }
 
 /**
