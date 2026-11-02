@@ -739,6 +739,12 @@ async function reopenTab(id?: string) {
   void refreshClosed();
 }
 
+/** Janelinha com as abas fechadas; escolher uma a reabre nesta janela. */
+async function showHistory() {
+  const { openHistory } = await import("./history");
+  openHistory(await api.listClosed(300), (id) => void reopenTab(id));
+}
+
 async function closeTab(id: string) {
   const tab = session.tabs.find((t) => t.id === id);
   if (!tab) return;
@@ -1067,31 +1073,45 @@ let dragId: string | null = null; // a aba arrastada (a que ficou apagada na bar
 
 const inDrag = (job: () => Promise<unknown>) => (dragChain = dragChain.then(job, job).catch((e) => console.error("arrasto", e)));
 
-/** Onde a aba arrastada cairia dentro desta janela. */
-type DropTarget = { kind: "strip"; g: Group; cx: number } | { kind: "zone"; g: Group; zone: Zone };
+/** Onde a aba arrastada cairia dentro desta janela. `none`: soltar aqui não faz nada. */
+type DropTarget = { kind: "strip"; g: Group; cx: number } | { kind: "zone"; g: Group; zone: Zone } | { kind: "none" };
 
-function localTarget(id: string, cx: number, cy: number): DropTarget | null {
-  if (selfDragging || cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return null;
-  const tab = session.tabs.find((t) => t.id === id);
-  if (!tab) return null;
-  const src = groups.get(tab.group)!;
+/**
+ * O que há sob o ponto (cx, cy) desta janela para uma aba arrastada. `src`: painel de onde a aba sai
+ * (aba da própria janela); sem ele a aba vem de outra janela, que só entra pela barra ou pela borda
+ * de um painel: o meio fica de fora e a aba vira uma janela própria. O preview/diagrama é parte do
+ * painel, nunca um destino à parte: vale o painel inteiro (conteúdo e preview trocam juntos).
+ */
+function targetAt(cx: number, cy: number, src?: Group): DropTarget | null {
+  if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return null;
   const el = document.elementFromPoint(cx, cy);
   const strip = el?.closest<HTMLElement>(".tabs");
   if (strip) return { kind: "strip", g: [...groups.values()].find((g) => g.tabsEl === strip)!, cx };
   const body = el?.closest<HTMLElement>(".group");
   const g = body && [...groups.values()].find((x) => x.el === body);
   if (!g) return null;
+  if (el?.closest(".diagram, .mdview")) {
+    if (!src) return null;
+    return g === src ? { kind: "none" } : { kind: "zone", g, zone: "center" };
+  }
   const zone = zoneAt(g.bodyEl.getBoundingClientRect(), cx, cy);
+  if (!src) return zone === "center" ? null : { kind: "zone", g, zone };
   const alone = g === src && tabsOf(src).length === 1;
   // o meio do próprio painel não faz nada (cai como antes: janela nova); sozinha, uma aba não divide o próprio painel
   if (zone === "center" ? g === src : alone) return null;
   return { kind: "zone", g, zone };
 }
 
+function localTarget(id: string, cx: number, cy: number): DropTarget | null {
+  if (selfDragging) return null;
+  const tab = session.tabs.find((t) => t.id === id);
+  return tab ? targetAt(cx, cy, groups.get(tab.group)!) : null;
+}
+
 let overlay: HTMLElement | null = null;
 
 function showDropHint(t: DropTarget | null) {
-  if (!t) return clearDropHint();
+  if (!t || t.kind === "none") return clearDropHint();
   if (t.kind === "strip") {
     overlay?.remove();
     overlay = null;
@@ -1119,7 +1139,7 @@ function clearDropHint() {
   clearGhost();
 }
 
-async function dropLocal(id: string, t: DropTarget) {
+async function dropLocal(id: string, t: Exclude<DropTarget, { kind: "none" }>) {
   if (t.kind === "strip") {
     const mine = tabsOf(t.g).filter((x) => x.id !== id);
     const centers = [...t.g.tabsEl.querySelectorAll<HTMLElement>(".tab:not(.ghost)")]
@@ -1161,7 +1181,7 @@ function tearEnd(id: string, p: TearPoint, cancelled: boolean) {
   selfDragging = false;
   const target = cancelled ? null : (localTarget(id, p.cx, p.cy) ?? null);
   clearDropHint();
-  if (cancelled) return void inDrag(() => api.dragCancel());
+  if (cancelled || target?.kind === "none") return void inDrag(() => api.dragCancel());
   if (target) {
     return void inDrag(async () => {
       await api.dragCancel();
@@ -1236,17 +1256,31 @@ function showGhost(cx: number, title: string, g: Group) {
   ghost.timer = window.setTimeout(clearGhost, 1200); // some sozinho se o aviso de saída se perder
 }
 
-/** O painel cuja barra está sob a posição horizontal `cx` (a de cima, se houver várias). */
-function stripGroupAt(cx: number): Group {
-  const hit = [...groups.values()]
-    .map((g) => ({ g, r: g.tabsEl.getBoundingClientRect() }))
-    .filter(({ r }) => cx >= r.left && cx <= r.right)
-    .sort((a, b) => a.r.top - b.r.top)[0];
-  return hit?.g ?? cur;
-}
+// Aba arrastada de OUTRA janela passando por esta: mostra onde entraria (na barra, ou numa borda
+// de painel, que abre um painel novo) e avisa o Rust se aqui ela é aceita. O meio de um painel não é.
+let incoming: { g: Group; index?: number; zone?: Side; at: number } | null = null;
+let lastAccept = false;
+const setAccept = (v: boolean) => {
+  if (v === lastAccept) return;
+  lastAccept = v;
+  void api.dragAccept(v).catch(() => {});
+};
 
-void listen<{ cx: number; title: string; target: string }>("drag-over", (e) => e.payload.target === winLabel && showGhost(e.payload.cx, e.payload.title, stripGroupAt(e.payload.cx)));
-void listen<string>("drag-leave", (e) => e.payload === winLabel && clearGhost());
+void listen<{ cx: number; cy: number; title: string; target: string }>("drag-over", (e) => {
+  if (e.payload.target !== winLabel) return;
+  dragTitle = e.payload.title;
+  const t = targetAt(e.payload.cx, e.payload.cy);
+  showDropHint(t);
+  if (t?.kind === "strip") incoming = { g: t.g, index: ghost?.index, at: Date.now() };
+  else if (t?.kind === "zone" && t.zone !== "center") incoming = { g: t.g, zone: t.zone, at: Date.now() };
+  else incoming = null;
+  setAccept(!!t);
+});
+void listen<string>("drag-leave", (e) => {
+  if (e.payload !== winLabel) return;
+  clearDropHint(); // `incoming` fica: a aba chega logo depois e usa o último lugar mostrado
+  lastAccept = false;
+});
 
 // uma aba chegou de outra janela (no lugar que a barra mostrou, se foi arrastada)
 const incomingReady = listen<TabState>("tab-incoming", (e) => void receiveTab(e.payload));
@@ -1257,13 +1291,22 @@ async function receiveTab(tab: TabState) {
     return;
   }
   if (tab.window !== winLabel || session.tabs.some((t) => t.id === tab.id)) return;
-  const g = ghost?.group ?? cur;
-  const at = ghost && ghost.index >= 0 ? Math.min(ghost.index, tabsOf(g).length) : undefined;
-  clearGhost();
+  const inc = incoming && Date.now() - incoming.at < 2500 && groups.get(incoming.g.id) === incoming.g ? incoming : null;
+  incoming = null;
+  clearDropHint();
   snapshotActive();
   states.delete(tab.id);
   detected.delete(tab.id);
-  placeInGroup(tab, g, at);
+  if (inc?.zone) {
+    // solta na borda de um painel: a aba ganha um painel novo ali (e é a última da lista de abas)
+    const g = createGroup(newGroupId());
+    layout.root = splitLeaf(layout.root, inc.g.id, inc.zone, g.id);
+    renderLayout();
+    placeInGroup(tab, g);
+  } else {
+    const g = inc?.g ?? cur;
+    placeInGroup(tab, g, inc?.index !== undefined && inc.index >= 0 ? Math.min(inc.index, tabsOf(g).length) : undefined);
+  }
   await show(tab); // lê o texto gravado pela janela de origem
   sessionDirty = true;
   scheduleSave();
@@ -1465,8 +1508,8 @@ const menuActions = {
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
   closeTab: () => void closeTab(session.active!),
-  reopenTab: (id?: string) => void reopenTab(id),
-  closedTabs: () => closedCache.map((c) => ({ id: c.tab.id, title: c.tab.title })),
+  reopenTab: () => void reopenTab(),
+  history: () => void showHistory(),
   exportHtml: () => void exportHtml(),
   exportPdf: () => void exportPdf(),
   copyHtml: () => void copyHtml(),
@@ -1518,6 +1561,7 @@ window.addEventListener(
     }
     const run = (fn: () => void) => (e.preventDefault(), fn());
     if (key === "t" && e.shiftKey) run(() => void reopenTab());
+    else if (key === "h" && e.shiftKey) run(() => void showHistory());
     else if (key === "n" && e.shiftKey) run(menuActions.newWindow);
     else if ((key === "n" || key === "t") && !e.shiftKey) run(menuActions.newNote);
     else if (key === "o") run(menuActions.openFile);

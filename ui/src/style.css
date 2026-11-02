@@ -291,3 +291,16 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 /* só a aba aberta mostra o ×: evita fechar a errada num clique torto (o espaço fica reservado, a largura não muda) */
 .tab:not(.active) .close { visibility: hidden; pointer-events: none; }
 .tab.torn:only-of-type { opacity: 1; } /* única aba: é a janela que anda, não há sombra */
+
+/* ---- janelinha do histórico de abas fechadas ---- */
+.modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.35); display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; }
+.modal { width: min(560px, 92vw); max-height: 70vh; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.45); overflow: hidden; }
+.modal-title { padding: 10px 14px; font-weight: 600; border-bottom: 1px solid var(--border); background: var(--bar); }
+.modal-search { margin: 10px 12px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; outline: none; }
+.modal-search:focus { border-color: var(--accent); }
+.modal-list { overflow-y: auto; padding: 0 6px 8px; scrollbar-width: thin; }
+.modal-row { display: flex; justify-content: space-between; gap: 16px; padding: 7px 10px; border-radius: 5px; cursor: default; }
+.modal-row:hover, .modal-row.sel { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.modal-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-meta { flex: none; color: var(--muted); font-size: 12px; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
+.modal-empty { padding: 18px; color: var(--muted); text-align: center; }

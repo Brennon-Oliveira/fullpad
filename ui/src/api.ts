@@ -70,6 +70,8 @@ export const api = {
   dragCancel: () => invoke<void>("drag_cancel"),
   /** Soltou a aba na tela: vai para a barra de outra janela ou vira uma janela nova ali. Devolve o destino. */
   dropTab: (tab: TabState, x: number, y: number, gx: number, gy: number) => invoke<string>("drop_tab", { tab, x, y, gx, gy }),
+  /** A janela sob o ponteiro aceita (ou não) a aba arrastada de outra janela onde ele está. */
+  dragAccept: (accept: boolean) => invoke<void>("drag_accept", { accept }),
   /** Esta janela terminou de carregar e pode aparecer. */
   windowReady: () => invoke<void>("window_ready"),
   newWindow: () => invoke<string>("new_window"),
@@ -81,7 +83,7 @@ export const api = {
   newNote: () => invoke<TabState>("new_note"),
   closeNote: (id: string) => invoke<void>("close_note", { id }),
   /** Abas fechadas recentemente (a mais nova primeiro). */
-  listClosed: () => invoke<ClosedTab[]>("list_closed"),
+  listClosed: (limit?: number) => invoke<ClosedTab[]>("list_closed", { limit }),
   /** Reabre uma aba fechada nesta janela. */
   restoreTab: (id: string) => invoke<{ tab: TabState; text: string }>("restore_tab", { id }),
   openFile: (path: string) => invoke<{ tab: TabState; text: string }>("open_file", { path }),

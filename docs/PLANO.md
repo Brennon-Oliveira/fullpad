@@ -113,7 +113,9 @@ Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), arrastar 
 - ✅ 8.2 Exportar markdown como HTML, como PDF (impressão do sistema) e copiar como HTML formatado.
 - ✅ 8.3 Grade de painéis dentro da janela, como no VS Code: dividir à direita/abaixo/esquerda/acima (Ctrl+\, Ctrl+Shift+\, menu da aba), redimensionar pelos divisores, arrastar a aba para uma borda (divide) ou para a barra de outro painel (move, na posição exata), Ctrl+1…9 foca o painel, painel sem abas some. A grade é gravada por janela e restaurada.
 
-Fica para depois: mover aba entre janelas com o histórico de desfazer; soltar uma aba de outra janela no corpo de um painel (hoje ela entra pela barra); duas visões da mesma aba em painéis diferentes.
+- ✅ 8.4 Aba de outra janela solta direto na grade (barra ou borda de painel; o meio vira janela própria); o preview é parte do painel; histórico de abas fechadas numa janelinha com filtro.
+
+Fica para depois: mover aba entre janelas com o histórico de desfazer; duas visões da mesma aba em painéis diferentes.
 
 ## Pendências de ambiente
 

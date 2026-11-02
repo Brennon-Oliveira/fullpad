@@ -10,9 +10,8 @@ export interface MenuActions {
   save(): void;
   saveAs(): void;
   closeTab(): void;
-  reopenTab(id?: string): void;
-  /** Abas fechadas recentemente (a mais nova primeiro). */
-  closedTabs(): { id: string; title: string }[];
+  reopenTab(): void;
+  history(): void;
   exportHtml(): void;
   exportPdf(): void;
   copyHtml(): void;
@@ -73,18 +72,12 @@ export function exportItem(a: Pick<MenuActions, "exportHtml" | "exportPdf" | "co
   };
 }
 
-/** "Reabrir aba fechada" e a lista das últimas fechadas. */
+/** Reabrir a última aba fechada e abrir o histórico das anteriores. */
 function reopenItems(a: MenuActions): MenuItem[] {
-  const closed = a.closedTabs();
-  const items: MenuItem[] = [
-    { label: "Reabrir aba fechada", shortcut: "Ctrl+Shift+T", disabled: closed.length === 0, action: () => a.reopenTab() },
+  return [
+    { label: "Reabrir aba fechada", shortcut: "Ctrl+Shift+T", action: () => a.reopenTab() },
+    { label: "Histórico de abas fechadas…", shortcut: "Ctrl+Shift+H", action: a.history },
   ];
-  if (closed.length > 1) {
-    items.push("sep");
-    for (const c of closed.slice(0, 8)) items.push({ label: c.title || "Nova nota", action: () => a.reopenTab(c.id) });
-    items.push("sep");
-  }
-  return items;
 }
 
 export function languageItems(a: MenuActions): MenuItem[] {
