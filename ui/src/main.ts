@@ -1501,7 +1501,18 @@ async function copyHtml() {
 async function openFiles() {
   const picked = await openDialog({ multiple: true, filters: FILTERS });
   if (!picked) return;
-  for (const path of Array.isArray(picked) ? picked : [picked]) {
+  await openPaths(Array.isArray(picked) ? picked : [picked]);
+}
+
+/** Abre os arquivos pedidos fora do app (duplo clique, "Abrir com", segunda instância). */
+async function openRequested() {
+  const paths = await api.takeOpenPaths();
+  if (paths.length === 0) return;
+  await openPaths(paths); // a janela já foi trazida à frente pelo Rust (single-instance)
+}
+
+async function openPaths(paths: string[]) {
+  for (const path of paths) {
     const existing = session.tabs.find((t) => t.path === path);
     if (existing) {
       await activate(existing.id);
@@ -1744,6 +1755,10 @@ async function boot() {
   });
 
   booted = true;
+  if (isMain) {
+    void listen("open-paths", () => void openRequested());
+    void openRequested();
+  }
   for (const t of pendingIn.splice(0)) await receiveTab(t);
   if (idle && pendingIn.length === 0 && session.tabs.length === 0) return; // segue escondida
   if (!shown) {

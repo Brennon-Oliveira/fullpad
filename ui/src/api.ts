@@ -79,6 +79,8 @@ export const api = {
   openPreview: (tab: string, lang: string) => invoke<void>("open_preview", { tab, lang }),
   previewInfo: () => invoke<{ owner: string; tab: string; lang: string }>("preview_info"),
   closePreview: (tab: string) => invoke<void>("close_preview", { tab }),
+  /** Arquivos pedidos na linha de comando que ainda não foram abertos (só a janela principal usa). */
+  takeOpenPaths: () => invoke<string[]>("take_open_paths"),
   exitApp: () => invoke<void>("exit_app"),
   newNote: () => invoke<TabState>("new_note"),
   closeNote: (id: string) => invoke<void>("close_note", { id }),

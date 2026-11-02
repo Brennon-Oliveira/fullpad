@@ -8,7 +8,7 @@ O roteiro de entrega por fases está em [PLANO.md](PLANO.md). Siga-o: cada fase 
 
 ```
 crates/core   persistência (sessão, notas, arquivos, escrita atômica, lixeira). Sem UI, testável.
-crates/app    Tauri 2: comandos IPC (load_startup, read_note, save_note, save_window, new_note, close_note, list_closed, restore_tab, open_file, save_file, export_file, list_windows, move_tab, new_window, prewarm, drag_start, drag_move, drag_cancel, drag_accept, drop_tab, window_ready, open_preview, preview_info, close_preview, exit_app), janelas, single-instance.
+crates/app    Tauri 2: comandos IPC (load_startup, read_note, save_note, save_window, new_note, close_note, list_closed, restore_tab, open_file, save_file, export_file, list_windows, move_tab, new_window, prewarm, drag_start, drag_move, drag_cancel, drag_accept, drop_tab, window_ready, open_preview, preview_info, close_preview, exit_app, take_open_paths), janelas, single-instance. Arquivos pedidos na linha de comando (duplo clique, "Abrir com", segunda instância) ficam em `AppState.open_paths`; a janela principal os retira por `take_open_paths` (ao abrir e ao receber o evento `open-paths`).
 ui/           TypeScript + CodeMirror 6 + Vite (abas, editor, live preview, menus, barra de status).
 ui/src/codelangs.ts  linguagens dos blocos de código do markdown (carga sob demanda; para acrescentar uma, é só mais uma entrada).
 ui/src/dbmllang.ts  destaque de sintaxe do DBML (CodeMirror StreamLanguage; pequeno, entra no bundle de abertura).

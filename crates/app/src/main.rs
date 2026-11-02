@@ -42,6 +42,28 @@ struct AppState {
     session_lock: Mutex<()>,
     /// Abas fechadas nesta execução: uma gravação atrasada de uma janela não pode ressuscitá-las.
     closed: Mutex<HashSet<Uuid>>,
+    /// Arquivos pedidos na linha de comando (duplo clique, "Abrir com") que a janela principal
+    /// ainda não abriu. Ela os retira com `take_open_paths`.
+    open_paths: Mutex<Vec<PathBuf>>,
+}
+
+/// Caminhos de arquivo dos argumentos (sem o executável e sem opções), absolutos: uma segunda
+/// instância pode ter sido chamada de outra pasta.
+fn paths_from_args(args: &[String], cwd: &std::path::Path) -> Vec<PathBuf> {
+    args.iter()
+        .skip(1)
+        .filter(|a| !a.starts_with('-') && !a.is_empty())
+        .map(|a| {
+            let p = PathBuf::from(a);
+            if p.is_absolute() { p } else { cwd.join(p) }
+        })
+        .collect()
+}
+
+/// Entrega (e esvazia) os arquivos pedidos na linha de comando.
+#[tauri::command]
+fn take_open_paths(state: State<AppState>) -> Vec<PathBuf> {
+    std::mem::take(&mut *state.open_paths.lock().unwrap())
 }
 
 #[derive(Serialize)]
@@ -522,6 +544,19 @@ fn exit_app(app: AppHandle) {
     app.exit(0);
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn argumentos_viram_caminhos_absolutos() {
+        let args: Vec<String> = ["fullpad.exe", "--flag", "nota.md", "C:\\x\\y.txt"].iter().map(|s| s.to_string()).collect();
+        let got = paths_from_args(&args, std::path::Path::new("/pasta"));
+        assert_eq!(got.len(), 2);
+        assert_eq!(got[0], std::path::Path::new("/pasta").join("nota.md"));
+    }
+}
+
 #[derive(Serialize)]
 struct OpenedFile {
     tab: TabState,
@@ -555,7 +590,13 @@ fn main() {
 
     tauri::Builder::default()
         // Segunda execução reaproveita a janela já aberta.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let paths = paths_from_args(&args, std::path::Path::new(&cwd));
+            if !paths.is_empty() {
+                app.state::<AppState>().open_paths.lock().unwrap().extend(paths);
+                // só um aviso: a janela principal retira a lista com `take_open_paths`
+                let _ = app.emit_to("main", "open-paths", ());
+            }
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
                 let _ = w.show();
@@ -564,7 +605,8 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
-        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()) })
+        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()),
+        open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()) })
         .setup(|app| {
             // reabre as janelas flutuantes da sessão anterior, no mesmo lugar
             let state = app.state::<AppState>();
@@ -599,7 +641,8 @@ fn main() {
             open_preview,
             preview_info,
             close_preview,
-            exit_app
+            exit_app,
+            take_open_paths
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Fullpad");
