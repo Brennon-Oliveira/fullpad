@@ -1,6 +1,6 @@
 # Commits e títulos de PR
 
-Os commits são a fonte das notas de versão: a skill `deploy` (`/branaos:deploy`) lê o histórico desde a última tag de produção, calcula a próxima versão e escreve as notas a partir dos commits. Commit mal escrito vira nota de versão ruim ou versão errada.
+Os commits são a fonte das notas de versão: a skill `gerar-versao` ([../skills/gerar-versao/SKILL.md](../skills/gerar-versao/SKILL.md)) lê o histórico desde a última tag `v*`, calcula a próxima versão e escreve as notas a partir dos commits (elas aparecem no diálogo de atualização do app). Commit mal escrito vira nota de versão ruim ou versão errada.
 
 ## Formato
 
