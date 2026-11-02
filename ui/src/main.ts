@@ -17,7 +17,7 @@ import { exportItem, languageItems, mountMenuBar, viewItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
-import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, normalize, pathTo, removeLeaf, resizeSizes, splitLeaf, splitPath, swapAdjacent, wrapCandidates, zoneAt } from "./grid";
+import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, normalize, pathTo, removeLeaf, resizeSizes, splitLeaf, splitPath, swapAdjacent, wrapCandidates } from "./grid";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -1141,22 +1141,40 @@ function blockPath(g: Group, side: Side, cx: number, cy: number): number[] {
 function targetAt(cx: number, cy: number, src?: Group): DropTarget | null {
   if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return null;
   const el = document.elementFromPoint(cx, cy);
-  const strip = el?.closest<HTMLElement>(".tabs");
-  if (strip) return { kind: "strip", g: [...groups.values()].find((g) => g.tabsEl === strip)!, cx };
   const body = el?.closest<HTMLElement>(".group");
   const g = body && [...groups.values()].find((x) => x.el === body);
   if (!g) return null;
-  // código e preview formam uma unidade: as bordas valem para o conjunto, esteja o ponteiro onde estiver
-  const zone = zoneAt(g.bodyEl.getBoundingClientRect(), cx, cy);
-  if (!src) return zone === "center" ? null : { kind: "zone", g, zone, path: blockPath(g, zone, cx, cy) };
-  if (zone === "center") {
-    if (g !== src) return { kind: "zone", g, zone };
+  const inStrip = !!el?.closest(".tabs");
+
+  // As bordas valem para o painel inteiro (barra de abas, código e preview), não para cada pedaço.
+  const r = g.el.getBoundingClientRect();
+  const [fx, fy] = [(cx - r.left) / r.width, (cy - r.top) / r.height];
+  const edge = 0.28;
+  const near: { side: Side; depth: number; wide: boolean }[] = [];
+  const add = (side: Side, depth: number) => {
+    if (depth < edge) near.push({ side, depth, wide: wrapCandidates(layout.root, g.id, side).length > 1 });
+  };
+  add("left", fx);
+  add("right", 1 - fx);
+  add("top", fy);
+  add("bottom", 1 - fy);
+  // Nas pilhas a faixa da borda é contínua: vale mesmo sobre a barra de abas de um painel do meio.
+  // Fora delas, a barra de abas continua sendo o lugar de soltar a aba na lista.
+  const usable = inStrip ? near.filter((n) => n.wide) : near;
+  // quando duas bordas se cruzam, a que tem bloco maior ganha (a faixa é um quadrado contínuo)
+  const pool = usable.some((n) => n.wide) ? usable.filter((n) => n.wide) : usable;
+  const pick = pool.sort((a, b) => a.depth - b.depth)[0];
+
+  if (!pick) {
+    if (inStrip) return { kind: "strip", g, cx };
+    if (!src) return null; // de fora, o meio de um painel não aceita
+    if (g !== src) return { kind: "zone", g, zone: "center" };
     // o meio do próprio painel: sobre o preview não faz nada; sobre o código cai como antes (janela nova)
     return el?.closest(".diagram, .mdview") ? { kind: "none" } : null;
   }
-  const path = blockPath(g, zone, cx, cy);
-  const alone = g === src && tabsOf(src).length === 1 && path.length === pathTo(layout.root, g.id)?.length; // sozinha, uma aba não divide o próprio painel
-  return alone ? null : { kind: "zone", g, zone, path };
+  const path = blockPath(g, pick.side, cx, cy);
+  const alone = !!src && g === src && tabsOf(src).length === 1 && path.length === pathTo(layout.root, g.id)?.length; // sozinha, uma aba não divide o próprio painel
+  return alone ? null : { kind: "zone", g, zone: pick.side, path };
 }
 
 function localTarget(id: string, cx: number, cy: number): DropTarget | null {
