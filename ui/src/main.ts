@@ -15,7 +15,7 @@ const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importa
 import { languageItems, mountMenuBar, viewItems } from "./menus";
 import { type MenuItem, showMenu } from "./popup";
 import { mountStatusBar } from "./statusbar";
-import { attachTabDrag } from "./tabdrag";
+import { attachTabDrag, insertionIndex } from "./tabdrag";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -24,6 +24,9 @@ const DETECT_MS = 600;
 const thisWindow = getCurrentWindow();
 const winLabel = thisWindow.label;
 const isMain = winLabel === "main";
+let booted = false;
+let shown = false; // a janela já apareceu (a reserva só aparece quando recebe a 1ª aba)
+const pendingIn: TabState[] = []; // abas que chegaram antes de a janela terminar de iniciar
 let exiting = false; // o app está fechando: janelas flutuantes só gravam, sem devolver as abas
 let session: Session;
 const states = new Map<string, EditorState>(); // abas já carregadas (guarda undo/seleção)
@@ -112,6 +115,7 @@ function redetect(tab: TabState) {
 
 /** Aplica linguagem, preview, quebra de linha e INS/OVR ao editor ativo. */
 function applyTabConfig() {
+  if (!session.active) return;
   const tab = activeTab();
   view.dispatch({
     effects: tabEffects({
@@ -450,6 +454,7 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
 
 /** Captura cursor/scroll da aba ativa no objeto da sessão e guarda o estado. */
 function snapshotActive() {
+  if (!session.active) return; // janela reserva, ainda sem aba
   const tab = activeTab();
   states.set(tab.id, view.state);
   tab.cursor = view.state.selection.main.head;
@@ -509,6 +514,7 @@ function tabLabel(t: TabState): string {
 }
 
 function renderTabs() {
+  clearGhost();
   tabsEl.replaceChildren(
     ...session.tabs.map((t) => {
       const el = document.createElement("div");
@@ -639,35 +645,10 @@ function cycle(delta: number) {
 
 // ---- várias janelas ---------------------------------------------------------
 
-/**
- * Leva a aba para outra janela (`to`: rótulo ou "new") ou, com `drop`, para onde ela foi solta na
- * tela. O texto pendente é gravado antes, para a outra janela ler a versão mais recente; o histórico
- * de desfazer fica para trás.
- */
-async function sendTab(id: string, to: string, drop?: { x: number; y: number }) {
+/** Tira a aba desta janela depois de ela ter ido para outra (o texto já foi gravado). */
+async function removeLocalTab(id: string) {
   const idx = session.tabs.findIndex((t) => t.id === id);
   if (idx < 0) return;
-  const tab = session.tabs[idx];
-  if (id === session.active) snapshotActive();
-  if (dirtyNotes.has(id)) {
-    dirtyNotes.delete(id);
-    const text = states.get(id)!.doc.toString();
-    await enqueue(() => api.saveNote(id, text));
-  }
-  if (tab.detached) {
-    tab.detached = false; // a janela de preview pertence a esta janela; volta ao lado do código no destino
-    closePreviewWindow(id);
-  }
-  const copy = structuredClone(tab);
-  let dest: string;
-  try {
-    dest = await enqueue(() => (drop ? api.dropTab(copy, drop.x, drop.y) : api.moveTab(copy, to)));
-  } catch (e) {
-    await message(String(e), { title: "Erro ao mover a aba", kind: "error" });
-    return;
-  }
-  if (dest === winLabel) return;
-
   session.tabs.splice(idx, 1);
   states.delete(id);
   detected.delete(id);
@@ -686,6 +667,85 @@ async function sendTab(id: string, to: string, drop?: { x: number; y: number }) 
   }
   sessionDirty = true;
   await flush();
+}
+
+/** Grava o que for preciso para outra janela ler a aba, e devolve uma cópia do estado dela. */
+async function prepareToLeave(id: string): Promise<TabState | null> {
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab) return null;
+  if (id === session.active) snapshotActive();
+  if (dirtyNotes.has(id)) {
+    dirtyNotes.delete(id);
+    const text = states.get(id)!.doc.toString();
+    await enqueue(() => api.saveNote(id, text));
+  }
+  if (tab.detached) {
+    tab.detached = false; // a janela de preview pertence a esta janela; volta ao lado do código no destino
+    closePreviewWindow(id);
+  }
+  return structuredClone(tab);
+}
+
+/**
+ * Leva a aba para outra janela (`to`: rótulo ou "new"). O texto pendente é gravado antes, para a
+ * outra janela ler a versão mais recente; o histórico de desfazer fica para trás.
+ */
+async function sendTab(id: string, to: string) {
+  const copy = await prepareToLeave(id);
+  if (!copy) return;
+  let dest: string;
+  try {
+    dest = await enqueue(() => api.moveTab(copy, to));
+  } catch (e) {
+    await message(String(e), { title: "Erro ao mover a aba", kind: "error" });
+    return;
+  }
+  if (dest !== winLabel) await removeLocalTab(id);
+}
+
+// ---- arrastar a aba para fora: a janela dela segue o mouse --------------------------
+
+interface Tear {
+  ready: boolean;
+  next: { x: number; y: number } | null; // posição mais recente, ainda não enviada
+  busy: boolean;
+  end: { x: number; y: number } | null; // soltou antes de a janela estar pronta
+}
+let tear: Tear | null = null;
+
+async function pumpTear() {
+  const t = tear;
+  if (!t || !t.ready || t.busy) return;
+  t.busy = true;
+  while (t.next) {
+    const p = t.next;
+    t.next = null;
+    await api.dragMove(p.x, p.y).catch(() => {});
+  }
+  t.busy = false;
+  if (t.end) {
+    tear = null;
+    await api.endTear().catch((e) => console.error("falha ao soltar a aba", e));
+    void api.prewarm().catch(() => {}); // repõe a janela reserva
+  }
+}
+
+async function beginTear(id: string, p: { x: number; y: number; gx: number; gy: number }) {
+  const selfDrag = !isMain && session.tabs.length === 1;
+  const t: Tear = { ready: false, next: null, busy: false, end: null };
+  tear = t;
+  const copy = await prepareToLeave(id);
+  if (!copy) return void (tear = null);
+  try {
+    await enqueue(() => api.beginTear(copy, p.x, p.y, p.gx, p.gy, selfDrag));
+  } catch (e) {
+    tear = null;
+    await message(String(e), { title: "Erro ao mover a aba", kind: "error" });
+    return;
+  }
+  t.ready = true;
+  if (!selfDrag) await removeLocalTab(id);
+  await pumpTear();
 }
 
 /** Menu de contexto da aba: mover para outra janela, fechar. */
@@ -708,22 +768,84 @@ attachTabDrag(tabsEl, {
     scheduleSave();
     renderTabs();
   },
-  onTearOff: (id, x, y) => void sendTab(id, "new", { x, y }),
+  canTear: () => !isMain || session.tabs.length > 1,
+  onTearStart: (id, p) => void beginTear(id, p),
+  onTearMove(x, y) {
+    if (!tear) return;
+    tear.next = { x, y };
+    void pumpTear();
+  },
+  onTearEnd(x, y) {
+    if (!tear) return;
+    tear.next = { x, y };
+    tear.end = { x, y };
+    void pumpTear();
+  },
 });
 
-// uma aba chegou de outra janela
-void listen<TabState>("tab-incoming", async (e) => {
-  const tab = e.payload;
+// ---- onde a aba arrastada de outra janela vai entrar ----------------------------------
+
+let ghost: { el: HTMLElement; index: number; timer: number } | null = null;
+
+function clearGhost() {
+  if (!ghost) return;
+  window.clearTimeout(ghost.timer);
+  ghost.el.remove();
+  ghost = null;
+}
+
+/** Mostra, na barra, um espaço com o título da aba no lugar exato em que ela entraria. */
+function showGhost(cx: number, title: string) {
+  const tabs = [...tabsEl.querySelectorAll<HTMLElement>(".tab:not(.ghost)")];
+  const gw = ghost?.el.offsetWidth ?? 0;
+  const centers = tabs.map((t) => {
+    const r = t.getBoundingClientRect();
+    const after = ghost && ghost.el.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING;
+    return r.left + r.width / 2 - (after ? gw : 0); // descontando o espaço que o próprio marcador ocupa
+  });
+  const index = insertionIndex(centers, cx);
+  if (!ghost) {
+    const el = document.createElement("div");
+    el.className = "tab ghost";
+    ghost = { el, index: -1, timer: 0 };
+  }
+  ghost.el.textContent = title || "Nova nota";
+  if (ghost.index !== index || !ghost.el.isConnected) {
+    ghost.index = index;
+    tabsEl.insertBefore(ghost.el, tabs[index] ?? tabsEl.querySelector("#new-tab"));
+  }
+  window.clearTimeout(ghost.timer);
+  ghost.timer = window.setTimeout(clearGhost, 1200); // some sozinho se o aviso de saída se perder
+}
+
+void listen<{ cx: number; title: string }>("drag-over", (e) => showGhost(e.payload.cx, e.payload.title));
+void listen("drag-leave", clearGhost);
+
+// uma aba chegou de outra janela (no lugar que a barra mostrou, se foi arrastada)
+const incomingReady = listen<TabState>("tab-incoming", (e) => void receiveTab(e.payload));
+
+async function receiveTab(tab: TabState) {
+  if (!booted) {
+    pendingIn.push(tab);
+    return;
+  }
   if (session.tabs.some((t) => t.id === tab.id)) return;
+  const at = ghost && ghost.index >= 0 ? Math.min(ghost.index, session.tabs.length) : session.tabs.length;
+  clearGhost();
   snapshotActive();
   states.delete(tab.id);
   detected.delete(tab.id);
-  session.tabs.push(tab);
+  session.tabs.splice(at, 0, tab);
   await show(tab); // lê o texto gravado pela janela de origem
   sessionDirty = true;
   scheduleSave();
-  void thisWindow.setFocus();
-});
+  if (!shown) {
+    shown = true;
+    void api.windowReady(); // a janela reserva só aparece agora
+  } else {
+    void thisWindow.setFocus();
+  }
+}
 
 // o app vai fechar: grava e avisa a principal
 void listen("app-exit", async () => {
@@ -928,21 +1050,26 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function boot() {
+  document.body.classList.toggle("floating", !isMain); // janelas flutuantes: sem menu superior
+  await incomingReady; // ouvindo antes de ler a sessão: nenhuma aba que chegue se perde
   const startup = await api.loadStartup();
   session = startup.session;
-  const tab = activeTab();
-  const st = createState(startup.active_text, tab.cursor, onEditorUpdate);
-  states.set(tab.id, st);
+  const idle = session.tabs.length === 0; // janela reserva: espera uma aba
+  const tab = idle ? null : activeTab();
+  const st = createState(startup.active_text, tab?.cursor ?? 0, onEditorUpdate);
+  if (tab) states.set(tab.id, st);
   view = createView(editorEl, st);
   mountMenuBar(menubarEl, menuActions);
   view.scrollDOM.addEventListener("scroll", followScroll, { passive: true });
-  redetect(tab);
-  applyTabConfig();
-  renderTabs();
-  requestAnimationFrame(() => {
-    view.scrollDOM.scrollTop = tab.scroll;
-    view.focus();
-  });
+  if (tab) {
+    redetect(tab);
+    applyTabConfig();
+    renderTabs();
+    requestAnimationFrame(() => {
+      view.scrollDOM.scrollTop = tab.scroll;
+      view.focus();
+    });
+  }
 
   const win = thisWindow;
   await win.onCloseRequested(async (e) => {
@@ -954,7 +1081,20 @@ async function boot() {
     for (const t of [...session.tabs]) await sendTab(t.id, "main");
     await win.destroy();
   });
-  await win.show(); // janela nasce escondida: sem flash branco
+
+  booted = true;
+  for (const t of pendingIn.splice(0)) await receiveTab(t);
+  if (idle && pendingIn.length === 0 && session.tabs.length === 0) return; // segue escondida
+  if (!shown) {
+    shown = true;
+    if (isMain) {
+      await win.show(); // janela nasce escondida: sem flash branco
+      // com a janela já na tela, prepara a reserva para tirar abas sem demora
+      window.setTimeout(() => void api.prewarm().catch(() => {}), 1500);
+    } else {
+      await api.windowReady();
+    }
+  }
 }
 
 boot().catch((e) => {

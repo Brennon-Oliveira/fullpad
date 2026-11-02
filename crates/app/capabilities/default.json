@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissões das janelas de abas",
-  "windows": ["main", "win-*", "preview-*"],
+  "windows": ["main", "win-*", "spare-*", "preview-*"],
   "permissions": [
     "core:default",
     "core:window:allow-show",

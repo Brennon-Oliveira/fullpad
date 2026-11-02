@@ -52,8 +52,15 @@ export const api = {
   listWindows: () => invoke<WindowInfo[]>("list_windows"),
   /** `to`: rótulo de uma janela aberta ou "new". Devolve o rótulo de destino. */
   moveTab: (tab: TabState, to: string) => invoke<string>("move_tab", { tab, to }),
-  /** Aba solta no ponto (x, y) da tela: vai para a janela que estiver ali, ou para uma nova. */
-  dropTab: (tab: TabState, x: number, y: number) => invoke<string>("drop_tab", { tab, x, y }),
+  /** Cria em segundo plano a janela reserva: arrastar uma aba para fora fica instantâneo. */
+  prewarm: () => invoke<void>("prewarm"),
+  /** A aba saiu da barra: vai para uma janela própria que segue o ponteiro. x/y: tela, px físicos. */
+  beginTear: (tab: TabState, x: number, y: number, gx: number, gy: number, selfDrag: boolean) =>
+    invoke<string>("begin_tear", { tab, x, y, gx, gy, selfDrag }),
+  dragMove: (x: number, y: number) => invoke<void>("drag_move", { x, y }),
+  endTear: () => invoke<void>("end_tear"),
+  /** Esta janela terminou de carregar e pode aparecer. */
+  windowReady: () => invoke<void>("window_ready"),
   newWindow: () => invoke<string>("new_window"),
   /** Abre a janela com a visão renderizada da aba (`lang`: "markdown" ou "dbml"). */
   openPreview: (tab: string, lang: string) => invoke<void>("open_preview", { tab, lang }),

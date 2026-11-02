@@ -16,8 +16,33 @@ struct PreviewInfo {
     lang: String,
 }
 
+/// Aba sendo arrastada para fora: ela já está numa janela própria (`label`) que segue o mouse.
+struct DragState {
+    label: String,
+    tab: Uuid,
+    title: String,
+    /// Distância do canto da janela ao ponteiro, em pixels físicos.
+    ox: i32,
+    oy: i32,
+    /// A aba era a única da janela: é a própria janela que anda (e ela nunca se esconde).
+    self_drag: bool,
+    /// Janela de abas cuja barra está sob o ponteiro.
+    over: Option<String>,
+    hidden: bool,
+}
+
+#[derive(Clone, Serialize)]
+struct DragOver {
+    cx: f64,
+    cy: f64,
+    title: String,
+}
+
 struct AppState {
     store: Store,
+    /// Janela escondida já carregada, à espera de uma aba (tirar uma aba fica instantâneo).
+    spare: Mutex<Option<String>>,
+    drag: Mutex<Option<DragState>>,
     previews: Mutex<std::collections::HashMap<String, PreviewInfo>>,
     /// Serializa ler-alterar-gravar do `session.json`: várias janelas gravam ao mesmo tempo.
     session_lock: Mutex<()>,
@@ -73,18 +98,6 @@ fn build_window(app: &AppHandle, label: &str, geometry: Option<Geometry>, at: Op
         let _ = win.set_position(PhysicalPosition::new(x, y));
     }
     Ok(())
-}
-
-/// Janela de abas (que não seja `skip`) sob o ponto da tela, em pixels físicos.
-fn window_at(app: &AppHandle, x: i32, y: i32, skip: &str) -> Option<String> {
-    app.webview_windows().into_iter().find_map(|(label, w)| {
-        if label == skip || !is_tab_window(&label) || !w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(false) {
-            return None;
-        }
-        let (p, s) = (w.outer_position().ok()?, w.outer_size().ok()?);
-        let inside = x >= p.x && x < p.x + s.width as i32 && y >= p.y && y < p.y + s.height as i32;
-        inside.then_some(label)
-    })
 }
 
 /// Grava um arquivo exportado (SVG/PNG do diagrama) no caminho escolhido pelo usuário no diálogo
@@ -165,7 +178,8 @@ fn window_name(session: &Session, label: &str) -> String {
     let base = if label == MAIN_WINDOW {
         "Janela principal".to_string()
     } else {
-        format!("Janela {}", label.trim_start_matches("win-"))
+        let n = session.floating_labels().iter().position(|l| l == label).map_or(2, |i| i + 2);
+        format!("Janela {n}")
     };
     match session.active_of(label).and_then(|id| session.tabs.iter().find(|t| t.id == id)) {
         Some(t) if !t.title.is_empty() => format!("{base} — {}", t.title),
@@ -180,7 +194,12 @@ fn list_windows(app: AppHandle, state: State<AppState>) -> Result<Vec<WindowInfo
         let _g = state.session_lock.lock().unwrap();
         state.store.load_session().map_err(err)?
     };
-    let mut labels: Vec<String> = app.webview_windows().into_keys().filter(|l| is_tab_window(l)).collect();
+    let spare = state.spare.lock().unwrap().clone();
+    let mut labels: Vec<String> = app
+        .webview_windows()
+        .into_keys()
+        .filter(|l| is_tab_window(l) && spare.as_deref() != Some(l.as_str()))
+        .collect();
     labels.sort_by_key(|l| (l != MAIN_WINDOW, l.clone()));
     Ok(labels.into_iter().map(|label| WindowInfo { name: window_name(&session, &label), label }).collect())
 }
@@ -189,11 +208,17 @@ fn list_windows(app: AppHandle, state: State<AppState>) -> Result<Vec<WindowInfo
 /// `to`: o rótulo de uma janela aberta, ou `"new"` para uma janela nova, na posição `at` (pixels
 /// físicos da tela) se houver. Devolve o rótulo de destino.
 async fn place_tab(app: &AppHandle, state: &AppState, from: &str, tab: TabState, to: &str, at: Option<(i32, i32)>) -> Result<String, String> {
+    // "nova janela": usa a reserva já carregada, se houver (aparece na hora)
+    let spare = if to == "new" { state.spare.lock().unwrap().take() } else { None };
     let (label, fresh) = {
         let _g = state.session_lock.lock().unwrap();
         let mut session = state.store.load_session().map_err(err)?;
-        let fresh = to == "new" || app.get_webview_window(to).is_none();
-        let label = if fresh { session.fresh_label() } else { to.to_string() };
+        let fresh = spare.is_none() && (to == "new" || app.get_webview_window(to).is_none());
+        let label = match &spare {
+            Some(s) => s.clone(),
+            None if fresh => session.fresh_label(),
+            None => to.to_string(),
+        };
         if label == from {
             return Ok(label);
         }
@@ -212,8 +237,19 @@ async fn place_tab(app: &AppHandle, state: &AppState, from: &str, tab: TabState,
         moved.window = label.clone();
         app.emit_to(label.as_str(), "tab-incoming", moved).map_err(err)?;
         if let Some(w) = app.get_webview_window(&label) {
-            let _ = w.unminimize();
-            let _ = w.set_focus();
+            if spare.is_some() {
+                // a reserva ainda está escondida: posiciona; a própria janela se mostra ao receber a aba
+                let origin = app.get_webview_window(from).and_then(|w| geometry_of(&w));
+                if let Some(g) = origin {
+                    let _ = w.set_size(PhysicalSize::new(g.w, g.h));
+                }
+                if let Some((x, y)) = at.or_else(|| origin.map(|g| (g.x + 48, g.y + 48))) {
+                    let _ = w.set_position(PhysicalPosition::new(x, y));
+                }
+            } else {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
         }
     }
     Ok(label)
@@ -224,22 +260,181 @@ async fn move_tab(app: AppHandle, state: State<'_, AppState>, window: WebviewWin
     place_tab(&app, &state, window.label(), tab, &to, None).await
 }
 
-/// A aba foi solta fora da barra de abas, no ponto (x, y) da tela: se há outra janela ali, ela recebe
-/// a aba; senão nasce uma janela nova naquele ponto.
-#[tauri::command]
-async fn drop_tab(app: AppHandle, state: State<'_, AppState>, window: WebviewWindow, tab: TabState, x: i32, y: i32) -> Result<String, String> {
-    let from = window.label().to_string();
-    match window_at(&app, x, y, &from) {
-        Some(target) => place_tab(&app, &state, &from, tab, &target, None).await,
-        None => place_tab(&app, &state, &from, tab, "new", Some((x - 120, y - 20))).await,
-    }
-}
-
 /// Nota nova numa janela nova.
 #[tauri::command]
 async fn new_window(app: AppHandle, state: State<'_, AppState>, window: WebviewWindow) -> Result<String, String> {
     let tab = state.store.create_note().map_err(err)?;
     place_tab(&app, &state, window.label(), tab, "new", None).await
+}
+
+// ---- arrastar uma aba para fora da barra (a janela dela segue o mouse) -------------
+
+/// Faixa do topo de uma janela onde fica a barra de abas (em px lógicos, a partir da borda externa).
+fn strip_band(label: &str) -> f64 {
+    if label == MAIN_WINDOW { 110.0 } else { 80.0 }
+}
+
+/// Janela de abas (que não seja `skip`) cuja barra de abas está sob o ponto (pixels físicos da tela).
+fn strip_window_at(app: &AppHandle, x: i32, y: i32, skip: &str) -> Option<WebviewWindow> {
+    app.webview_windows().into_iter().find_map(|(label, w)| {
+        if label == skip || !is_tab_window(&label) || !w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(false) {
+            return None;
+        }
+        let (p, s) = (w.outer_position().ok()?, w.outer_size().ok()?);
+        let band = (strip_band(&label) * w.scale_factor().unwrap_or(1.0)) as i32;
+        (x >= p.x && x < p.x + s.width as i32 && y >= p.y && y < p.y + band).then_some(w)
+    })
+}
+
+/// Cria, em segundo plano, a janela reserva (se ainda não houver): quando uma aba é arrastada para
+/// fora, ela já está carregada e a janela nova aparece na hora.
+#[tauri::command]
+async fn prewarm(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let label = {
+        let mut spare = state.spare.lock().unwrap();
+        if spare.is_some() {
+            return Ok(());
+        }
+        let label = format!("spare-{}", &Uuid::new_v4().simple().to_string()[..8]);
+        *spare = Some(label.clone());
+        label
+    };
+    build_window(&app, &label, None, None)
+}
+
+/// A aba saiu da barra: ela passa a uma janela própria, que daqui em diante segue o ponteiro
+/// (`drag_move`) até `end_tear`. `gx`/`gy` é onde, dentro da aba, o usuário a segurou (px lógicos).
+#[tauri::command]
+async fn begin_tear(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    window: WebviewWindow,
+    tab: TabState,
+    x: i32,
+    y: i32,
+    gx: f64,
+    gy: f64,
+    self_drag: bool,
+) -> Result<String, String> {
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let (ox, oy) = match (window.outer_position(), window.inner_position()) {
+        (Ok(o), Ok(i)) => (i.x - o.x + (gx * scale) as i32, i.y - o.y + (gy * scale) as i32),
+        _ => ((gx * scale) as i32, (40.0 * scale + gy * scale) as i32),
+    };
+    let from = window.label().to_string();
+    let (title, tab_id) = (tab.title.clone(), tab.id);
+    let pos = (x - ox, y - oy);
+
+    let label = if self_drag {
+        from
+    } else {
+        let spare = state.spare.lock().unwrap().take();
+        let label = {
+            let _g = state.session_lock.lock().unwrap();
+            let mut session = state.store.load_session().map_err(err)?;
+            let label = spare.clone().unwrap_or_else(|| session.fresh_label());
+            session.move_tab(tab.clone(), &label);
+            session.prune_windows();
+            state.store.save_session(&session).map_err(err)?;
+            label
+        };
+        match (spare, app.get_webview_window(&label)) {
+            (Some(_), Some(w)) => {
+                if let Ok(sz) = window.outer_size() {
+                    let _ = w.set_size(sz);
+                }
+                let _ = w.set_position(PhysicalPosition::new(pos.0, pos.1));
+                let mut moved = tab;
+                moved.window = label.clone();
+                app.emit_to(label.as_str(), "tab-incoming", moved).map_err(err)?;
+            }
+            _ => build_window(&app, &label, None, Some(pos))?,
+        }
+        label
+    };
+    *state.drag.lock().unwrap() = Some(DragState { label: label.clone(), tab: tab_id, title, ox, oy, self_drag, over: None, hidden: false });
+    Ok(label)
+}
+
+/// O ponteiro andou: a janela arrastada o acompanha. Sobre a barra de abas de outra janela ela se
+/// esconde e essa barra mostra onde a aba entraria.
+#[tauri::command]
+fn drag_move(app: AppHandle, state: State<AppState>, x: i32, y: i32) {
+    let mut guard = state.drag.lock().unwrap();
+    let Some(d) = guard.as_mut() else { return };
+    let target = strip_window_at(&app, x, y, &d.label);
+    let new_over = target.as_ref().map(|w| w.label().to_string());
+    if new_over != d.over {
+        if let Some(old) = &d.over {
+            let _ = app.emit_to(old.as_str(), "drag-leave", ());
+        }
+        d.over = new_over;
+    }
+    let dragged = app.get_webview_window(&d.label);
+    if let Some(t) = target {
+        let scale = t.scale_factor().unwrap_or(1.0);
+        if let Ok(i) = t.inner_position() {
+            let msg = DragOver { cx: (x - i.x) as f64 / scale, cy: (y - i.y) as f64 / scale, title: d.title.clone() };
+            let _ = app.emit_to(t.label(), "drag-over", msg);
+        }
+        if !d.self_drag && !d.hidden {
+            if let Some(w) = &dragged {
+                let _ = w.hide();
+            }
+            d.hidden = true;
+        }
+    } else if d.hidden {
+        if let Some(w) = &dragged {
+            let _ = w.show();
+        }
+        d.hidden = false;
+    }
+    if !d.hidden {
+        if let Some(w) = &dragged {
+            let _ = w.set_position(PhysicalPosition::new(x - d.ox, y - d.oy));
+        }
+    }
+}
+
+/// Soltou: sobre a barra de outra janela, a aba entra nela (no lugar que a barra mostrou); fora
+/// disso, a janela fica onde está.
+#[tauri::command]
+fn end_tear(app: AppHandle, state: State<AppState>) -> Result<(), String> {
+    let Some(d) = state.drag.lock().unwrap().take() else { return Ok(()) };
+    let dragged = app.get_webview_window(&d.label);
+    let Some(target) = d.over else {
+        if let Some(w) = dragged {
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+        return Ok(());
+    };
+    let moved = {
+        let _g = state.session_lock.lock().unwrap();
+        let mut session = state.store.load_session().map_err(err)?;
+        let Some(tab) = session.tabs.iter().find(|t| t.id == d.tab).cloned() else { return Ok(()) };
+        session.move_tab(tab.clone(), &target);
+        session.prune_windows();
+        state.store.save_session(&session).map_err(err)?;
+        TabState { window: target.clone(), ..tab }
+    };
+    app.emit_to(target.as_str(), "tab-incoming", moved).map_err(err)?;
+    if let Some(w) = dragged {
+        let _ = w.destroy();
+    }
+    if let Some(w) = app.get_webview_window(&target) {
+        let _ = w.set_focus();
+    }
+    Ok(())
+}
+
+/// A janela terminou de carregar: mostra (menos se está escondida por estar sobre outra barra).
+#[tauri::command]
+fn window_ready(state: State<AppState>, window: WebviewWindow) {
+    let hidden = state.drag.lock().unwrap().as_ref().is_some_and(|d| d.label == window.label() && d.hidden);
+    if !hidden {
+        let _ = window.show();
+    }
 }
 
 // ---- visão renderizada em janela própria --------------------------------------
@@ -328,7 +523,7 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState { store, previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()) })
+        .manage(AppState { store, spare: Mutex::new(None), drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()) })
         .setup(|app| {
             // reabre as janelas flutuantes da sessão anterior, no mesmo lugar
             let state = app.state::<AppState>();
@@ -350,8 +545,12 @@ fn main() {
             export_file,
             list_windows,
             move_tab,
-            drop_tab,
             new_window,
+            prewarm,
+            begin_tear,
+            drag_move,
+            end_tear,
+            window_ready,
             open_preview,
             preview_info,
             close_preview,

@@ -240,9 +240,15 @@ button { font: inherit; color: inherit; }
 .cm-md-fence { color: var(--muted); }
 
 /* ---- arrastar abas ---- */
-.tab.dragging { opacity: .75; background: var(--tab); box-shadow: 0 2px 8px rgba(0,0,0,.35); position: relative; z-index: 1; }
-.tab.torn { opacity: .45; outline: 1px dashed var(--accent); }
+.tab.dragging { background: var(--bg); box-shadow: 0 4px 14px rgba(0,0,0,.4); position: relative; z-index: 2; }
 
 /* ---- janela de preview: só a visão renderizada, ocupando tudo ---- */
 .preview-only #menubar, .preview-only #tabs, .preview-only #editor, .preview-only #status { display: none; }
 .preview-only #mdview, .preview-only #diagram { border-left: 0; }
+
+/* ---- janelas flutuantes: só abas e barra de status ---- */
+body.floating #menubar { display: none; }
+
+/* aba arrastada de outra janela: o espaço onde ela entraria */
+.tab.ghost { background: color-mix(in srgb, var(--accent) 18%, var(--bg)); outline: 1px dashed var(--accent); outline-offset: -2px; opacity: .85; }
+.tab.dragging { transition: none; }
