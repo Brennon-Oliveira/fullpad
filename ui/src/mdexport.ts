@@ -27,6 +27,27 @@ export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/**
+ * Impressão sem o cabeçalho e o rodapé do navegador (título e endereço, "tauri.localhost 6/13"): eles
+ * ficam na margem da página, então com `@page { margin: 0 }` somem. As margens de verdade vêm de uma
+ * tabela com espaçadores no topo e no pé (que se repetem em cada página), e o rodapé é nosso.
+ */
+const PRINT_STYLE = `
+@page { margin: 0; }
+body { margin: 0; max-width: none; padding: 0 20mm; }
+table.pg { width: 100%; border-collapse: collapse; }
+table.pg > thead > tr > td, table.pg > tbody > tr > td, table.pg > tfoot > tr > td { border: 0; padding: 0; background: none; }
+.pg-space { height: 18mm; }
+.pg-foot { position: fixed; left: 0; right: 0; bottom: 7mm; text-align: center; font-size: 9pt; color: #59636e; }
+`;
+
+function printLayout(body: string): string {
+  return `<table class="pg"><thead><tr><td><div class="pg-space"></div></td></tr></thead><tbody><tr><td>
+${body}
+</td></tr></tbody><tfoot><tr><td><div class="pg-space"></div></td></tr></tfoot></table>
+<div class="pg-foot">Fullpad</div>`;
+}
+
 /** Só o corpo: o markdown convertido em HTML. */
 export async function markdownToBody(text: string): Promise<string> {
   const { marked } = await import("marked");
@@ -34,15 +55,15 @@ export async function markdownToBody(text: string): Promise<string> {
 }
 
 /** Documento HTML completo e autônomo (estilo embutido, sem dependências externas). */
-export async function markdownToHtml(text: string, title: string): Promise<string> {
-  const body = await markdownToBody(text);
+export async function markdownToHtml(text: string, title: string, forPrint = false): Promise<string> {
+  const body = forPrint ? printLayout(await markdownToBody(text)) : await markdownToBody(text);
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
-<style>${STYLE}</style>
+<style>${STYLE}${forPrint ? PRINT_STYLE : ""}</style>
 </head>
 <body>
 ${body}
@@ -63,7 +84,7 @@ export async function copyAsHtml(text: string): Promise<void> {
 
 /** Abre a impressão do sistema com o documento renderizado (de lá dá para "Salvar como PDF"). */
 export async function printAsPdf(text: string, title: string): Promise<void> {
-  const html = await markdownToHtml(text, title);
+  const html = await markdownToHtml(text, title, true);
   const frame = document.createElement("iframe");
   frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
   document.body.appendChild(frame);

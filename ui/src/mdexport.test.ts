@@ -16,3 +16,14 @@ describe("mdexport", () => {
     expect(escapeHtml('a & "b" <c>')).toBe("a &amp; &quot;b&quot; &lt;c&gt;");
   });
 });
+
+describe("markdownToHtml para impressão", () => {
+  it("zera a margem da página (some o cabeçalho do navegador) e põe o nome do app no rodapé", async () => {
+    const { markdownToHtml } = await import("./mdexport");
+    const print = await markdownToHtml("# Oi", "t", true);
+    expect(print).toContain("@page { margin: 0; }");
+    expect(print).toContain('class="pg-foot">Fullpad<');
+    const plain = await markdownToHtml("# Oi", "t");
+    expect(plain).not.toContain("pg-foot");
+  });
+});
