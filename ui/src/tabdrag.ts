@@ -18,7 +18,8 @@ export interface DragHooks {
   /** A aba saiu da barra. `x`/`y`: ponto da tela (px físicos); `gx`/`gy`: onde na aba ela foi segurada. */
   onTearStart(id: string, p: { x: number; y: number; gx: number; gy: number }): void;
   onTearMove(x: number, y: number): void;
-  onTearEnd(x: number, y: number): void;
+  /** Soltou fora da barra (ou cancelou). `gx`/`gy`: onde na aba ela foi segurada. */
+  onTearEnd(id: string, p: { x: number; y: number; gx: number; gy: number }, cancelled: boolean): void;
 }
 
 /** Índice de inserção para o ponteiro em `x`, dados os centros das abas (em ordem). */
@@ -96,7 +97,9 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
     const outside = e.clientY < r.top - TEAR_DISTANCE || e.clientY > r.bottom + TEAR_DISTANCE || e.clientX < -TEAR_DISTANCE || e.clientX > window.innerWidth + TEAR_DISTANCE;
     if (outside && hooks.canTear(d.id)) {
       d.torn = true;
+      // a aba original fica no lugar, apagada; quem anda com o mouse é a sombra
       for (const t of d.els) t.style.transform = t.style.transition = "";
+      d.el.classList.add("torn");
       hooks.onTearStart(d.id, { ...d.last, gx: d.gx, gy: d.gy });
       return;
     }
@@ -132,8 +135,9 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
     setTimeout(() => (swallowClick = false));
     if (d.torn) {
       reset(d);
+      d.el.classList.remove("torn");
       const p = cancelled ? d.last : phys(e);
-      return hooks.onTearEnd(p.x, p.y);
+      return hooks.onTearEnd(d.id, { ...p, gx: d.gx, gy: d.gy }, cancelled);
     }
     if (cancelled || d.to === d.from) return reset(d);
     // anima até o lugar final e só então grava a ordem

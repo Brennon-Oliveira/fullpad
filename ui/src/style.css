@@ -252,3 +252,16 @@ body.floating #menubar { display: none; }
 /* aba arrastada de outra janela: o espaço onde ela entraria */
 .tab.ghost { background: color-mix(in srgb, var(--accent) 18%, var(--bg)); outline: 1px dashed var(--accent); outline-offset: -2px; opacity: .85; }
 .tab.dragging { transition: none; }
+
+/* aba original enquanto a sombra anda com o mouse */
+.tab.torn { opacity: .35; }
+
+/* ---- sombra do arrasto: janela transparente com uma abinha translúcida ---- */
+html:has(body.ghost-only), body.ghost-only { background: transparent; }
+body.ghost-only > :not(.ghost-tab) { display: none; }
+.ghost-tab {
+  display: inline-block; max-width: 210px; margin: 4px; padding: 6px 14px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; border: 1px solid var(--accent); border-radius: 6px 6px 0 0;
+  background: color-mix(in srgb, var(--bar) 88%, transparent); color: var(--fg); opacity: .8;
+  font: 13px var(--sans); box-shadow: 0 3px 10px rgba(0,0,0,.35); user-select: none;
+}

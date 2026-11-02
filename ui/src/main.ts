@@ -703,49 +703,41 @@ async function sendTab(id: string, to: string) {
   if (dest !== winLabel) await removeLocalTab(id);
 }
 
-// ---- arrastar a aba para fora: a janela dela segue o mouse --------------------------
+// ---- arrastar a aba para fora: uma sombra segue o mouse e a janela nasce ao soltar -------
 
-interface Tear {
-  ready: boolean;
-  next: { x: number; y: number } | null; // posição mais recente, ainda não enviada
-  busy: boolean;
-  end: { x: number; y: number } | null; // soltou antes de a janela estar pronta
+let dragChain: Promise<unknown> = Promise.resolve(); // mantém a ordem: início, movimentos, fim
+let dragPos: { x: number; y: number } | null = null; // só o movimento mais recente importa
+let dragTitle = "";
+
+const inDrag = (job: () => Promise<unknown>) => (dragChain = dragChain.then(job, job).catch((e) => console.error("arrasto", e)));
+
+function tearStart(id: string, p: { x: number; y: number }) {
+  const tab = session.tabs.find((t) => t.id === id);
+  dragTitle = tab?.title || "Nova nota";
+  inDrag(() => api.dragStart(dragTitle, p.x, p.y));
 }
-let tear: Tear | null = null;
 
-async function pumpTear() {
-  const t = tear;
-  if (!t || !t.ready || t.busy) return;
-  t.busy = true;
-  while (t.next) {
-    const p = t.next;
-    t.next = null;
-    await api.dragMove(p.x, p.y).catch(() => {});
-  }
-  t.busy = false;
-  if (t.end) {
-    tear = null;
-    await api.endTear().catch((e) => console.error("falha ao soltar a aba", e));
+function tearMove(x: number, y: number) {
+  const pending = dragPos !== null;
+  dragPos = { x, y };
+  if (pending) return; // já há um envio na fila: ele leva a posição mais nova
+  inDrag(async () => {
+    const p = dragPos!;
+    dragPos = null;
+    await api.dragMove(dragTitle, p.x, p.y);
+  });
+}
+
+function tearEnd(id: string, p: { x: number; y: number; gx: number; gy: number }, cancelled: boolean) {
+  dragPos = null;
+  if (cancelled) return void inDrag(() => api.dragCancel());
+  inDrag(async () => {
+    const copy = await prepareToLeave(id);
+    if (!copy) return void (await api.dragCancel());
+    const dest = await enqueue(() => api.dropTab(copy, p.x, p.y, p.gx, p.gy));
+    if (dest !== winLabel) await removeLocalTab(id);
     void api.prewarm().catch(() => {}); // repõe a janela reserva
-  }
-}
-
-async function beginTear(id: string, p: { x: number; y: number; gx: number; gy: number }) {
-  const selfDrag = !isMain && session.tabs.length === 1;
-  const t: Tear = { ready: false, next: null, busy: false, end: null };
-  tear = t;
-  const copy = await prepareToLeave(id);
-  if (!copy) return void (tear = null);
-  try {
-    await enqueue(() => api.beginTear(copy, p.x, p.y, p.gx, p.gy, selfDrag));
-  } catch (e) {
-    tear = null;
-    await message(String(e), { title: "Erro ao mover a aba", kind: "error" });
-    return;
-  }
-  t.ready = true;
-  if (!selfDrag) await removeLocalTab(id);
-  await pumpTear();
+  });
 }
 
 /** Menu de contexto da aba: mover para outra janela, fechar. */
@@ -769,18 +761,9 @@ attachTabDrag(tabsEl, {
     renderTabs();
   },
   canTear: () => !isMain || session.tabs.length > 1,
-  onTearStart: (id, p) => void beginTear(id, p),
-  onTearMove(x, y) {
-    if (!tear) return;
-    tear.next = { x, y };
-    void pumpTear();
-  },
-  onTearEnd(x, y) {
-    if (!tear) return;
-    tear.next = { x, y };
-    tear.end = { x, y };
-    void pumpTear();
-  },
+  onTearStart: tearStart,
+  onTearMove: tearMove,
+  onTearEnd: tearEnd,
 });
 
 // ---- onde a aba arrastada de outra janela vai entrar ----------------------------------

@@ -54,11 +54,12 @@ export const api = {
   moveTab: (tab: TabState, to: string) => invoke<string>("move_tab", { tab, to }),
   /** Cria em segundo plano a janela reserva: arrastar uma aba para fora fica instantâneo. */
   prewarm: () => invoke<void>("prewarm"),
-  /** A aba saiu da barra: vai para uma janela própria que segue o ponteiro. x/y: tela, px físicos. */
-  beginTear: (tab: TabState, x: number, y: number, gx: number, gy: number, selfDrag: boolean) =>
-    invoke<string>("begin_tear", { tab, x, y, gx, gy, selfDrag }),
-  dragMove: (x: number, y: number) => invoke<void>("drag_move", { x, y }),
-  endTear: () => invoke<void>("end_tear"),
+  /** Começou a arrastar uma aba para fora da barra: mostra a sombra no ponteiro (tela, px físicos). */
+  dragStart: (title: string, x: number, y: number) => invoke<void>("drag_start", { title, x, y }),
+  dragMove: (title: string, x: number, y: number) => invoke<void>("drag_move", { title, x, y }),
+  dragCancel: () => invoke<void>("drag_cancel"),
+  /** Soltou a aba na tela: vai para a barra de outra janela ou vira uma janela nova ali. Devolve o destino. */
+  dropTab: (tab: TabState, x: number, y: number, gx: number, gy: number) => invoke<string>("drop_tab", { tab, x, y, gx, gy }),
   /** Esta janela terminou de carregar e pode aparecer. */
   windowReady: () => invoke<void>("window_ready"),
   newWindow: () => invoke<string>("new_window"),
