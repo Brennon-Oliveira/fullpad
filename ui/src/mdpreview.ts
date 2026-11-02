@@ -3,6 +3,7 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { codeLanguages } from "./codelangs";
 import { hintExtension, hintLines, isDark, syntaxColors } from "./editor";
+import { linkExtension } from "./links";
 import { livePreview } from "./livepreview";
 
 /**
@@ -26,6 +27,7 @@ export function createMarkdownPane(host: HTMLElement, hooks: PaneHooks = {}) {
         livePreview({ fixed: true }),
         syntaxColors,
         hintExtension,
+        linkExtension,
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),
         EditorView.lineWrapping,

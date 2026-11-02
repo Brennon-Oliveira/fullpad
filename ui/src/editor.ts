@@ -8,6 +8,7 @@ import { Decoration, type DecorationSet, EditorView, drawSelection, keymap, type
 import { tags } from "@lezer/highlight";
 import { codeLanguages } from "./codelangs";
 import { dbmlLanguage } from "./dbmllang";
+import { linkExtension } from "./links";
 import { livePreview } from "./livepreview";
 
 const langC = new Compartment();
@@ -204,6 +205,7 @@ export function createState(
       overwriteC.of([]),
       hintField,
       jsonErrorField,
+      linkExtension,
       syntaxHighlighting(highlight),
       syntaxHighlighting(markdownSource),
       keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
