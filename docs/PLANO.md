@@ -51,7 +51,7 @@ Regra: o documento é sempre texto puro; renderizar nunca reescreve o conteúdo.
 | 3.3 | Buffer sombra | Editar arquivo real sem salvar, fechar e reabrir: edição volta, arquivo em disco intocado |
 | 3.4 | Encoding e quebras de linha | UTF-8, UTF-8 BOM e CP1252 detectados; CRLF/LF preservados ao salvar |
 | 3.5 | Mudança externa | Arquivo alterado fora do app: aviso para recarregar ou manter |
-| 3.6 | Instalador e associação | MSI/NSIS associa `.md` e `.txt` (opcional, escolhido na instalação) |
+| 3.6 | Instalador, associação e atualização | NSIS com opções: abrir `.md`/`.dbml` por padrão e "Abrir com" nos arquivos de texto; atualização automática pelos Releases públicos |
 
 **PARADA 3:** testar com seus arquivos reais, incluindo acentuação, CRLF e arquivos que outro programa edita.
 

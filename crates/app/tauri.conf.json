@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Fullpad",
-  "version": "0.1.0",
   "identifier": "dev.brennon.fullpad",
   "build": {
     "beforeDevCommand": "pnpm --dir ../ui dev",
@@ -35,36 +34,6 @@
       "icons/icon.ico"
     ],
     "shortDescription": "Editor de notas e markdown rápido",
-    "fileAssociations": [
-      {
-        "ext": [
-          "md",
-          "markdown"
-        ],
-        "name": "Markdown",
-        "description": "Documento Markdown",
-        "mimeType": "text/markdown",
-        "role": "Editor"
-      },
-      {
-        "ext": [
-          "txt"
-        ],
-        "name": "Texto",
-        "description": "Documento de texto",
-        "mimeType": "text/plain",
-        "role": "Editor"
-      },
-      {
-        "ext": [
-          "dbml",
-          "dbmlx"
-        ],
-        "name": "DBML",
-        "description": "Diagrama DBML",
-        "role": "Editor"
-      }
-    ],
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
@@ -74,7 +43,9 @@
         "languages": [
           "PortugueseBR"
         ],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "template": "windows/installer.nsi",
+        "installerHooks": "windows/fullpad.nsh"
       }
     }
   }
