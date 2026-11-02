@@ -1,6 +1,7 @@
 import type { Language, ViewMode } from "./api";
 import type { Lang } from "./language";
 import { type MenuItem, closeMenu, showMenu } from "./popup";
+import { ZOOM_PRESETS } from "./zoom";
 
 export interface MenuActions {
   newNote(): void;
@@ -40,6 +41,9 @@ export interface MenuActions {
   expandJson(): void;
   collapseJson(): void;
   copyJsonPath(): void;
+  zoomIn(): void;
+  zoomOut(): void;
+  setZoom(percent: number): void;
   /** Estado atual para marcar checks e desabilitar itens. */
   current(): {
     language: Language;
@@ -51,6 +55,7 @@ export interface MenuActions {
     jsonIndent: string;
     hasSelection: boolean;
     treeOn: boolean;
+    zoom: number;
   };
 }
 
@@ -115,6 +120,55 @@ export function jsonItems(a: MenuActions): MenuItem[] {
   ];
 }
 
+/** Nome do menu de ações do tipo de arquivo da aba ativa (muda com a linguagem). */
+export const LANG_MENU: Record<Lang, string> = { plain: "Texto", markdown: "Markdown", dbml: "DBML", json: "JSON" };
+
+/** Itens do menu do tipo de arquivo: só o que faz sentido para ele. */
+export function langMenuItems(a: MenuActions): MenuItem[] {
+  const c = a.current();
+  switch (c.lang) {
+    case "json":
+      return jsonItems(a);
+    case "markdown":
+      return [
+        { label: "Exportar como HTML…", action: a.exportHtml },
+        { label: "Exportar como PDF…", action: a.exportPdf },
+        "sep",
+        { label: "Copiar como HTML", action: a.copyHtml },
+        "sep",
+        ...viewItems(a),
+      ];
+    case "dbml":
+      return viewItems(a);
+    default:
+      return [
+        { label: "Quebra de linha", checked: c.wrap, action: a.toggleWrap },
+        "sep",
+        { label: "Localizar…", shortcut: "Ctrl+F", action: a.find },
+        { label: "Substituir…", action: a.replace },
+        { label: "Ir para linha…", shortcut: "Ctrl+Alt+G", action: a.gotoLine },
+      ];
+  }
+}
+
+/** Opções de zoom (submenu de Visualizar e lista aberta pela barra de status). */
+export function zoomItems(a: MenuActions): MenuItem[] {
+  const z = a.current().zoom;
+  return [
+    { label: "Aumentar", shortcut: "Ctrl++", action: a.zoomIn },
+    { label: "Diminuir", shortcut: "Ctrl+-", action: a.zoomOut },
+    "sep",
+    ...ZOOM_PRESETS.map((p): MenuItem => ({ label: `${p}%`, checked: z === p, action: () => a.setZoom(p) })),
+    "sep",
+    { label: "Restaurar (100%)", shortcut: "Ctrl+0", action: () => a.setZoom(100) },
+  ];
+}
+
+/** Submenu "Zoom" do menu Visualizar. */
+export function zoomItem(a: MenuActions): MenuItem {
+  return { label: `Zoom (${a.current().zoom}%)`, submenu: zoomItems(a) };
+}
+
 /** Reabrir a última aba fechada e abrir o histórico das anteriores. */
 function reopenItems(a: MenuActions): MenuItem[] {
   return [
@@ -134,10 +188,18 @@ export function languageItems(a: MenuActions): MenuItem[] {
 }
 
 export function mountMenuBar(root: HTMLElement, a: MenuActions) {
+  // janela reserva ou ainda carregando: não há aba ativa, então `current()` não pode ser chamado
+  const langMenuLabel = () => {
+    try {
+      return LANG_MENU[a.current().lang];
+    } catch {
+      return LANG_MENU.plain;
+    }
+  };
   const md = () => a.current().lang === "markdown";
-  const menus: { label: string; items: () => MenuItem[] }[] = [
+  const menus: { label: () => string; items: () => MenuItem[] }[] = [
     {
-      label: "Arquivo",
+      label: () => "Arquivo",
       items: () => [
         { label: "Novo", shortcut: "Ctrl+N", action: a.newNote },
         { label: "Nova janela", shortcut: "Ctrl+Shift+N", action: a.newWindow },
@@ -156,7 +218,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
       ],
     },
     {
-      label: "Editar",
+      label: () => "Editar",
       items: () => [
         { label: "Desfazer", shortcut: "Ctrl+Z", action: a.undo },
         { label: "Refazer", shortcut: "Ctrl+Y", action: a.redo },
@@ -169,7 +231,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
       ],
     },
     {
-      label: "Visualizar",
+      label: () => "Visualizar",
       items: () => {
         const c = a.current();
         return [
@@ -179,13 +241,15 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
           { label: "Dividir abaixo", shortcut: "Ctrl+Shift+\\", action: a.splitDown },
           "sep",
           { label: "Quebra de linha", checked: c.wrap, action: a.toggleWrap },
+          "sep",
+          zoomItem(a),
         ];
       },
     },
-    { label: "Linguagem", items: () => languageItems(a) },
-    { label: "JSON", items: () => jsonItems(a) },
+    { label: () => "Linguagem", items: () => languageItems(a) },
+    { label: langMenuLabel, items: () => langMenuItems(a) },
     {
-      label: "Ajuda",
+      label: () => "Ajuda",
       items: () => [
         { label: "Ver nota de versão", action: a.releaseNotes },
         { label: "Verificar atualizações…", action: a.checkUpdates },
@@ -197,7 +261,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
   const buttons = menus.map((m) => {
     const b = document.createElement("button");
     b.className = "menubtn";
-    b.textContent = m.label;
+    b.textContent = m.label();
     const openIt = () => {
       open?.classList.remove("open");
       open = b;
@@ -218,4 +282,13 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
     return b;
   });
   root.replaceChildren(...buttons);
+  /** Reescreve os nomes (o menu do tipo de arquivo muda com a aba ativa). */
+  return {
+    refresh() {
+      menus.forEach((m, i) => {
+        const t = m.label();
+        if (buttons[i].textContent !== t) buttons[i].textContent = t;
+      });
+    },
+  };
 }

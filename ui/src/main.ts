@@ -17,9 +17,10 @@ import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
-import { exportItem, languageItems, mountMenuBar, sideOnly, viewItems } from "./menus";
+import { exportItem, languageItems, mountMenuBar, sideOnly, viewItems, zoomItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
+import { currentZoom, loadZoom, onZoomChange, setZoom, stepZoom, wheelZoom } from "./zoom";
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
 import { type DockGroup, type DockTile, type Rect, SIDES, dockTiles, tileAt } from "./dock";
 import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, normalize, pathTo, removeLeaf, resizeSizes, splitLeaf, splitPath, swapAdjacent, wrapCandidates } from "./grid";
@@ -504,6 +505,7 @@ function refreshStatus(recomputeSize = true) {
   const head = st.selection.main.head;
   const line = st.doc.lineAt(head);
   if (recomputeSize) lastSize = computeSize();
+  menubar?.refresh();
   status.update({
     languageLabel: langLabel(tab),
     viewLabel: viewLabel(tab),
@@ -540,6 +542,9 @@ function markModified(tab: TabState) {
 }
 
 const status = mountStatusBar(statusEl, {
+  onZoom: (a) => showMenu(a, zoomItems(menuActions), "above"),
+  onZoomOut: () => menuActions.zoomOut(),
+  onZoomIn: () => menuActions.zoomIn(),
   onLanguage: (a) => showMenu(a, languageItems(menuActions), "above"),
   onView: (a) => showMenu(a, viewItems(menuActions), "above"),
   onEol: (a) =>
@@ -1847,6 +1852,8 @@ function setLanguage(l: Language) {
   cur.view.focus();
 }
 
+let menubar: ReturnType<typeof mountMenuBar> | null = null;
+
 const menuActions = {
   newNote: () => void newTab(),
   newWindow: () => void api.newWindow(),
@@ -1886,6 +1893,9 @@ const menuActions = {
     const p = cur.json?.currentPath();
     if (p) void navigator.clipboard.writeText(p).catch(() => {});
   },
+  zoomIn: () => setZoom(stepZoom(currentZoom(), 1)),
+  zoomOut: () => setZoom(stepZoom(currentZoom(), -1)),
+  setZoom: (p: number) => setZoom(p),
   splitRight: () => splitActive("right"),
   splitDown: () => splitActive("bottom"),
   current: () => {
@@ -1900,6 +1910,7 @@ const menuActions = {
       jsonIndent,
       hasSelection: !cur.view.state.selection.main.empty,
       treeOn: jsonTreeOn(),
+      zoom: currentZoom(),
     };
   },
 };
@@ -1927,6 +1938,9 @@ window.addEventListener(
       return focusGroupNumber(Number(key));
     }
     const run = (fn: () => void) => (e.preventDefault(), fn());
+    if (e.code === "Equal" || e.code === "NumpadAdd" || e.key === "+" || e.key === "=") return run(menuActions.zoomIn);
+    if (e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") return run(menuActions.zoomOut);
+    if (e.code === "Digit0" || e.code === "Numpad0") return run(() => setZoom(100));
     if (key === "t" && e.shiftKey) run(() => void reopenTab());
     else if (key === "h" && e.shiftKey) run(() => void showHistory());
     else if (key === "n" && e.shiftKey) run(menuActions.newWindow);
@@ -1938,6 +1952,19 @@ window.addEventListener(
     else if (e.key === "Tab") run(() => cycle(e.shiftKey ? -1 : 1));
   },
   true,
+);
+
+onZoomChange((z) => status.setZoom(z));
+
+// Ctrl + roda do mouse: zoom fino (5% por clique)
+window.addEventListener(
+  "wheel",
+  (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    setZoom(wheelZoom(currentZoom(), e.deltaY));
+  },
+  { passive: false, capture: true },
 );
 
 // ---- ciclo de vida ----------------------------------------------------------
@@ -1982,7 +2009,8 @@ async function boot() {
     redetect(tab);
   }
   void refreshClosed();
-  mountMenuBar(menubarEl, menuActions);
+  menubar = mountMenuBar(menubarEl, menuActions);
+  setZoom(loadZoom()); // reaplica o zoom lembrado
   if (!idle) {
     forEachGroup(applyTabConfig);
     renderTabs();

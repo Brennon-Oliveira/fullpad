@@ -21,7 +21,14 @@ export interface StatusHandlers {
   onEol(anchor: HTMLElement): void;
   onEncoding(anchor: HTMLElement): void;
   onOverwrite(): void;
+  /** Clicou no número do zoom: abre a lista de valores. */
+  onZoom(anchor: HTMLElement): void;
+  onZoomOut(): void;
+  onZoomIn(): void;
 }
+
+const lens = (sign: "+" | "-") =>
+  `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4 4M4.5 6.5h4${sign === "+" ? "M6.5 4.5v4" : ""}"/></svg>`;
 
 const nf = new Intl.NumberFormat("pt-BR");
 
@@ -47,15 +54,31 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   const enc = button("enc", "Codificação");
   const ins = button("ins", "Inserir/Sobrescrever (Insert)");
 
+  const zoomBox = document.createElement("span");
+  zoomBox.className = "seg zoombox";
+  const zOut = button("zbtn", "Diminuir zoom (Ctrl+-)");
+  zOut.innerHTML = lens("-");
+  const zVal = button("zval", "Zoom: clique para escolher (Ctrl+0 volta a 100%)");
+  zVal.textContent = "100%";
+  const zIn = button("zbtn", "Aumentar zoom (Ctrl++)");
+  zIn.innerHTML = lens("+");
+  zoomBox.append(zOut, zVal, zIn);
+  zOut.addEventListener("click", () => h.onZoomOut());
+  zIn.addEventListener("click", () => h.onZoomIn());
+  zVal.addEventListener("click", () => h.onZoom(zVal));
+
   lang.addEventListener("click", () => h.onLanguage(lang));
   view.addEventListener("click", () => h.onView(view));
   eol.addEventListener("click", () => h.onEol(eol));
   enc.addEventListener("click", () => h.onEncoding(enc));
   ins.addEventListener("click", () => h.onOverwrite());
 
-  root.append(lang, view, path, spacer, size, cursor, eol, enc, ins);
+  root.append(lang, view, path, spacer, size, cursor, eol, enc, ins, zoomBox);
 
   return {
+    setZoom(percent: number) {
+      zVal.textContent = `${percent}%`;
+    },
     update(i: StatusInfo) {
       lang.textContent = i.languageLabel;
       view.textContent = `Visão: ${i.viewLabel} ▾`;

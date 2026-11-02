@@ -367,3 +367,8 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .jt-tip-msg { padding: 4px 6px; font: 12px var(--sans); color: var(--muted); max-width: 240px; }
 #status .seg.path { font-family: var(--mono); color: var(--muted); max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #status .seg[hidden] { display: none; }
+.cm-url-hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 2px; }
+#status .zoombox { padding: 0 4px; gap: 0; }
+#status .zoombox button { border: 0; background: none; color: inherit; cursor: pointer; padding: 3px 6px; display: flex; align-items: center; }
+#status .zoombox button:hover { background: var(--tab); }
+#status .zoombox .zval { min-width: 4.2em; justify-content: center; }
