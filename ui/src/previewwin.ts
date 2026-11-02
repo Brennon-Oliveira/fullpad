@@ -1,4 +1,5 @@
-import { emitTo, listen } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
+import { listenHere as listen } from "./events";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api";
 import "./style.css";

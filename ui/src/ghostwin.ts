@@ -1,4 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
+import { listenHere as listen } from "./events";
 import "./style.css";
 
 /** A "sombra" que acompanha o mouse enquanto uma aba é arrastada: só uma abinha translúcida com o nome. */

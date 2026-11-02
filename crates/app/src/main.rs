@@ -18,6 +18,8 @@ struct PreviewInfo {
 
 #[derive(Clone, Serialize)]
 struct DragOver {
+    /// Janela a que o aviso se destina (a UI confere: ela é quem decide se mostra o espaço).
+    target: String,
     cx: f64,
     cy: f64,
     title: String,
@@ -329,14 +331,14 @@ fn drag_move(app: AppHandle, state: State<AppState>, window: WebviewWindow, titl
     let mut over = state.drag_over.lock().unwrap();
     if *over != new_over {
         if let Some(old) = over.as_ref() {
-            let _ = app.emit_to(old.as_str(), "drag-leave", ());
+            let _ = app.emit_to(old.as_str(), "drag-leave", old.clone());
         }
         *over = new_over;
     }
     if let Some(t) = target {
         let scale = t.scale_factor().unwrap_or(1.0);
         if let Ok(i) = t.inner_position() {
-            let _ = app.emit_to(t.label(), "drag-over", DragOver { cx: (x - i.x) as f64 / scale, cy: (y - i.y) as f64 / scale, title });
+            let _ = app.emit_to(t.label(), "drag-over", DragOver { target: t.label().to_string(), cx: (x - i.x) as f64 / scale, cy: (y - i.y) as f64 / scale, title });
         }
     }
 }
@@ -346,7 +348,7 @@ fn end_drag(app: &AppHandle, state: &AppState) {
         let _ = g.hide();
     }
     if let Some(old) = state.drag_over.lock().unwrap().take() {
-        let _ = app.emit_to(old.as_str(), "drag-leave", ());
+        let _ = app.emit_to(old.as_str(), "drag-leave", old.clone());
     }
 }
 

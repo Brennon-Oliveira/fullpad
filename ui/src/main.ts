@@ -3,7 +3,8 @@ import { redo, selectAll, undo } from "@codemirror/commands";
 import type { EditorState, Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { type UnlistenFn, emit, emitTo, listen } from "@tauri-apps/api/event";
+import { type UnlistenFn, emit, emitTo, listen as listenAll } from "@tauri-apps/api/event";
+import { listenHere as listen } from "./events";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
@@ -801,8 +802,8 @@ function showGhost(cx: number, title: string) {
   ghost.timer = window.setTimeout(clearGhost, 1200); // some sozinho se o aviso de saída se perder
 }
 
-void listen<{ cx: number; title: string }>("drag-over", (e) => showGhost(e.payload.cx, e.payload.title));
-void listen("drag-leave", clearGhost);
+void listen<{ cx: number; title: string; target: string }>("drag-over", (e) => e.payload.target === winLabel && showGhost(e.payload.cx, e.payload.title));
+void listen<string>("drag-leave", (e) => e.payload === winLabel && clearGhost());
 
 // uma aba chegou de outra janela (no lugar que a barra mostrou, se foi arrastada)
 const incomingReady = listen<TabState>("tab-incoming", (e) => void receiveTab(e.payload));
@@ -812,7 +813,7 @@ async function receiveTab(tab: TabState) {
     pendingIn.push(tab);
     return;
   }
-  if (session.tabs.some((t) => t.id === tab.id)) return;
+  if (tab.window !== winLabel || session.tabs.some((t) => t.id === tab.id)) return;
   const at = ghost && ghost.index >= 0 ? Math.min(ghost.index, session.tabs.length) : session.tabs.length;
   clearGhost();
   snapshotActive();
@@ -831,7 +832,7 @@ async function receiveTab(tab: TabState) {
 }
 
 // o app vai fechar: grava e avisa a principal
-void listen("app-exit", async () => {
+void listenAll("app-exit", async () => {
   exiting = true;
   await flush();
   await emitTo("main", "app-exit-ack", winLabel);

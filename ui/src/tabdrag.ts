@@ -126,9 +126,9 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
     }
   };
 
-  const finish = (e: PointerEvent, cancelled: boolean) => {
+  const finish = (e: { pointerId: number; screenX: number; screenY: number } | null, cancelled: boolean) => {
     const d = drag;
-    if (!d || e.pointerId !== d.pid) return;
+    if (!d || (e && e.pointerId !== d.pid)) return;
     drag = null;
     if (!d.moved) return;
     swallowClick = true; // o clique gerado ao soltar não deve ativar a aba
@@ -136,7 +136,7 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
     if (d.torn) {
       reset(d);
       d.el.classList.remove("torn");
-      const p = cancelled ? d.last : phys(e);
+      const p = cancelled || !e ? d.last : phys(e as PointerEvent);
       return hooks.onTearEnd(d.id, { ...p, gx: d.gx, gy: d.gy }, cancelled);
     }
     if (cancelled || d.to === d.from) return reset(d);
@@ -153,5 +153,19 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
   };
   strip.addEventListener("pointerup", (e) => finish(e, false));
   strip.addEventListener("pointercancel", (e) => finish(e, true));
+  strip.addEventListener("lostpointercapture", () => finish(null, true));
+
+  // Durante o arrasto o teclado não faz nada (trocar de aba com Ctrl+Tab deixava a sombra presa);
+  // Esc cancela, e perder a captura do ponteiro também.
+  window.addEventListener(
+    "keydown",
+    (e) => {
+      if (!drag?.moved) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") finish(null, true);
+    },
+    true,
+  );
   strip.addEventListener("click", (e) => swallowClick && (e.stopPropagation(), e.preventDefault()), true);
 }
