@@ -8,5 +8,5 @@ pub mod store;
 pub mod windows;
 
 pub use error::{Error, Result};
-pub use model::{Encoding, Eol, Geometry, Language, Session, TabState, ViewMode, WindowState, MAIN_WINDOW};
+pub use model::{ClosedTab, Encoding, Eol, Geometry, Language, Session, TabState, ViewMode, WindowState, MAIN_WINDOW};
 pub use store::Store;

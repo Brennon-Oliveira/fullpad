@@ -167,3 +167,11 @@ impl Default for Session {
         Self::empty()
     }
 }
+
+/// Aba fechada que ainda está na lixeira e pode ser reaberta.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClosedTab {
+    pub tab: TabState,
+    /// Segundos desde 1970.
+    pub closed_at: u64,
+}

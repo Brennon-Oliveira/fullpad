@@ -10,6 +10,9 @@ export interface MenuActions {
   save(): void;
   saveAs(): void;
   closeTab(): void;
+  reopenTab(id?: string): void;
+  /** Abas fechadas recentemente (a mais nova primeiro). */
+  closedTabs(): { id: string; title: string }[];
   exit(): void;
   undo(): void;
   redo(): void;
@@ -51,6 +54,20 @@ export function viewItems(a: MenuActions): MenuItem[] {
   ];
 }
 
+/** "Reabrir aba fechada" e a lista das últimas fechadas. */
+function reopenItems(a: MenuActions): MenuItem[] {
+  const closed = a.closedTabs();
+  const items: MenuItem[] = [
+    { label: "Reabrir aba fechada", shortcut: "Ctrl+Shift+T", disabled: closed.length === 0, action: () => a.reopenTab() },
+  ];
+  if (closed.length > 1) {
+    items.push("sep");
+    for (const c of closed.slice(0, 8)) items.push({ label: c.title || "Nova nota", action: () => a.reopenTab(c.id) });
+    items.push("sep");
+  }
+  return items;
+}
+
 export function languageItems(a: MenuActions): MenuItem[] {
   const cur = a.current().language;
   const mk = (label: string, l: Language): MenuItem => ({
@@ -75,6 +92,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
         { label: "Salvar como…", shortcut: "Ctrl+Shift+S", action: a.saveAs },
         "sep",
         { label: "Fechar", shortcut: "Ctrl+W", action: a.closeTab },
+        ...reopenItems(a),
         { label: "Sair", shortcut: "Alt+F4", action: a.exit },
       ],
     },

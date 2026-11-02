@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use fullpad_core::{Encoding, Eol, Geometry, Session, Store, TabState, MAIN_WINDOW};
+use fullpad_core::{ClosedTab, Encoding, Eol, Geometry, Session, Store, TabState, MAIN_WINDOW};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -159,11 +159,38 @@ fn close_note(state: State<AppState>, id: String) -> Result<(), String> {
     let id = parse_id(&id)?;
     state.closed.lock().unwrap().insert(id);
     let _g = state.session_lock.lock().unwrap();
-    state.store.close_note(id).map_err(err)?;
     let mut session = state.store.load_session().map_err(err)?;
+    match session.tabs.iter().find(|t| t.id == id) {
+        Some(tab) => state.store.close_tab(tab).map_err(err)?,
+        None => state.store.close_note(id).map_err(err)?,
+    }
     session.remove_tab(id);
     session.prune_windows();
     state.store.save_session(&session).map_err(err)
+}
+
+/// Abas fechadas recentemente (as mais novas primeiro), para "Reabrir aba fechada".
+#[tauri::command]
+fn list_closed(state: State<AppState>) -> Vec<ClosedTab> {
+    state.store.list_closed(15)
+}
+
+/// Reabre uma aba da lixeira na janela que pediu e a torna a ativa.
+#[tauri::command]
+fn restore_tab(state: State<AppState>, window: WebviewWindow, id: String) -> Result<OpenedFile, String> {
+    let id = parse_id(&id)?;
+    let _g = state.session_lock.lock().unwrap();
+    let (mut tab, text) = state.store.restore_note(id).map_err(err)?;
+    state.closed.lock().unwrap().remove(&id);
+    let label = window.label().to_string();
+    tab.window = label.clone();
+    tab.detached = false;
+    let mut session = state.store.load_session().map_err(err)?;
+    session.tabs.retain(|t| t.id != id);
+    session.tabs.push(tab.clone());
+    session.set_active(&label, Some(id));
+    state.store.save_session(&session).map_err(err)?;
+    Ok(OpenedFile { tab, text })
 }
 
 // ---- janelas ----------------------------------------------------------------
@@ -525,6 +552,8 @@ fn main() {
             save_window,
             new_note,
             close_note,
+            list_closed,
+            restore_tab,
             open_file,
             save_file,
             export_file,

@@ -37,6 +37,11 @@ export interface Startup {
   active_text: string;
 }
 
+export interface ClosedTab {
+  tab: TabState;
+  closed_at: number;
+}
+
 export interface WindowInfo {
   label: string;
   name: string;
@@ -71,6 +76,10 @@ export const api = {
   exitApp: () => invoke<void>("exit_app"),
   newNote: () => invoke<TabState>("new_note"),
   closeNote: (id: string) => invoke<void>("close_note", { id }),
+  /** Abas fechadas recentemente (a mais nova primeiro). */
+  listClosed: () => invoke<ClosedTab[]>("list_closed"),
+  /** Reabre uma aba fechada nesta janela. */
+  restoreTab: (id: string) => invoke<{ tab: TabState; text: string }>("restore_tab", { id }),
   openFile: (path: string) => invoke<{ tab: TabState; text: string }>("open_file", { path }),
   exportFile: (path: string, bytes: number[]) => invoke<void>("export_file", { path, bytes }),
   saveFile: (id: string, path: string, text: string, encoding: Encoding, eol: Eol) =>

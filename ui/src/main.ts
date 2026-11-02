@@ -6,7 +6,7 @@ import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plu
 import { type UnlistenFn, emit, emitTo, listen as listenAll } from "@tauri-apps/api/event";
 import { listenHere as listen } from "./events";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
+import { api, type ClosedTab, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
 import type { DiagramPanel } from "./dbml/panel";
 import type { MarkdownPane } from "./mdpreview";
@@ -594,6 +594,33 @@ async function newTab() {
   scheduleSave();
 }
 
+let closedCache: ClosedTab[] = [];
+async function refreshClosed() {
+  try {
+    closedCache = await api.listClosed();
+  } catch {
+    closedCache = [];
+  }
+}
+
+/** Reabre uma aba fechada (a mais recente, se `id` não vier) nesta janela. */
+async function reopenTab(id?: string) {
+  const target = id ?? closedCache[0]?.tab.id;
+  if (!target) return;
+  snapshotActive();
+  try {
+    await flush();
+    const { tab, text } = await api.restoreTab(target);
+    session.tabs.push(tab);
+    await show(tab, text);
+    sessionDirty = true;
+    scheduleSave();
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível reabrir", kind: "error" });
+  }
+  void refreshClosed();
+}
+
 async function closeTab(id: string) {
   const idx = session.tabs.findIndex((t) => t.id === id);
   if (idx < 0) return;
@@ -617,6 +644,7 @@ async function closeTab(id: string) {
   }
   closePreviewWindow(id);
   await enqueue(() => api.closeNote(id));
+  void refreshClosed();
   session.tabs.splice(idx, 1);
   states.delete(id);
   detected.delete(id);
@@ -980,6 +1008,8 @@ const menuActions = {
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
   closeTab: () => void closeTab(session.active!),
+  reopenTab: (id?: string) => void reopenTab(id),
+  closedTabs: () => closedCache.map((c) => ({ id: c.tab.id, title: c.tab.title })),
   exit: () => void thisWindow.close(),
   undo: () => (undo(view), view.focus()),
   redo: () => (redo(view), view.focus()),
@@ -1017,7 +1047,8 @@ window.addEventListener(
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     const key = e.key.toLowerCase();
     const run = (fn: () => void) => (e.preventDefault(), fn());
-    if (key === "n" && e.shiftKey) run(menuActions.newWindow);
+    if (key === "t" && e.shiftKey) run(() => void reopenTab());
+    else if (key === "n" && e.shiftKey) run(menuActions.newWindow);
     else if ((key === "n" || key === "t") && !e.shiftKey) run(menuActions.newNote);
     else if (key === "o") run(menuActions.openFile);
     else if (key === "s") run(e.shiftKey ? menuActions.saveAs : menuActions.save);
@@ -1045,6 +1076,7 @@ async function boot() {
   const st = createState(startup.active_text, tab?.cursor ?? 0, onEditorUpdate);
   if (tab) states.set(tab.id, st);
   view = createView(editorEl, st);
+  void refreshClosed();
   mountMenuBar(menubarEl, menuActions);
   view.scrollDOM.addEventListener("scroll", followScroll, { passive: true });
   if (tab) {

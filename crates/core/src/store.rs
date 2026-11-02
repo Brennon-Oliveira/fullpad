@@ -1,7 +1,7 @@
 use crate::atomic::write_atomic;
 use crate::fileio;
 use crate::error::{Error, IoContext, Result};
-use crate::model::{Encoding, Eol, Session, TabState};
+use crate::model::{ClosedTab, Encoding, Eol, Session, TabState};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -44,6 +44,10 @@ impl Store {
     }
     fn trash_path(&self, id: Uuid) -> PathBuf {
         self.root.join("trash").join(format!("{id}.md"))
+    }
+
+    fn trash_meta_path(&self, id: Uuid) -> PathBuf {
+        self.root.join("trash").join(format!("{id}.json"))
     }
 
     // ---- sessão -----------------------------------------------------------
@@ -135,6 +139,50 @@ impl Store {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(Error::Io { path: from, source: e }),
         }
+    }
+
+    /// Fecha a aba guardando o estado dela (título, arquivo, linguagem…) ao lado do texto, para
+    /// poder reabri-la depois (`list_closed`/`restore_note`).
+    pub fn close_tab(&self, tab: &TabState) -> Result<()> {
+        let closed_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let meta = ClosedTab { tab: tab.clone(), closed_at };
+        if self.note_path(tab.id).exists() {
+            write_atomic(&self.trash_meta_path(tab.id), &serde_json::to_vec(&meta)?)?;
+        }
+        self.close_note(tab.id)
+    }
+
+    /// Abas fechadas que podem ser reabertas, da mais recente para a mais antiga.
+    pub fn list_closed(&self, limit: usize) -> Vec<ClosedTab> {
+        let Ok(rd) = std::fs::read_dir(self.root.join("trash")) else { return vec![] };
+        let mut all: Vec<ClosedTab> = rd
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+            .filter_map(|e| serde_json::from_slice::<ClosedTab>(&std::fs::read(e.path()).ok()?).ok())
+            .filter(|c| self.trash_path(c.tab.id).exists())
+            .collect();
+        all.sort_by(|a, b| b.closed_at.cmp(&a.closed_at));
+        all.truncate(limit);
+        all
+    }
+
+    /// Tira a nota da lixeira e devolve a aba (com o estado de quando foi fechada) e o texto.
+    pub fn restore_note(&self, id: Uuid) -> Result<(TabState, String)> {
+        let meta_path = self.trash_meta_path(id);
+        let bytes = std::fs::read(&meta_path).at(&meta_path)?;
+        let meta: ClosedTab = serde_json::from_slice(&bytes)?;
+        let from = self.trash_path(id);
+        let to = self.note_path(id);
+        if let Some(dir) = to.parent() {
+            std::fs::create_dir_all(dir).at(dir)?;
+        }
+        std::fs::rename(&from, &to).at(&from)?;
+        let _ = std::fs::remove_file(&meta_path);
+        let text = self.read_note(id)?;
+        Ok((meta.tab, text))
     }
 }
 
@@ -278,5 +326,22 @@ mod tests {
         assert!(s.read_note(t.id).is_err());
         assert!(d.path().join("trash").join(format!("{}.md", t.id)).exists());
         s.close_note(t.id).unwrap(); // idempotente
+    }
+
+    #[test]
+    fn closed_tab_can_be_restored() {
+        let (_d, s) = store();
+        let mut t = s.create_note().unwrap();
+        t.title = "Receita".into();
+        s.write_note(t.id, "bolo").unwrap();
+        s.close_tab(&t).unwrap();
+        assert!(s.read_note(t.id).is_err());
+        let list = s.list_closed(10);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].tab.title, "Receita");
+        let (tab, text) = s.restore_note(t.id).unwrap();
+        assert_eq!((tab.title.as_str(), text.as_str()), ("Receita", "bolo"));
+        assert!(s.list_closed(10).is_empty());
+        assert_eq!(s.read_note(t.id).unwrap(), "bolo");
     }
 }
