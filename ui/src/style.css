@@ -314,3 +314,18 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .splitter-grip:hover, .splitter:hover .splitter-grip { opacity: 1; background: var(--accent); color: #fff; border-color: var(--accent); }
 .split.row > .splitter > .splitter-grip { width: 14px; height: 30px; left: -7px; top: calc(50% - 15px); }
 .split.col > .splitter > .splitter-grip { width: 30px; height: 14px; top: -7px; left: calc(50% - 15px); }
+
+/* ---- alvos de soltar enquanto se arrasta uma aba (dock.ts) ---- */
+.dock-layer { position: absolute; inset: 0; z-index: 19; pointer-events: none; animation: dock-in .12s ease-out; }
+.dock-tile {
+  position: absolute; border-radius: 6px;
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fg) 24%, transparent);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .16);
+  transition: background .08s, border-color .08s, transform .08s;
+}
+.dock-tile.block { border-radius: 4px; background: color-mix(in srgb, var(--fg) 14%, transparent); border-style: dashed; }
+.dock-tile.center::after { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; color: color-mix(in srgb, var(--fg) 45%, transparent); }
+.dock-tile.on { background: color-mix(in srgb, var(--accent) 45%, transparent); border: 1px solid var(--accent); transform: scale(1.04); }
+@keyframes dock-in { from { opacity: 0; } to { opacity: 1; } }

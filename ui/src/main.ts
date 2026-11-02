@@ -17,6 +17,7 @@ import { exportItem, languageItems, mountMenuBar, viewItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
+import { type DockGroup, type DockTile, type Rect, SIDES, dockTiles, tileAt } from "./dock";
 import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, normalize, pathTo, removeLeaf, resizeSizes, splitLeaf, splitPath, swapAdjacent, wrapCandidates } from "./grid";
 import "./style.css";
 
@@ -1113,68 +1114,88 @@ type DropTarget =
   | { kind: "zone"; g: Group; zone: Zone; /** nó da grade que ganha o vizinho (um painel ou um bloco inteiro) */ path?: number[] }
   | { kind: "none" };
 
-/**
- * Ao dividir pela borda `side` do painel `g`: só ele, ou o bloco inteiro a que ele pertence (uma pilha
- * de painéis). Pelo eixo da pilha, o bloco é dividido em terços: o terço do meio vale o bloco todo, e
- * os terços de cima e de baixo (ou esquerda e direita) valem só o painel daquele lado.
- */
-function blockPath(g: Group, side: Side, cx: number, cy: number): number[] {
-  const cands = wrapCandidates(layout.root, g.id, side);
-  const alongY = side === "left" || side === "right"; // a pilha é vertical: o que importa é a altura
-  for (const c of [...cands.slice(1)].reverse()) { // do maior bloco para o menor
-    const node = nodeAt(layout.root, c);
-    const el = node && nodeEls.get(node);
-    if (!node || node.t !== "split" || !el) continue;
-    const r = el.getBoundingClientRect();
-    const [from, size, at] = alongY ? [r.top, r.height, cy] : [r.left, r.width, cx];
-    if (at >= from + size / 3 && at <= from + (2 * size) / 3) return c;
+// Enquanto se arrasta uma aba, cada painel mostra seus alvos (dock.ts): borda (divide o painel),
+// barra externa (divide o bloco inteiro de uma pilha) e centro (move para o painel).
+let dock: { tiles: DockTile[]; layer: HTMLElement; els: Map<DockTile, HTMLElement>; on: DockTile | null; timer: number } | null = null;
+
+const rectOf = (el: HTMLElement): Rect => {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+};
+
+/** Mostra os alvos de todos os painéis. `src`: painel de onde a aba sai (sem ele, vem de outra janela). */
+function openDock(src?: Group) {
+  closeDock();
+  const input: DockGroup[] = [...groups.values()].map((g) => {
+    const cands = {} as DockGroup["cands"];
+    for (const side of SIDES) {
+      cands[side] = wrapCandidates(layout.root, g.id, side).flatMap((path) => {
+        const n = nodeAt(layout.root, path);
+        const el = n && nodeEls.get(n);
+        return el ? [{ path, rect: rectOf(el) }] : [];
+      });
+    }
+    const alone = !!src && g === src && tabsOf(g).length === 1; // sozinha, uma aba não divide o próprio painel
+    // de outra janela não há centro: soltar no meio de um painel vira uma janela própria
+    return { g: g.id, body: rectOf(g.bodyEl), cands, edges: !alone, center: !!src && g !== src };
+  });
+  const tiles = dockTiles(input, cur.tabsEl.getBoundingClientRect().height);
+  const layer = document.createElement("div");
+  layer.className = "dock-layer";
+  const w = workEl.getBoundingClientRect();
+  const els = new Map<DockTile, HTMLElement>();
+  for (const t of tiles) {
+    const el = document.createElement("div");
+    el.className = `dock-tile ${t.kind}`;
+    Object.assign(el.style, { left: `${t.rect.left - w.left}px`, top: `${t.rect.top - w.top}px`, width: `${t.rect.width}px`, height: `${t.rect.height}px` });
+    layer.append(el);
+    els.set(t, el);
   }
-  return cands[0];
+  workEl.append(layer);
+  dock = { tiles, layer, els, on: null, timer: 0 };
+}
+
+function closeDock() {
+  if (!dock) return;
+  window.clearTimeout(dock.timer);
+  dock.layer.remove();
+  dock = null;
+}
+
+function lightTile(t: DockTile | null) {
+  if (!dock || dock.on === t) return;
+  if (dock.on) dock.els.get(dock.on)?.classList.remove("on");
+  dock.on = t;
+  if (t) dock.els.get(t)?.classList.add("on");
 }
 
 /**
  * O que há sob o ponto (cx, cy) desta janela para uma aba arrastada. `src`: painel de onde a aba sai
- * (aba da própria janela); sem ele a aba vem de outra janela, que só entra pela barra ou pela borda
- * de um painel: o meio fica de fora e a aba vira uma janela própria. O preview/diagrama é parte do
- * painel, nunca um destino à parte: vale o painel inteiro (conteúdo e preview trocam juntos).
+ * (aba da própria janela); sem ele a aba vem de outra janela, que só entra pela barra de abas ou por
+ * um alvo de borda: o meio de um painel fica de fora e a aba vira uma janela própria. O preview/diagrama
+ * é parte do painel, nunca um destino à parte (conteúdo e preview trocam juntos).
  */
 function targetAt(cx: number, cy: number, src?: Group): DropTarget | null {
-  if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return null;
+  if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return lightTile(null), null;
+  const tile = dock ? tileAt(dock.tiles, cx, cy) : null;
+  lightTile(tile);
+  if (tile) {
+    const tg = groups.get(tile.g)!;
+    return tile.kind === "center" ? { kind: "zone", g: tg, zone: "center" } : { kind: "zone", g: tg, zone: tile.side!, path: tile.path };
+  }
   const el = document.elementFromPoint(cx, cy);
   const body = el?.closest<HTMLElement>(".group");
   const g = body && [...groups.values()].find((x) => x.el === body);
   if (!g) return null;
-  const inStrip = !!el?.closest(".tabs");
-
-  // As bordas valem para o painel inteiro (barra de abas, código e preview), não para cada pedaço.
-  const r = g.el.getBoundingClientRect();
-  const [fx, fy] = [(cx - r.left) / r.width, (cy - r.top) / r.height];
-  const edge = 0.28;
-  const near: { side: Side; depth: number; wide: boolean }[] = [];
-  const add = (side: Side, depth: number) => {
-    if (depth < edge) near.push({ side, depth, wide: wrapCandidates(layout.root, g.id, side).length > 1 });
-  };
-  add("left", fx);
-  add("right", 1 - fx);
-  add("top", fy);
-  add("bottom", 1 - fy);
-  // Nas pilhas a faixa da borda é contínua: vale mesmo sobre a barra de abas de um painel do meio.
-  // Fora delas, a barra de abas continua sendo o lugar de soltar a aba na lista.
-  const usable = inStrip ? near.filter((n) => n.wide) : near;
-  // quando duas bordas se cruzam, a que tem bloco maior ganha (a faixa é um quadrado contínuo)
-  const pool = usable.some((n) => n.wide) ? usable.filter((n) => n.wide) : usable;
-  const pick = pool.sort((a, b) => a.depth - b.depth)[0];
-
-  if (!pick) {
-    if (inStrip) return { kind: "strip", g, cx };
-    if (!src) return null; // de fora, o meio de um painel não aceita
-    if (g !== src) return { kind: "zone", g, zone: "center" };
-    // o meio do próprio painel: sobre o preview não faz nada; sobre o código cai como antes (janela nova)
-    return el?.closest(".diagram, .mdview") ? { kind: "none" } : null;
+  if (el?.closest(".tabs")) return { kind: "strip", g, cx };
+  if (!src) return null;
+  if (g !== src) {
+    // o resto de outro painel também vale "mover para cá" (o alvo do centro acende)
+    lightTile(dock?.tiles.find((t) => t.kind === "center" && t.g === g.id) ?? null);
+    return { kind: "zone", g, zone: "center" };
   }
-  const path = blockPath(g, pick.side, cx, cy);
-  const alone = !!src && g === src && tabsOf(src).length === 1 && path.length === pathTo(layout.root, g.id)?.length; // sozinha, uma aba não divide o próprio painel
-  return alone ? null : { kind: "zone", g, zone: pick.side, path };
+  // o meio do próprio painel: sobre o preview não faz nada; sobre o código cai como antes (janela nova)
+  return el?.closest(".diagram, .mdview") ? { kind: "none" } : null;
 }
 
 function localTarget(id: string, cx: number, cy: number): DropTarget | null {
@@ -1236,6 +1257,7 @@ function tearStart(id: string, p: TearPoint) {
   dragId = id;
   // a única aba de uma janela: quem anda com o mouse é a janela inteira, não uma sombra
   selfDragging = !isMain && session.tabs.length === 1;
+  if (!selfDragging && tab) openDock(groups.get(tab.group));
   inDrag(() => api.dragStart(dragTitle, p.x, p.y, p.gx, p.gy, selfDragging));
 }
 
@@ -1257,6 +1279,7 @@ function tearEnd(id: string, p: TearPoint, cancelled: boolean) {
   selfDragging = false;
   const target = cancelled ? null : (localTarget(id, p.cx, p.cy) ?? null);
   clearDropHint();
+  closeDock();
   if (cancelled || target?.kind === "none") return void inDrag(() => api.dragCancel());
   if (target) {
     return void inDrag(async () => {
@@ -1345,6 +1368,9 @@ const setAccept = (v: boolean) => {
 void listen<{ cx: number; cy: number; title: string; target: string }>("drag-over", (e) => {
   if (e.payload.target !== winLabel) return;
   dragTitle = e.payload.title;
+  if (!dock) openDock();
+  window.clearTimeout(dock!.timer);
+  dock!.timer = window.setTimeout(() => (clearDropHint(), closeDock()), 1500); // some sozinho se o aviso de saída se perder
   const t = targetAt(e.payload.cx, e.payload.cy);
   showDropHint(t);
   if (t?.kind === "strip") incoming = { g: t.g, index: ghost?.index, at: Date.now() };
@@ -1354,7 +1380,8 @@ void listen<{ cx: number; cy: number; title: string; target: string }>("drag-ove
 });
 void listen<string>("drag-leave", (e) => {
   if (e.payload !== winLabel) return;
-  clearDropHint(); // `incoming` fica: a aba chega logo depois e usa o último lugar mostrado
+  clearDropHint();
+  closeDock(); // `incoming` fica: a aba chega logo depois e usa o último lugar mostrado
   lastAccept = false;
 });
 
@@ -1370,6 +1397,7 @@ async function receiveTab(tab: TabState) {
   const inc = incoming && Date.now() - incoming.at < 2500 && groups.get(incoming.g.id) === incoming.g ? incoming : null;
   incoming = null;
   clearDropHint();
+  closeDock();
   snapshotActive();
   states.delete(tab.id);
   detected.delete(tab.id);

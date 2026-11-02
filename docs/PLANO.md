@@ -114,6 +114,7 @@ Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), arrastar 
 - ✅ 8.3 Grade de painéis dentro da janela, como no VS Code: dividir à direita/abaixo/esquerda/acima (Ctrl+\, Ctrl+Shift+\, menu da aba), redimensionar pelos divisores, arrastar a aba para uma borda (divide) ou para a barra de outro painel (move, na posição exata), Ctrl+1…9 foca o painel, painel sem abas some. A grade é gravada por janela e restaurada.
 
 - ✅ 8.4 Aba de outra janela solta direto na grade (barra ou borda de painel; o meio vira janela própria); o preview é parte do painel; histórico de abas fechadas numa janelinha com filtro.
+- ✅ 8.5 Alvos visíveis ao arrastar uma aba (retângulos translúcidos em cada lugar possível: borda do painel, bloco inteiro da pilha, centro de outro painel), no lugar das faixas invisíveis de 28%.
 
 Fica para depois: mover aba entre janelas com o histórico de desfazer; duas visões da mesma aba em painéis diferentes.
 
