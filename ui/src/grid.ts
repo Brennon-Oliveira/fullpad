@@ -37,29 +37,71 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 export const dirOf = (side: Side): Dir => (side === "left" || side === "right" ? "row" : "col");
 const after = (side: Side) => side === "right" || side === "bottom";
 
+/** Caminho (índices dos filhos, da raiz até lá) do painel `g`; `null` se não existir. */
+export function pathTo(root: Node, g: number): number[] | null {
+  if (root.t === "leaf") return root.g === g ? [] : null;
+  for (let i = 0; i < root.kids.length; i++) {
+    const p = pathTo(root.kids[i], g);
+    if (p) return [i, ...p];
+  }
+  return null;
+}
+
+export function nodeAt(root: Node, path: number[]): Node | null {
+  let n: Node = root;
+  for (const i of path) {
+    if (n.t !== "split" || !n.kids[i]) return null;
+    n = n.kids[i];
+  }
+  return n;
+}
+
+/**
+ * Nós que, ao dividir do lado `side`, podem receber o painel novo ao lado de **todo o bloco**: o
+ * próprio painel `g` e, subindo, cada pilha (divisão na direção perpendicular ao lado) que o contém e
+ * cuja borda desse lado é a mesma. Do menor para o maior; cada um vem como caminho.
+ * Ex.: duas abas empilhadas e `side = right`: [painel de cima] e [a pilha inteira].
+ */
+export function wrapCandidates(root: Node, g: number, side: Side): number[][] {
+  const path = pathTo(root, g);
+  if (!path) return [];
+  const dir = dirOf(side);
+  const out: number[][] = [path];
+  for (let depth = path.length - 1; depth >= 0; depth--) {
+    const p = nodeAt(root, path.slice(0, depth));
+    if (!p || p.t !== "split") break;
+    if (p.dir !== dir) out.push(path.slice(0, depth)); // pilha: todos os filhos dividem esta borda
+    else if (path[depth] !== (after(side) ? p.kids.length - 1 : 0)) break; // na mesma direção só o filho da ponta chega à borda
+  }
+  return out;
+}
+
+/** Põe o painel novo `neu` do lado `side` do nó em `path` (um painel ou um bloco inteiro). */
+export function splitPath(root: Node, path: number[], side: Side, neu: number): Node {
+  const dir = dirOf(side);
+  const tree = clone(root);
+  const parent = path.length > 0 ? (nodeAt(tree, path.slice(0, -1)) as Split) : null;
+  const target = nodeAt(tree, path);
+  if (!target) return tree;
+  if (parent && parent.dir === dir) {
+    // mesma direção do pai: o novo painel entra ao lado, dividindo o peso do que foi dividido
+    const i = path[path.length - 1];
+    const half = parent.sizes[i] / 2;
+    parent.sizes[i] = half;
+    parent.kids.splice(after(side) ? i + 1 : i, 0, leaf(neu));
+    parent.sizes.splice(after(side) ? i + 1 : i, 0, half);
+    return tree;
+  }
+  const wrapped: Split = { t: "split", dir, sizes: [1, 1], kids: after(side) ? [target, leaf(neu)] : [leaf(neu), target] };
+  if (!parent) return wrapped;
+  parent.kids[path[path.length - 1]] = wrapped;
+  return tree;
+}
+
 /** Divide o painel `g`: o grupo novo `neu` aparece do lado `side` dele, com metade do espaço. */
 export function splitLeaf(root: Node, g: number, side: Side, neu: number): Node {
-  const dir = dirOf(side);
-  const go = (n: Node): Node => {
-    if (n.t === "leaf") {
-      if (n.g !== g) return n;
-      const kids = after(side) ? [leaf(g), leaf(neu)] : [leaf(neu), leaf(g)];
-      return { t: "split", dir, sizes: [1, 1], kids };
-    }
-    const i = n.kids.findIndex((k) => k.t === "leaf" && k.g === g);
-    if (i >= 0 && n.dir === dir) {
-      // mesma direção: o novo painel entra ao lado, dividindo o peso do que foi dividido
-      const kids = [...n.kids];
-      const sizes = [...n.sizes];
-      const half = sizes[i] / 2;
-      sizes[i] = half;
-      kids.splice(after(side) ? i + 1 : i, 0, leaf(neu));
-      sizes.splice(after(side) ? i + 1 : i, 0, half);
-      return { ...n, kids, sizes };
-    }
-    return { ...n, kids: n.kids.map(go) };
-  };
-  return go(clone(root));
+  const path = pathTo(root, g);
+  return path ? splitPath(root, path, side, neu) : clone(root);
 }
 
 /** Tira o painel `g`; os vizinhos ocupam o espaço dele. `null` se não sobrar nenhum. */

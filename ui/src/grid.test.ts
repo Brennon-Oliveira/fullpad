@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { swapAdjacent, groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, zoneAt, type Split } from "./grid";
+import { nodeAt, pathTo, splitPath, swapAdjacent, wrapCandidates, groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, zoneAt, type Split } from "./grid";
 
 describe("grid", () => {
   it("divide um painel em duas colunas e depois a coluna da direita em duas linhas", () => {
@@ -86,5 +86,34 @@ describe("grid", () => {
     expect(n.sizes).toEqual([3, 1, 2]);
     swapAdjacent(n, 5); // fora do intervalo: nada
     expect(groupsOf(n)).toEqual([1, 0, 2]);
+  });
+
+  it("pilha de dois painéis: à direita só de um, ou do bloco inteiro", () => {
+    const stack = splitLeaf(leaf(0), 0, "bottom", 1); // [0 / 1]
+    expect(wrapCandidates(stack, 0, "right")).toEqual([[0], []]);
+    expect(wrapCandidates(stack, 1, "right")).toEqual([[1], []]);
+    // só o de cima: a coluna da direita divide o espaço com ele, dentro da pilha
+    const one = splitPath(stack, [0], "right", 2) as Split;
+    expect(one).toMatchObject({ t: "split", dir: "col" });
+    expect(one.kids[0]).toMatchObject({ t: "split", dir: "row", kids: [{ g: 0 }, { g: 2 }] });
+    // o bloco todo: a pilha vira um painel só ao lado do novo
+    const all = splitPath(stack, [], "right", 2) as Split;
+    expect(all).toMatchObject({ t: "split", dir: "row" });
+    expect(all.kids[0]).toMatchObject({ t: "split", dir: "col", kids: [{ g: 0 }, { g: 1 }] });
+    expect(all.kids[1]).toEqual(leaf(2));
+    const left = splitPath(stack, [], "left", 2) as Split;
+    expect(groupsOf(left)).toEqual([2, 0, 1]);
+  });
+
+  it("wrapCandidates sobe por pilhas e só passa por linha se for o filho da ponta", () => {
+    // [ [0 / 1] | 2 ]
+    let r = splitLeaf(leaf(0), 0, "bottom", 1);
+    r = splitPath(r, [], "right", 2);
+    expect(wrapCandidates(r, 0, "left")).toEqual([[0, 0], [0]]); // a pilha divide a borda esquerda com a janela
+    expect(wrapCandidates(r, 0, "right")).toEqual([[0, 0], [0]]);
+    expect(wrapCandidates(r, 2, "right")).toEqual([[1]]);
+    expect(wrapCandidates(r, 2, "left")).toEqual([[1]]); // o 2 não está na ponta esquerda: nada acima
+    expect(pathTo(r, 1)).toEqual([0, 1]);
+    expect(nodeAt(r, [0, 1])).toEqual(leaf(1));
   });
 });

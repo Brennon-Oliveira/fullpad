@@ -17,7 +17,7 @@ import { exportItem, languageItems, mountMenuBar, viewItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
-import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, swapAdjacent, zoneAt } from "./grid";
+import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, normalize, pathTo, removeLeaf, resizeSizes, splitLeaf, splitPath, swapAdjacent, wrapCandidates, zoneAt } from "./grid";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -75,6 +75,7 @@ interface Group {
 const groups = new Map<number, Group>();
 let cur: Group;
 let layout: Layout = { root: leaf(0), focus: 0 };
+const nodeEls = new WeakMap<object, HTMLElement>(); // elemento de cada nó da grade, para medir blocos
 
 /** O grupo em que a aba aparece agora (aberta nele), se algum. */
 const groupShowing = (id: string) => [...groups.values()].find((g) => g.active === id);
@@ -857,10 +858,12 @@ function renderLayout() {
     if (n.t === "leaf") {
       const g = groups.get(n.g)!;
       g.el.style.flex = "";
+      nodeEls.set(n, g.el);
       return g.el;
     }
     const el = document.createElement("div");
     el.className = `split ${n.dir}`;
+    nodeEls.set(n, el);
     n.kids.forEach((k, i) => {
       const kid = build(k);
       kid.style.flex = `${n.sizes[i]} 1 0`;
@@ -1020,9 +1023,9 @@ async function moveTabToGroup(id: string, dst: Group, index?: number) {
 }
 
 /** Abre um painel novo ao lado de `src`. A aba `tabId` vai para ele; sem ela, nasce uma nota vazia. */
-async function splitGroup(src: Group, side: Side, tabId?: string) {
+async function splitGroup(src: Group, side: Side, tabId?: string, path?: number[]) {
   const g = createGroup(newGroupId());
-  layout.root = splitLeaf(layout.root, src.id, side, g.id);
+  layout.root = path && nodeAt(layout.root, path) ? splitPath(layout.root, path, side, g.id) : splitLeaf(layout.root, src.id, side, g.id);
   renderLayout();
   try {
     if (tabId) await moveTabToGroup(tabId, g);
@@ -1105,7 +1108,32 @@ let dragId: string | null = null; // a aba arrastada (a que ficou apagada na bar
 const inDrag = (job: () => Promise<unknown>) => (dragChain = dragChain.then(job, job).catch((e) => console.error("arrasto", e)));
 
 /** Onde a aba arrastada cairia dentro desta janela. `none`: soltar aqui não faz nada. */
-type DropTarget = { kind: "strip"; g: Group; cx: number } | { kind: "zone"; g: Group; zone: Zone } | { kind: "none" };
+type DropTarget =
+  | { kind: "strip"; g: Group; cx: number }
+  | { kind: "zone"; g: Group; zone: Zone; /** nó da grade que ganha o vizinho (um painel ou um bloco inteiro) */ path?: number[] }
+  | { kind: "none" };
+
+/**
+ * Ao dividir pela borda `side` do painel `g`: só ele, ou o bloco inteiro a que ele pertence (uma pilha
+ * de painéis). Vale o bloco quando o ponteiro está colado na borda da janela/bloco (24px) ou na altura
+ * (ou largura) de uma divisa interna do bloco (36px): "alinhado no meio da divisa".
+ */
+function blockPath(g: Group, side: Side, cx: number, cy: number): number[] {
+  const cands = wrapCandidates(layout.root, g.id, side);
+  let best = cands[0];
+  for (const c of cands.slice(1)) {
+    const node = nodeAt(layout.root, c);
+    const el = node && nodeEls.get(node);
+    if (!node || node.t !== "split" || !el) continue;
+    const r = el.getBoundingClientRect();
+    const edge = side === "left" ? cx - r.left : side === "right" ? r.right - cx : side === "top" ? cy - r.top : r.bottom - cy;
+    const horizontalLine = side === "left" || side === "right"; // a pilha é vertical: as divisas são linhas horizontais
+    const kids = [...el.children].filter((k) => !k.classList.contains("splitter")).map((k) => k.getBoundingClientRect());
+    const nearDivider = kids.slice(0, -1).some((k) => Math.abs((horizontalLine ? cy - k.bottom : cx - k.right)) <= 36);
+    if (edge <= 24 || nearDivider) best = c;
+  }
+  return best;
+}
 
 /**
  * O que há sob o ponto (cx, cy) desta janela para uma aba arrastada. `src`: painel de onde a aba sai
@@ -1123,14 +1151,15 @@ function targetAt(cx: number, cy: number, src?: Group): DropTarget | null {
   if (!g) return null;
   // código e preview formam uma unidade: as bordas valem para o conjunto, esteja o ponteiro onde estiver
   const zone = zoneAt(g.bodyEl.getBoundingClientRect(), cx, cy);
-  if (!src) return zone === "center" ? null : { kind: "zone", g, zone };
+  if (!src) return zone === "center" ? null : { kind: "zone", g, zone, path: blockPath(g, zone, cx, cy) };
   if (zone === "center") {
     if (g !== src) return { kind: "zone", g, zone };
     // o meio do próprio painel: sobre o preview não faz nada; sobre o código cai como antes (janela nova)
     return el?.closest(".diagram, .mdview") ? { kind: "none" } : null;
   }
-  const alone = g === src && tabsOf(src).length === 1; // sozinha, uma aba não divide o próprio painel
-  return alone ? null : { kind: "zone", g, zone };
+  const path = blockPath(g, zone, cx, cy);
+  const alone = g === src && tabsOf(src).length === 1 && path.length === pathTo(layout.root, g.id)?.length; // sozinha, uma aba não divide o próprio painel
+  return alone ? null : { kind: "zone", g, zone, path };
 }
 
 function localTarget(id: string, cx: number, cy: number): DropTarget | null {
@@ -1149,7 +1178,8 @@ function showDropHint(t: DropTarget | null) {
     return showGhost(t.cx, dragTitle, t.g);
   }
   clearGhost();
-  const r = t.g.bodyEl.getBoundingClientRect();
+  const blockEl = t.path && t.path.length < (pathTo(layout.root, t.g.id)?.length ?? 0) ? nodeEls.get(nodeAt(layout.root, t.path)!) : undefined;
+  const r = (blockEl ?? t.g.bodyEl).getBoundingClientRect(); // um bloco inteiro, ou só o painel
   const w = workEl.getBoundingClientRect();
   let { left, top, width, height } = { left: r.left - w.left, top: r.top - w.top, width: r.width, height: r.height };
   if (t.zone === "left") width /= 2;
@@ -1182,7 +1212,7 @@ async function dropLocal(id: string, t: Exclude<DropTarget, { kind: "none" }>) {
     const index = Math.min(insertionIndex(centers, t.cx), mine.length);
     await moveTabToGroup(id, t.g, index);
   } else if (t.zone === "center") await moveTabToGroup(id, t.g);
-  else await splitGroup(t.g, t.zone, id);
+  else await splitGroup(t.g, t.zone, id, t.path);
 }
 
 function tearStart(id: string, p: TearPoint) {
@@ -1289,7 +1319,7 @@ function showGhost(cx: number, title: string, g: Group) {
 
 // Aba arrastada de OUTRA janela passando por esta: mostra onde entraria (na barra, ou numa borda
 // de painel, que abre um painel novo) e avisa o Rust se aqui ela é aceita. O meio de um painel não é.
-let incoming: { g: Group; index?: number; zone?: Side; at: number } | null = null;
+let incoming: { g: Group; index?: number; zone?: Side; path?: number[]; at: number } | null = null;
 let lastAccept = false;
 const setAccept = (v: boolean) => {
   if (v === lastAccept) return;
@@ -1303,7 +1333,7 @@ void listen<{ cx: number; cy: number; title: string; target: string }>("drag-ove
   const t = targetAt(e.payload.cx, e.payload.cy);
   showDropHint(t);
   if (t?.kind === "strip") incoming = { g: t.g, index: ghost?.index, at: Date.now() };
-  else if (t?.kind === "zone" && t.zone !== "center") incoming = { g: t.g, zone: t.zone, at: Date.now() };
+  else if (t?.kind === "zone" && t.zone !== "center") incoming = { g: t.g, zone: t.zone, path: t.path, at: Date.now() };
   else incoming = null;
   setAccept(!!t);
 });
@@ -1331,7 +1361,7 @@ async function receiveTab(tab: TabState) {
   if (inc?.zone) {
     // solta na borda de um painel: a aba ganha um painel novo ali (e é a última da lista de abas)
     const g = createGroup(newGroupId());
-    layout.root = splitLeaf(layout.root, inc.g.id, inc.zone, g.id);
+    layout.root = inc.path && nodeAt(layout.root, inc.path) ? splitPath(layout.root, inc.path, inc.zone, g.id) : splitLeaf(layout.root, inc.g.id, inc.zone, g.id);
     renderLayout();
     placeInGroup(tab, g);
   } else {
