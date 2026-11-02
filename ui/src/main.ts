@@ -1584,7 +1584,8 @@ async function checkUpdates(manual: boolean) {
       if (manual) await message(`Você já está na versão mais recente (${await getVersion()}).`, { title: "Fullpad" });
       return;
     }
-    const notes = info.notes?.trim() ? `\n\nNovidades:\n${info.notes.trim()}` : "";
+    // as notas já trazem os próprios títulos ("Novidades", "Melhorias"): não acrescentar outro
+    const notes = info.notes?.trim() ? `\n\n${info.notes.trim()}` : "";
     const yes = await ask(
       `A versão ${info.version} do Fullpad está disponível (você tem a ${info.current}).${notes}\n\n` +
         "Atualizar agora? O Fullpad fecha, instala e abre de novo. Tudo o que você escreveu é gravado antes.",
