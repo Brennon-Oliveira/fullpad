@@ -1,6 +1,6 @@
 ---
 name: gerar-versao
-description: "Gera e publica uma versão do Fullpad: lê os commits desde a última tag, calcula a próxima versão, escreve as notas, sobe a versão, gera o instalador de Windows localmente, cria a tag no git e publica o release no repositório público de releases (de onde a atualização automática baixa). Use quando pedirem para gerar, lançar ou publicar uma versão."
+description: "Gera e publica uma versão do Fullpad: lê os commits desde a última tag, usa a versão pedida (argumento ou --bug/--minor/--major) ou pergunta qual, escreve as notas, sobe a versão, gera o instalador de Windows localmente, cria a tag no git e publica o release no repositório público de releases (de onde a atualização automática baixa). Use quando pedirem para gerar, lançar ou publicar uma versão."
 ---
 
 # Gerar versão
@@ -11,7 +11,27 @@ Publica uma versão nova do Fullpad. Quem já tem o app instalado recebe a vers�
 - Releases: `Brennon-Oliveira/fullpad-releases` (público, só instaladores e `latest.json`).
 - Versão: `version` em `crates/app/Cargo.toml` (o `tauri.conf.json` não tem versão).
 
-Argumento opcional: a versão (`0.4.0`) ou o tipo (`patch`, `minor`, `major`), que substitui o cálculo do passo 3.
+## Argumentos
+
+```
+/gerar-versao [versao] [--bug | --minor | --major] [--commit] [--approve]
+```
+
+**Qual versão sai** (passo 3):
+
+- `[versao]`: a versão que será a atual, e é a usada. Aceita qualquer formato (`0.5.0`, `v0.5.0`, `V0.5.0`, `v 0.5.0`...): só os três números importam, e ela é normalizada para `x.y.z` (a tag fica `vx.y.z`). Menos de três números: pare e pergunte.
+- `--bug`: soma 1 ao último número da última versão (`0.4.2` → `0.4.3`).
+- `--minor`: soma 1 ao do meio e zera o último (`0.4.2` → `0.5.0`).
+- `--major`: soma 1 ao primeiro e zera os outros dois (`6.4.2` → `7.0.0`).
+- Sem versão e sem flag de versão: **não escolha sozinho**. Diga qual é a versão atual (a da última tag) e o que os commits desde ela sugerem (tabela do passo 3), e pergunte qual usar.
+- Versão e flag juntas: vale a versão; avise que a flag foi ignorada. Mais de uma flag de versão: pare e pergunte.
+
+**O que pular das perguntas:**
+
+- `--commit`: se a árvore estiver suja, **não pergunta** (passo 1): commita o que houver (seguindo [../../rules/commits.md](../../rules/commits.md)), dá `git push origin main` e segue com a release. Sem a flag, pergunta. Com a árvore limpa a flag não muda nada.
+- `--approve`: **não pede aprovação** das notas de versão (passo 5): mostra as notas no relatório e avança sozinho. Sem a flag, para, mostra como vão ficar e pede para aprovar ou rejeitar.
+
+As duas flags só dispensam a pergunta; os testes, o build e as demais conferências continuam valendo, e qualquer falha ainda para o processo.
 
 ## 1. Pré-condições (pare se falhar)
 
@@ -26,7 +46,7 @@ command -v gh cargo-tauri cargo-xwin makensis
 gh auth status
 ```
 
-- Árvore suja: **não publique código que não está em commit**. Mostre o que falta e pergunte se é para commitar antes (seguindo [../../rules/commits.md](../../rules/commits.md)) ou parar.
+- Árvore suja: **não publique código que não está em commit**. Com `--commit`: commite o que houver (um commit por mudança lógica, [../../rules/commits.md](../../rules/commits.md)), dê `git push origin main` e siga. Sem a flag: mostre o que falta e pergunte se é para commitar antes (e dar push) ou parar.
 - Sem a chave: pare. Sem ela, os apps instalados recusam a versão; não gere outra chave sem o usuário saber que isso quebra a atualização de quem já instalou.
 
 ## 2. Última versão e commits desde ela
@@ -43,7 +63,7 @@ gh release list -R Brennon-Oliveira/fullpad-releases --limit 5
 
 ## 3. Próxima versão
 
-Pelos commits ([../../rules/commits.md](../../rules/commits.md)), o maior vence:
+Pelos argumentos (veja acima): a versão passada, ou a da flag `--bug`/`--minor`/`--major` aplicada à última versão. **Sem nenhum dos dois, pare e pergunte**, dizendo qual é a versão atual e o que os commits sugerem. A sugestão sai dos commits ([../../rules/commits.md](../../rules/commits.md)), o maior vence:
 
 | Commits | Sobe |
 |---|---|
@@ -52,7 +72,7 @@ Pelos commits ([../../rules/commits.md](../../rules/commits.md)), o maior vence:
 | `fix`, `perf` ou `refactor` | patch |
 | só `docs`, `test`, `build`, `ci`, `chore` | patch, mas pergunte antes se vale publicar |
 
-A versão nova precisa ser maior que a do release mais recente: o updater só oferece versão maior.
+A versão nova precisa ser maior que a do release mais recente: o updater só oferece versão maior. Igual ou menor: pare e diga qual é a atual.
 
 ## 4. Notas de versão
 
@@ -79,11 +99,14 @@ Escreva em `crates/app/release-notes.md` (substituindo o conteúdo da versão an
 - `docs`, `test`, `build`, `ci`, `chore` ficam de fora, a não ser que mudem algo para o usuário (ex.: o instalador).
 - Mudança incompatível: diga o que muda e o que a pessoa precisa fazer.
 
-O `scripts/release.sh` lê esse mesmo arquivo para o release e para o `latest.json` (no diálogo, sem os `#`).
+O `scripts/release.sh` lê esse mesmo arquivo para o release e para o `latest.json` (no diálogo, sem os `#`). O diálogo de atualização mostra o texto como está, **sem acrescentar título**: os títulos (`Novidades`, `Correções`, `Melhorias`) são os das próprias notas.
 
 ## 5. Confirmar com o usuário
 
-Publicar é visível para fora (o release é público e os apps instalados vão atualizar). Mostre a versão anterior, a nova, a lista de commits e as notas, e **espere o ok** antes de seguir. Ajuste se pedirem.
+Publicar é visível para fora (o release é público e os apps instalados vão atualizar). Mostre a versão anterior, a nova, a lista de commits e as notas como vão ficar.
+
+- Sem `--approve`: **espere o ok** (aprovar ou rejeitar) antes de seguir. Rejeitou: ajuste as notas como pedirem e mostre de novo.
+- Com `--approve`: não pergunte; deixe as notas no relatório e avance.
 
 ## 6. Subir a versão, testar e gerar
 
