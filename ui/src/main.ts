@@ -402,6 +402,7 @@ function computeSize(): number {
 }
 
 function refreshStatus(recomputeSize = true) {
+  if (!session.active || !tabOf(cur)) return; // painel ainda sem aba
   const tab = activeTab();
   const st = cur.view.state;
   const head = st.selection.main.head;
@@ -903,7 +904,9 @@ function makeSplitter(n: Extract<Node, { t: "split" }>, i: number, container: HT
 function removeGroup(g: Group) {
   const order = groupsOf(layout.root);
   const i = order.indexOf(g.id);
-  const next = groups.get(order[i + 1] ?? order[i - 1])!;
+  // o foco vai para um vizinho que tenha aba (o painel novo de uma divisão ainda pode estar vazio)
+  const near = [order[i + 1], order[i - 1], ...order].filter((x) => x !== undefined && x !== g.id);
+  const next = groups.get(near.find((x) => tabsOf(groups.get(x)!).length > 0) ?? near[0])!;
   layout.root = removeLeaf(layout.root, g.id) ?? leaf(next.id);
   groups.delete(g.id);
   g.view.destroy();
