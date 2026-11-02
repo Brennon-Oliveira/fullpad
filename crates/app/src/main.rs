@@ -47,6 +47,8 @@ struct Startup {
     session: Session,
     /// Texto da aba ativa (as demais carregam sob demanda).
     active_text: String,
+    /// Grade de painéis desta janela (a UI a interpreta).
+    layout: Option<serde_json::Value>,
 }
 
 #[derive(Serialize)]
@@ -119,7 +121,8 @@ fn load_startup(state: State<AppState>, window: WebviewWindow) -> Result<Startup
         Some(id) => store.read_note(id).map_err(err)?,
         None => String::new(),
     };
-    Ok(Startup { session: view, active_text })
+    let layout = session.layout_of(&label);
+    Ok(Startup { session: view, active_text, layout })
 }
 
 #[tauri::command]
@@ -134,13 +137,20 @@ fn save_note(state: State<AppState>, id: String, text: String) -> Result<(), Str
 
 /// A janela envia suas abas (na ordem dela) e a ativa. Só atualiza: fechar e mover aba são comandos próprios.
 #[tauri::command]
-fn save_window(state: State<AppState>, window: WebviewWindow, tabs: Vec<TabState>, active: Option<String>) -> Result<(), String> {
+fn save_window(
+    state: State<AppState>,
+    window: WebviewWindow,
+    tabs: Vec<TabState>,
+    active: Option<String>,
+    layout: Option<serde_json::Value>,
+) -> Result<(), String> {
     let label = window.label().to_string();
     let active = active.as_deref().map(parse_id).transpose()?;
     let closed = state.closed.lock().unwrap().clone();
     let _g = state.session_lock.lock().unwrap();
     let mut session = state.store.load_session().map_err(err)?;
     session.apply_window(&label, tabs, active, &closed);
+    session.set_layout(&label, layout);
     if !window.is_maximized().unwrap_or(false) {
         if let Some(g) = geometry_of(&window) {
             session.set_geometry(&label, g);

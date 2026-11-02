@@ -98,6 +98,9 @@ pub struct TabState {
     /// A visão renderizada (preview/diagrama) está numa janela própria, ligada a esta aba.
     #[serde(default)]
     pub detached: bool,
+    /// Grupo (painel) da janela em que a aba aparece. Quem decide e interpreta é a UI.
+    #[serde(default)]
+    pub group: u32,
 }
 
 impl TabState {
@@ -115,6 +118,7 @@ impl TabState {
             dirty: false,
             window: main_window(),
             detached: false,
+            group: 0,
         }
     }
 }
@@ -136,6 +140,10 @@ pub struct WindowState {
     pub active: Option<Uuid>,
     #[serde(default)]
     pub geometry: Option<Geometry>,
+    /// Grade de painéis da janela (árvore de divisões). Opaca para o core: só a UI a entende, e
+    /// uma versão que não a conheça simplesmente a ignora.
+    #[serde(default)]
+    pub layout: Option<serde_json::Value>,
 }
 
 /// Todas as abas de todas as janelas, na ordem de gravação. `active` é a aba ativa da janela

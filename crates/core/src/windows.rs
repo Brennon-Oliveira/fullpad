@@ -35,7 +35,7 @@ impl Session {
         if let Some(i) = self.windows.iter().position(|w| w.label == label) {
             return &mut self.windows[i];
         }
-        self.windows.push(WindowState { label: label.to_string(), active: None, geometry: None });
+        self.windows.push(WindowState { label: label.to_string(), active: None, geometry: None, layout: None });
         self.windows.last_mut().unwrap()
     }
 
@@ -43,6 +43,16 @@ impl Session {
         if label != MAIN_WINDOW {
             self.window_state(label).geometry = Some(g);
         }
+    }
+
+    pub fn set_layout(&mut self, label: &str, layout: Option<serde_json::Value>) {
+        if layout.is_some() || self.windows.iter().any(|w| w.label == label) {
+            self.window_state(label).layout = layout;
+        }
+    }
+
+    pub fn layout_of(&self, label: &str) -> Option<serde_json::Value> {
+        self.windows.iter().find(|w| w.label == label).and_then(|w| w.layout.clone())
     }
 
     pub fn geometry_of(&self, label: &str) -> Option<Geometry> {
@@ -229,5 +239,20 @@ mod tests {
         s.prune_windows();
         assert_eq!(s.windows.len(), 1);
         assert_eq!(s.geometry_of("win-2").unwrap().w, 300);
+    }
+
+    #[test]
+    fn layout_is_kept_per_window_and_old_sessions_have_none() {
+        let mut s = session(vec![tab("main")]);
+        assert_eq!(s.layout_of("main"), None);
+        let l = serde_json::json!({"root": {"t": "leaf", "g": 0}});
+        s.set_layout("main", Some(l.clone()));
+        assert_eq!(s.layout_of("main"), Some(l));
+        assert_eq!(s.layout_of("win-2"), None);
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, s);
+        s.prune_windows();
+        assert!(s.layout_of("main").is_some(), "janela com abas mantém a grade");
     }
 }
