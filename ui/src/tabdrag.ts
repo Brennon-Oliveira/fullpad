@@ -10,16 +10,26 @@ const THRESHOLD = 5; // px antes de contar como arrasto (senão é um clique)
 const TEAR_DISTANCE = 28; // px para fora da barra, na vertical, a partir dos quais a aba sai
 const SLIDE_MS = 140;
 
+export interface TearPoint {
+  x: number;
+  y: number;
+  cx: number;
+  cy: number;
+  gx: number;
+  gy: number;
+}
+
 export interface DragHooks {
   /** Nova ordem das abas (ids) depois de reordenar. */
   onReorder(ids: string[]): void;
   /** Esta aba pode sair da janela? (a única aba da janela principal não pode) */
   canTear(id: string): boolean;
   /** A aba saiu da barra. `x`/`y`: ponto da tela (px físicos); `gx`/`gy`: onde na aba ela foi segurada. */
-  onTearStart(id: string, p: { x: number; y: number; gx: number; gy: number }): void;
-  onTearMove(x: number, y: number): void;
+  onTearStart(id: string, p: TearPoint): void;
+  /** `cx`/`cy`: ponto na janela (px do documento), para achar o painel sob o ponteiro. */
+  onTearMove(x: number, y: number, cx: number, cy: number): void;
   /** Soltou fora da barra (ou cancelou). `gx`/`gy`: onde na aba ela foi segurada. */
-  onTearEnd(id: string, p: { x: number; y: number; gx: number; gy: number }, cancelled: boolean): void;
+  onTearEnd(id: string, p: TearPoint, cancelled: boolean): void;
 }
 
 /** Índice de inserção para o ponteiro em `x`, dados os centros das abas (em ordem). */
@@ -70,6 +80,7 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
     from: number;
     to: number;
     last: { x: number; y: number };
+    lastClient: { x: number; y: number };
   }
   let drag: Drag | null = null;
   let swallowClick = false;
@@ -90,7 +101,7 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
       el, id: el.dataset.id!, pid: e.pointerId, x0: e.clientX, y0: e.clientY,
       gx: e.clientX - rects[from].left, gy: e.clientY - rects[from].top,
       moved: false, torn: false, els, lefts: rects.map((r) => r.left), widths: rects.map((r) => r.width),
-      from, to: from, last: phys(e),
+      from, to: from, last: phys(e), lastClient: { x: e.clientX, y: e.clientY },
     };
   });
 
@@ -98,6 +109,7 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
     const d = drag;
     if (!d || e.pointerId !== d.pid) return;
     d.last = phys(e);
+    d.lastClient = { x: e.clientX, y: e.clientY };
     if (!d.moved) {
       if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < THRESHOLD) return;
       d.moved = true;
@@ -105,16 +117,17 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
       d.el.classList.add("dragging");
       for (const t of d.els) if (t !== d.el) t.style.transition = `transform ${SLIDE_MS}ms ease`;
     }
-    if (d.torn) return hooks.onTearMove(d.last.x, d.last.y);
+    if (d.torn) return hooks.onTearMove(d.last.x, d.last.y, e.clientX, e.clientY);
 
     const r = strip.getBoundingClientRect();
-    const outside = e.clientY < r.top - TEAR_DISTANCE || e.clientY > r.bottom + TEAR_DISTANCE || e.clientX < -TEAR_DISTANCE || e.clientX > window.innerWidth + TEAR_DISTANCE;
+    const outside = e.clientY < r.top - TEAR_DISTANCE || e.clientY > r.bottom + TEAR_DISTANCE || e.clientX < r.left - TEAR_DISTANCE || e.clientX > r.right + TEAR_DISTANCE;
     if (outside && hooks.canTear(d.id)) {
       d.torn = true;
       // a aba original fica no lugar, apagada; quem anda com o mouse é a sombra
       for (const t of d.els) t.style.transform = t.style.transition = "";
       d.el.classList.add("torn");
-      hooks.onTearStart(d.id, { ...d.last, gx: d.gx, gy: d.gy });
+      hooks.onTearStart(d.id, { ...d.last, cx: e.clientX, cy: e.clientY, gx: d.gx, gy: d.gy });
+      hooks.onTearMove(d.last.x, d.last.y, e.clientX, e.clientY);
       return;
     }
 
@@ -149,7 +162,8 @@ export function attachTabDrag(strip: HTMLElement, hooks: DragHooks) {
       reset(d);
       d.el.classList.remove("torn");
       const p = cancelled || !e ? d.last : phys(e as PointerEvent);
-      return hooks.onTearEnd(d.id, { ...p, gx: d.gx, gy: d.gy }, cancelled);
+      const c = cancelled || !e ? d.lastClient : { x: (e as PointerEvent).clientX, y: (e as PointerEvent).clientY };
+      return hooks.onTearEnd(d.id, { ...p, cx: c.x, cy: c.y, gx: d.gx, gy: d.gy }, cancelled);
     }
     if (cancelled || d.to === d.from) return reset(d);
     // anima até o lugar final e só então grava a ordem

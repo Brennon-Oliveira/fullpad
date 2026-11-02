@@ -24,6 +24,8 @@ export interface TabState {
   window: string;
   /** A visão renderizada está numa janela própria. */
   detached: boolean;
+  /** Painel (grupo de abas) da janela em que a aba aparece. */
+  group: number;
 }
 
 export interface Session {
@@ -35,6 +37,8 @@ export interface Session {
 export interface Startup {
   session: Session;
   active_text: string;
+  /** Grade de painéis gravada para esta janela (a UI a valida). */
+  layout: unknown;
 }
 
 export interface ClosedTab {
@@ -53,7 +57,7 @@ export const api = {
   readNote: (id: string) => invoke<string>("read_note", { id }),
   saveNote: (id: string, text: string) => invoke<void>("save_note", { id, text }),
   /** Envia as abas desta janela (na ordem dela) e a ativa. */
-  saveWindow: (tabs: TabState[], active: string | null) => invoke<void>("save_window", { tabs, active }),
+  saveWindow: (tabs: TabState[], active: string | null, layout: unknown) => invoke<void>("save_window", { tabs, active, layout }),
   listWindows: () => invoke<WindowInfo[]>("list_windows"),
   /** `to`: rótulo de uma janela aberta ou "new". Devolve o rótulo de destino. */
   moveTab: (tab: TabState, to: string) => invoke<string>("move_tab", { tab, to }),

@@ -28,6 +28,8 @@ export interface MenuActions {
   setView(m: ViewMode): void;
   toggleDetached(): void;
   toggleWrap(): void;
+  splitRight(): void;
+  splitDown(): void;
   setLanguage(l: Language): void;
   /** Estado atual para marcar checks e desabilitar itens. */
   current(): { language: Language; lang: Lang; view: ViewMode; detached: boolean; previewAvailable: boolean; wrap: boolean };
@@ -124,6 +126,9 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
         const c = a.current();
         return [
           ...viewItems(a),
+          "sep",
+          { label: "Dividir à direita", shortcut: "Ctrl+\\", action: a.splitRight },
+          { label: "Dividir abaixo", shortcut: "Ctrl+Shift+\\", action: a.splitDown },
           "sep",
           { label: "Quebra de linha", checked: c.wrap, action: a.toggleWrap },
         ];

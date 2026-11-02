@@ -1,7 +1,7 @@
 import { gotoLine, openSearchPanel } from "@codemirror/search";
 import { redo, selectAll, undo } from "@codemirror/commands";
 import type { EditorState, Extension } from "@codemirror/state";
-import type { ViewUpdate } from "@codemirror/view";
+import type { EditorView, ViewUpdate } from "@codemirror/view";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { type UnlistenFn, emit, emitTo, listen as listenAll } from "@tauri-apps/api/event";
 import { listenHere as listen } from "./events";
@@ -16,7 +16,8 @@ const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importa
 import { languageItems, mountMenuBar, viewItems } from "./menus";
 import { type MenuItem, showMenu } from "./popup";
 import { mountStatusBar } from "./statusbar";
-import { attachTabDrag, insertionIndex } from "./tabdrag";
+import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
+import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, zoneAt } from "./grid";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -43,13 +44,41 @@ let overwrite = false;
 let lastSize = 0;
 
 const menubarEl = document.getElementById("menubar")!;
-const tabsEl = document.getElementById("tabs")!;
-const editorEl = document.getElementById("editor")!;
-const diagramEl = document.getElementById("diagram")!;
-const mdEl = document.getElementById("mdview")!;
+const workEl = document.getElementById("work")!;
 const statusEl = document.getElementById("status")!;
-let view: ReturnType<typeof createView>;
 
+/**
+ * Um painel da janela (como um grupo de editores do VS Code): barra de abas própria, editor, e o
+ * markdown renderizado ou o diagrama ao lado. Cada aba pertence a um grupo (`TabState.group`).
+ * Só um grupo tem o foco (`cur`): é nele que valem os menus, os atalhos e a barra de status.
+ */
+interface Group {
+  id: number;
+  el: HTMLElement;
+  tabsEl: HTMLElement;
+  bodyEl: HTMLElement;
+  editorEl: HTMLElement;
+  diagramEl: HTMLElement;
+  mdEl: HTMLElement;
+  view: EditorView;
+  /** Aba aberta neste grupo. */
+  active: string | null;
+  /** Muda a cada edição/troca de aba: o diagrama só se liga ao código se for da mesma versão. */
+  rev: number;
+  diagram?: DiagramPanel;
+  diagramLoading?: Promise<void>;
+  diagramTab: string | null; // aba cujo diagrama está na tela
+  mdPane?: MarkdownPane;
+  mdLoading?: Promise<void>;
+}
+
+const groups = new Map<number, Group>();
+let cur: Group;
+let layout: Layout = { root: leaf(0), focus: 0 };
+
+/** O grupo em que a aba aparece agora (aberta nele), se algum. */
+const groupShowing = (id: string) => [...groups.values()].find((g) => g.active === id);
+const tabsOf = (g: Group) => session.tabs.filter((t) => t.group === g.id);
 const activeTab = () => session.tabs.find((t) => t.id === session.active)!;
 
 function readSetting(key: string, fallback: boolean): boolean {
@@ -118,7 +147,7 @@ function redetect(tab: TabState) {
 function applyTabConfig() {
   if (!session.active) return;
   const tab = activeTab();
-  view.dispatch({
+  cur.view.dispatch({
     effects: tabEffects({
       markdown: effectiveLang(tab) === "markdown",
       dbml: effectiveLang(tab) === "dbml",
@@ -130,14 +159,14 @@ function applyTabConfig() {
     }),
   });
   ensureDbmlSupport();
-  mdPane?.setDark(isDark());
+  cur.mdPane?.setDark(isDark());
   reconcileDetached();
   syncDiagram();
   refreshStatus();
 }
 
 // O tema segue o sistema: quando muda, reaplica na aba ativa (as outras pegam ao serem mostradas).
-window.matchMedia?.("(prefers-color-scheme: dark)").addEventListener("change", () => applyTabConfig());
+window.matchMedia?.("(prefers-color-scheme: dark)").addEventListener("change", () => forEachGroup(applyTabConfig));
 
 // ---- recursos de editor do DBML (diagnóstico; carregados sob demanda) -----------
 
@@ -152,7 +181,7 @@ function ensureDbmlSupport() {
     .then((m) => m.dbmlEditorSupport())
     .then((ext) => {
       dbmlSupport = ext;
-      if (effectiveLang(activeTab()) === "dbml") applyTabConfig();
+      forEachGroup(() => effectiveLang(activeTab()) === "dbml" && applyTabConfig());
     })
     .catch((e) => console.error("falha ao carregar o suporte a DBML", e))
     .finally(() => (dbmlSupportLoading = false));
@@ -166,14 +195,16 @@ let pvTimer: number | undefined;
 const previewLang = (tab: TabState) => (effectiveLang(tab) === "dbml" ? "dbml" : "markdown");
 
 async function textOf(id: string): Promise<string> {
-  return states.get(id)?.doc.toString() ?? api.readNote(id);
+  const showing = groupShowing(id);
+  return showing?.view.state.doc.toString() ?? states.get(id)?.doc.toString() ?? api.readNote(id);
 }
 
 /** Manda o texto atual da aba para a janela de preview dela. */
 async function pushPreview(tab: TabState) {
   const text = await textOf(tab.id);
-  const cursor = tab.id === session.active ? view.state.selection.main.head : null;
-  await emitTo(`preview-${tab.id}`, "pv-text", { text, rev: docRev, title: tab.title || "Nova nota", cursor }).catch(() => {});
+  const showing = groupShowing(tab.id);
+  const cursor = showing ? showing.view.state.selection.main.head : null;
+  await emitTo(`preview-${tab.id}`, "pv-text", { text, rev: showing?.rev ?? 0, title: tab.title || "Nova nota", cursor }).catch(() => {});
 }
 
 function openPreviewWindow(tab: TabState) {
@@ -189,8 +220,9 @@ function openPreviewWindow(tab: TabState) {
       }),
       // mouse sobre o diagrama da outra janela → destaca a linha aqui
       await listen<{ spans: { from: number; to: number }[] | null; rev: number }>(`pv-hover:${id}`, (e) => {
-        const ok = id === session.active && e.payload.rev === docRev;
-        view.dispatch({ effects: hintLines(ok ? e.payload.spans : null) });
+        const showing = groupShowing(id);
+        const ok = !!showing && e.payload.rev === showing.rev;
+        showing?.view.dispatch({ effects: hintLines(ok ? e.payload.spans : null) });
       }),
       // o usuário fechou a janela de preview: a visão volta para ao lado do código
       await listen(`pv-closed:${id}`, () => {
@@ -200,7 +232,8 @@ function openPreviewWindow(tab: TabState) {
         t.detached = false;
         sessionDirty = true;
         scheduleSave();
-        if (id === session.active) applyTabConfig();
+        const showing = groupShowing(id);
+        if (showing) withGroup(showing, applyTabConfig);
       }),
     );
     await api.openPreview(id, previewLang(tab));
@@ -254,82 +287,81 @@ function toggleDetached() {
   sessionDirty = true;
   scheduleSave();
   applyTabConfig();
-  view.focus();
+  cur.view.focus();
 }
 
 // ---- diagrama DBML (carregado sob demanda) ------------------------------------
-
-let diagram: DiagramPanel | undefined;
-let diagramLoading: Promise<void> | undefined;
-let diagramTab: string | null = null; // aba cujo diagrama está na tela
-let docRev = 0; // muda a cada edição/troca de aba: o diagrama só se liga ao código se for da mesma versão
 
 const diagramWanted = (tab: TabState) => previewOn(tab) && !tab.detached && effectiveLang(tab) === "dbml";
 
 // ---- markdown renderizado ao lado do código (carregado sob demanda) ----------------
 
-let mdPane: MarkdownPane | undefined;
-let mdLoading: Promise<void> | undefined;
 const mdWanted = (tab: TabState) => effectiveLang(tab) === "markdown" && viewKind(tab) === "split" && !tab.detached;
+const tabOf = (g: Group) => session.tabs.find((t) => t.id === g.active);
 
 function syncMdPane(textChanged: boolean) {
+  const g = cur;
   if (!mdWanted(activeTab())) {
-    mdPane?.hide();
-    mdEl.classList.remove("on");
+    g.mdPane?.hide();
+    g.mdEl.classList.remove("on");
     return;
   }
-  mdEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
-  mdLoading ??= import("./mdpreview").then((m) => {
-    mdPane = m.createMarkdownPane(mdEl, {
+  g.mdEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
+  g.mdLoading ??= import("./mdpreview").then((m) => {
+    g.mdPane = m.createMarkdownPane(g.mdEl, {
       // mouse sobre uma linha do painel → destaca a linha no código (como no diagrama DBML)
-      onHover: (span) => view.dispatch({ effects: hintLines(span ? [span] : null) }),
+      onHover: (span) => g.view.dispatch({ effects: hintLines(span ? [span] : null) }),
     });
   });
-  void mdLoading.then(() => {
-    if (!mdPane || !mdWanted(activeTab())) return;
-    const text = view.state.doc.toString();
-    if (textChanged) mdPane.update(text);
-    else mdPane.show(text);
-    mdPane.setCursor(view.state.selection.main.head);
-    followScroll();
+  void g.mdLoading.then(() => {
+    const t = tabOf(g);
+    if (!g.mdPane || !t || !mdWanted(t)) return;
+    const text = g.view.state.doc.toString();
+    if (textChanged) g.mdPane.update(text);
+    else g.mdPane.show(text);
+    g.mdPane.setCursor(g.view.state.selection.main.head);
+    followScroll(g);
   });
 }
 
 /** O painel renderizado acompanha o scroll do código (proporcional). */
-function followScroll() {
-  if (!mdPane || !mdWanted(activeTab())) return;
-  const s = view.scrollDOM;
+function followScroll(g: Group = cur) {
+  const t = tabOf(g);
+  if (!g.mdPane || !t || !mdWanted(t)) return;
+  const s = g.view.scrollDOM;
   const room = s.scrollHeight - s.clientHeight;
-  mdPane.scrollToFraction(room > 0 ? s.scrollTop / room : 0);
+  g.mdPane.scrollToFraction(room > 0 ? s.scrollTop / room : 0);
 }
 
 /** Mostra/esconde o painel conforme a aba ativa. O módulo só é importado na 1ª vez que um DBML pede. */
 function syncDiagram(textChanged = false) {
+  const g = cur;
   syncMdPane(textChanged);
   syncDetached(textChanged);
   const tab = activeTab();
   if (!diagramWanted(tab)) {
-    diagram?.hide();
-    diagramTab = null;
+    g.diagram?.hide();
+    g.diagramTab = null;
     return;
   }
-  const text = view.state.doc.toString();
+  const text = g.view.state.doc.toString();
   const run = () => {
-    if (!diagram || !diagramWanted(activeTab())) return;
-    if (textChanged && diagramTab === tab.id) diagram.update(text, docRev);
-    else diagram.show(text, diagramTab !== tab.id, docRev);
-    diagramTab = tab.id;
-    diagram.setCursor(view.state.selection.main.head, docRev);
+    const t = tabOf(g);
+    if (!g.diagram || !t || !diagramWanted(t)) return;
+    if (textChanged && g.diagramTab === tab.id) g.diagram.update(text, g.rev);
+    else g.diagram.show(text, g.diagramTab !== tab.id, g.rev);
+    g.diagramTab = tab.id;
+    g.diagram.setCursor(g.view.state.selection.main.head, g.rev);
   };
-  if (diagram) return run();
-  diagramEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
-  diagramLoading ??= import("./dbml/panel").then((m) => {
-    diagram = m.createDiagramPanel(diagramEl, {
+  if (g.diagram) return run();
+  g.diagramEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
+  g.diagramLoading ??= import("./dbml/panel").then((m) => {
+    g.diagram = m.createDiagramPanel(g.diagramEl, {
       // mouse sobre o diagrama → destaca a linha no código (sem selecionar)
-      onHover: (spans, rev) => view.dispatch({ effects: hintLines(spans && rev === docRev ? spans : null) }),
+      onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
     });
   });
-  void diagramLoading.then(run);
+  void g.diagramLoading.then(run);
 }
 
 function scheduleDetect() {
@@ -361,7 +393,7 @@ function langLabel(tab: TabState): string {
 }
 
 function computeSize(): number {
-  const st = view.state;
+  const st = cur.view.state;
   const tab = activeTab();
   let bytes = new TextEncoder().encode(st.doc.toString()).length;
   if (tab.eol === "crlf") bytes += st.doc.lines - 1;
@@ -371,7 +403,7 @@ function computeSize(): number {
 
 function refreshStatus(recomputeSize = true) {
   const tab = activeTab();
-  const st = view.state;
+  const st = cur.view.state;
   const head = st.selection.main.head;
   const line = st.doc.lineAt(head);
   if (recomputeSize) lastSize = computeSize();
@@ -420,7 +452,7 @@ const status = mountStatusBar(statusEl, {
           tab.eol = e;
           markModified(tab);
           refreshStatus();
-          view.focus();
+          cur.view.focus();
         },
       })),
       "above",
@@ -437,7 +469,7 @@ const status = mountStatusBar(statusEl, {
           tab.encoding = e;
           markModified(tab);
           refreshStatus();
-          view.focus();
+          cur.view.focus();
         },
       })),
       "above",
@@ -455,17 +487,21 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
 
 /** Captura cursor/scroll da aba ativa no objeto da sessão e guarda o estado. */
 function snapshotActive() {
-  if (!session.active) return; // janela reserva, ainda sem aba
-  const tab = activeTab();
-  states.set(tab.id, view.state);
-  tab.cursor = view.state.selection.main.head;
-  tab.scroll = view.scrollDOM.scrollTop;
+  snapshotGroup(cur);
+}
+
+function snapshotGroup(g: Group) {
+  const tab = tabOf(g);
+  if (!tab) return; // janela reserva, ainda sem aba
+  states.set(tab.id, g.view.state);
+  tab.cursor = g.view.state.selection.main.head;
+  tab.scroll = g.view.scrollDOM.scrollTop;
 }
 
 async function flush() {
   window.clearTimeout(timer);
   timer = undefined;
-  snapshotActive();
+  for (const g of groups.values()) snapshotGroup(g);
   const ids = [...dirtyNotes];
   dirtyNotes.clear();
   const writes = ids.map((id) => {
@@ -475,9 +511,16 @@ async function flush() {
   await Promise.all(writes);
   if (sessionDirty || ids.length) {
     sessionDirty = false;
-    await enqueue(() => api.saveWindow(structuredClone(session.tabs), session.active));
+    await enqueue(() => api.saveWindow(structuredClone(session.tabs), session.active, layoutPayload()));
   }
 }
+
+/** A grade como vai para o disco: árvore de painéis, painel com foco e a aba aberta em cada um. */
+const layoutPayload = (): unknown => ({
+  root: layout.root,
+  focus: cur.id,
+  active: Object.fromEntries([...groups.values()].map((g) => [g.id, g.active])),
+});
 
 function scheduleSave() {
   window.clearTimeout(timer);
@@ -485,25 +528,27 @@ function scheduleSave() {
 }
 
 function onEditorUpdate(u: ViewUpdate) {
+  const g = cur;
+  if (u.view !== g.view) return; // só o painel com o foco recebe digitação
   if (u.docChanged) {
-    docRev++;
+    g.rev++;
     syncDiagram(true);
     const tab = activeTab();
     if (!tab.path) {
       const before = tab.title;
-      tab.title = titleOf(view.state.doc.toString());
+      tab.title = titleOf(g.view.state.doc.toString());
       if (tab.title !== before) renderTabs();
     }
     markModified(tab);
     scheduleDetect();
     scheduleSizeRefresh();
   }
-  if (u.selectionSet && !u.docChanged && diagramTab === activeTab().id) {
-    diagram?.setCursor(u.state.selection.main.head, docRev); // cursor → destaque no diagrama
-    mdPane?.setCursor(u.state.selection.main.head); // ... ou a linha no markdown renderizado
+  if (u.selectionSet && !u.docChanged && g.diagramTab === activeTab().id) {
+    g.diagram?.setCursor(u.state.selection.main.head, g.rev); // cursor → destaque no diagrama
+    g.mdPane?.setCursor(u.state.selection.main.head); // ... ou a linha no markdown renderizado
   }
   if (u.selectionSet && !u.docChanged && activeTab().detached && previewOpen.has(session.active!)) {
-    void emitTo(`preview-${session.active}`, "pv-cursor", { offset: u.state.selection.main.head, rev: docRev }).catch(() => {});
+    void emitTo(`preview-${session.active}`, "pv-cursor", { offset: u.state.selection.main.head, rev: g.rev }).catch(() => {});
   }
   if (u.docChanged || u.selectionSet) refreshStatus(false);
 }
@@ -514,12 +559,21 @@ function tabLabel(t: TabState): string {
   return (t.dirty ? "● " : "") + (t.title || "Nova nota");
 }
 
+function updateTitle() {
+  if (session.active) void thisWindow.setTitle(`${tabLabel(activeTab())} — Fullpad`);
+}
+
 function renderTabs() {
   clearGhost();
-  tabsEl.replaceChildren(
-    ...session.tabs.map((t) => {
+  for (const g of groups.values()) renderStrip(g);
+  updateTitle();
+}
+
+function renderStrip(g: Group) {
+  g.tabsEl.replaceChildren(
+    ...tabsOf(g).map((t) => {
       const el = document.createElement("div");
-      el.className = "tab" + (t.id === session.active ? " active" : "");
+      el.className = "tab" + (t.id === g.active ? " active" : "");
       el.role = "tab";
       el.dataset.id = t.id;
       el.title = t.path ?? (t.title || "Nova nota");
@@ -545,13 +599,15 @@ function renderTabs() {
     }),
   );
   const add = document.createElement("button");
-  add.id = "new-tab";
+  add.className = "new-tab";
   add.textContent = "+";
   add.title = "Nova nota (Ctrl+N)";
-  add.addEventListener("click", () => void newTab());
-  tabsEl.append(add);
-  tabsEl.querySelector(".active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  void thisWindow.setTitle(`${tabLabel(activeTab())} — Fullpad`);
+  add.addEventListener("click", () => {
+    enterGroup(g);
+    void newTab();
+  });
+  g.tabsEl.append(add);
+  g.tabsEl.querySelector(".active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 async function loadState(tab: TabState, text?: string): Promise<EditorState> {
@@ -563,32 +619,93 @@ async function loadState(tab: TabState, text?: string): Promise<EditorState> {
   return st;
 }
 
+/** Dá o foco ao painel: passa a valer para menus, atalhos e barra de status. */
+function enterGroup(g: Group) {
+  if (g === cur) return;
+  snapshotActive();
+  cur = g;
+  session.active = g.active;
+  layout.focus = g.id;
+  markFocus();
+  if (g.active) {
+    refreshStatus();
+    updateTitle();
+  }
+  sessionDirty = true;
+  scheduleSave();
+}
+
+function markFocus() {
+  for (const x of groups.values()) x.el.classList.toggle("focused", x === cur);
+}
+
+/** Roda `fn` como se `g` tivesse o foco (sem mexer no foco de verdade). Só para trabalho síncrono. */
+function withGroup<T>(g: Group, fn: () => T): T {
+  const [prevCur, prevActive] = [cur, session.active];
+  cur = g;
+  session.active = g.active;
+  try {
+    return fn();
+  } finally {
+    cur = prevCur;
+    session.active = prevActive;
+  }
+}
+
+const forEachGroup = (fn: () => void) => {
+  for (const g of [...groups.values()]) if (g.active) withGroup(g, fn);
+  if (session.active) refreshStatus(); // o último painel visitado não pode ficar na barra de status
+};
+
 async function show(tab: TabState, text?: string) {
+  const g = groups.get(tab.group) ?? cur;
+  if (g !== cur) enterGroup(g);
   const st = await loadState(tab, text);
   session.active = tab.id;
-  docRev++;
-  view.setState(st);
+  g.active = tab.id;
+  g.rev++;
+  g.view.setState(st);
   redetect(tab);
   applyTabConfig();
   renderTabs();
   requestAnimationFrame(() => {
-    view.scrollDOM.scrollTop = tab.scroll;
-    view.focus();
+    g.view.scrollDOM.scrollTop = tab.scroll;
+    g.view.focus();
   });
 }
 
 async function activate(id: string) {
-  if (id === session.active) return;
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const g = groups.get(tab.group)!;
+  if (g.active === id) {
+    if (g !== cur) {
+      enterGroup(g);
+      g.view.focus();
+    }
+    return;
+  }
   snapshotActive();
-  await show(session.tabs.find((t) => t.id === id)!);
+  await show(tab);
   sessionDirty = true;
   scheduleSave();
+}
+
+/** Coloca a aba no painel `g`, na posição `index` entre as abas dele (no fim, se não vier). */
+function placeInGroup(tab: TabState, g: Group, index?: number) {
+  session.tabs = session.tabs.filter((t) => t.id !== tab.id);
+  tab.group = g.id;
+  const mine = tabsOf(g);
+  const before = index !== undefined && index < mine.length ? mine[index] : null;
+  if (before) session.tabs.splice(session.tabs.indexOf(before), 0, tab);
+  else if (mine.length > 0) session.tabs.splice(session.tabs.indexOf(mine[mine.length - 1]) + 1, 0, tab);
+  else session.tabs.push(tab);
 }
 
 async function newTab() {
   snapshotActive();
   const tab = await api.newNote();
-  session.tabs.push(tab);
+  placeInGroup(tab, cur);
   await show(tab, "");
   sessionDirty = true;
   scheduleSave();
@@ -611,7 +728,7 @@ async function reopenTab(id?: string) {
   try {
     await flush();
     const { tab, text } = await api.restoreTab(target);
-    session.tabs.push(tab);
+    placeInGroup(tab, cur);
     await show(tab, text);
     sessionDirty = true;
     scheduleSave();
@@ -622,9 +739,9 @@ async function reopenTab(id?: string) {
 }
 
 async function closeTab(id: string) {
-  const idx = session.tabs.findIndex((t) => t.id === id);
-  if (idx < 0) return;
-  const tab = session.tabs[idx];
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  if (groups.get(tab.group) !== cur) enterGroup(groups.get(tab.group)!);
   if (id === session.active) snapshotActive();
 
   if (tab.dirty && tab.path) {
@@ -645,64 +762,239 @@ async function closeTab(id: string) {
   closePreviewWindow(id);
   await enqueue(() => api.closeNote(id));
   void refreshClosed();
-  session.tabs.splice(idx, 1);
+  await dropLocalTab(id);
+}
+
+function cycle(delta: number) {
+  const mine = tabsOf(cur);
+  if (mine.length < 2) return;
+  const i = mine.findIndex((t) => t.id === cur.active);
+  void activate(mine[(i + delta + mine.length) % mine.length].id);
+}
+
+// ---- painéis (grupos de abas) ---------------------------------------------------
+
+const newGroupId = () => Math.max(-1, ...groups.keys()) + 1;
+
+function createGroup(id: number): Group {
+  const div = (cls: string) => Object.assign(document.createElement("div"), { className: cls });
+  const el = div("group");
+  const tabsEl = div("tabs");
+  tabsEl.role = "tablist";
+  const bodyEl = div("body");
+  const editorEl = div("editor");
+  const mdEl = div("mdview");
+  const diagramEl = div("diagram");
+  bodyEl.append(editorEl, mdEl, diagramEl);
+  el.append(tabsEl, bodyEl);
+  const view = createView(editorEl, createState("", 0, onEditorUpdate));
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, view, active: null, rev: 0, diagramTab: null };
+  groups.set(id, g);
+  view.scrollDOM.addEventListener("scroll", () => followScroll(g), { passive: true });
+  // qualquer clique ou foco dentro do painel o torna o painel ativo
+  el.addEventListener("pointerdown", () => enterGroup(g), true);
+  el.addEventListener("focusin", () => enterGroup(g));
+  attachTabDrag(tabsEl, {
+    onReorder(ids) {
+      const byId = new Map(tabsOf(g).map((t) => [t.id, t]));
+      const order = ids.map((i) => byId.get(i)!).filter(Boolean);
+      order.push(...tabsOf(g).filter((t) => !ids.includes(t.id)));
+      let k = 0;
+      session.tabs = session.tabs.map((t) => (t.group === g.id ? order[k++] : t));
+      sessionDirty = true;
+      scheduleSave();
+      renderTabs();
+    },
+    canTear: () => !isMain || session.tabs.length > 1,
+    onTearStart: tearStart,
+    onTearMove: tearMove,
+    onTearEnd: tearEnd,
+  });
+  return g;
+}
+
+/** Remonta a árvore de painéis na tela, reaproveitando os elementos (e editores) que já existem. */
+function renderLayout() {
+  const scrolls = new Map([...groups.values()].map((g) => [g.id, g.view.scrollDOM.scrollTop]));
+  const build = (n: Node): HTMLElement => {
+    if (n.t === "leaf") {
+      const g = groups.get(n.g)!;
+      g.el.style.flex = "";
+      return g.el;
+    }
+    const el = document.createElement("div");
+    el.className = `split ${n.dir}`;
+    n.kids.forEach((k, i) => {
+      const kid = build(k);
+      kid.style.flex = `${n.sizes[i]} 1 0`;
+      if (i > 0) el.append(makeSplitter(n, i - 1, el));
+      el.append(kid);
+    });
+    return el;
+  };
+  workEl.replaceChildren(build(layout.root));
+  for (const g of groups.values()) g.view.scrollDOM.scrollTop = scrolls.get(g.id) ?? 0;
+  markFocus();
+}
+
+function makeSplitter(n: Extract<Node, { t: "split" }>, i: number, container: HTMLElement): HTMLElement {
+  const sp = document.createElement("div");
+  sp.className = "splitter";
+  sp.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    sp.setPointerCapture(e.pointerId);
+    sp.classList.add("active");
+    const row = n.dir === "row";
+    const rect = container.getBoundingClientRect();
+    const total = row ? rect.width : rect.height;
+    const start = row ? e.clientX : e.clientY;
+    const base = [...n.sizes];
+    const move = (ev: PointerEvent) => {
+      n.sizes = resizeSizes(base, i, ((row ? ev.clientX : ev.clientY) - start) / total);
+      const kids = [...container.children].filter((c) => !c.classList.contains("splitter")) as HTMLElement[];
+      kids.forEach((k, j) => (k.style.flex = `${n.sizes[j]} 1 0`));
+    };
+    const up = () => {
+      sp.classList.remove("active");
+      sp.removeEventListener("pointermove", move);
+      sp.removeEventListener("pointerup", up);
+      sp.removeEventListener("pointercancel", up);
+      sessionDirty = true;
+      scheduleSave();
+    };
+    sp.addEventListener("pointermove", move);
+    sp.addEventListener("pointerup", up);
+    sp.addEventListener("pointercancel", up);
+  });
+  return sp;
+}
+
+/** Tira o painel (já sem abas) e passa o espaço aos vizinhos; o foco vai para um vizinho. */
+function removeGroup(g: Group) {
+  const order = groupsOf(layout.root);
+  const i = order.indexOf(g.id);
+  const next = groups.get(order[i + 1] ?? order[i - 1])!;
+  layout.root = removeLeaf(layout.root, g.id) ?? leaf(next.id);
+  groups.delete(g.id);
+  g.view.destroy();
+  g.el.remove();
+  if (cur === g) {
+    cur = next;
+    session.active = next.active;
+    layout.focus = next.id;
+  }
+  renderLayout();
+  refreshStatus();
+  updateTitle();
+  sessionDirty = true;
+  scheduleSave();
+}
+
+/** Tira a aba desta janela (fechada, ou levada para outra) e arruma o painel que ficou. */
+async function dropLocalTab(id: string) {
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const g = groups.get(tab.group)!;
+  const idx = tabsOf(g).findIndex((t) => t.id === id);
+  const wasActive = g.active === id;
+  session.tabs = session.tabs.filter((t) => t.id !== id);
   states.delete(id);
   detected.delete(id);
-  if (session.tabs.length === 0 && !isMain) {
-    await flush();
-    await thisWindow.destroy(); // janela flutuante sem abas some
-    return;
-  }
-  if (session.tabs.length === 0) {
-    const fresh = await api.newNote();
-    session.tabs.push(fresh);
-    await show(fresh, "");
-  } else if (id === session.active) {
-    await show(session.tabs[Math.min(idx, session.tabs.length - 1)]);
-  } else {
+  const rest = tabsOf(g);
+  if (rest.length > 0) {
+    if (wasActive) await show(rest[Math.min(idx, rest.length - 1)]);
+    else renderTabs();
+  } else if (groups.size > 1) {
+    removeGroup(g);
     renderTabs();
+  } else if (session.tabs.length === 0) {
+    if (!isMain) {
+      await flush();
+      await thisWindow.destroy(); // janela flutuante sem abas some
+      return;
+    }
+    const fresh = await api.newNote();
+    placeInGroup(fresh, g);
+    await show(fresh, "");
   }
   sessionDirty = true;
   await flush();
 }
 
-function cycle(delta: number) {
-  const i = session.tabs.findIndex((t) => t.id === session.active);
-  const n = session.tabs.length;
-  void activate(session.tabs[(i + delta + n) % n].id);
+/** Leva a aba para outro painel desta janela (na posição `index`, se vier). O histórico de desfazer fica. */
+async function moveTabToGroup(id: string, dst: Group, index?: number) {
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const src = groups.get(tab.group)!;
+  if (src === dst) {
+    placeInGroup(tab, dst, index);
+    renderTabs();
+    sessionDirty = true;
+    scheduleSave();
+    return;
+  }
+  snapshotActive();
+  const srcWasActive = src.active === id;
+  const idx = tabsOf(src).findIndex((t) => t.id === id);
+  placeInGroup(tab, dst, index);
+  const rest = tabsOf(src);
+  if (rest.length === 0) {
+    src.active = null;
+    removeGroup(src);
+  } else if (srcWasActive) {
+    await show(rest[Math.min(idx, rest.length - 1)]);
+  }
+  await show(tab);
+  sessionDirty = true;
+  scheduleSave();
+}
+
+/** Abre um painel novo ao lado de `src`. A aba `tabId` vai para ele; sem ela, nasce uma nota vazia. */
+async function splitGroup(src: Group, side: Side, tabId?: string) {
+  const g = createGroup(newGroupId());
+  layout.root = splitLeaf(layout.root, src.id, side, g.id);
+  renderLayout();
+  try {
+    if (tabId) await moveTabToGroup(tabId, g);
+    else {
+      snapshotActive();
+      const tab = await api.newNote();
+      placeInGroup(tab, g);
+      await show(tab, "");
+    }
+  } catch (e) {
+    if (tabsOf(g).length === 0 && groups.size > 1) removeGroup(g);
+    await message(String(e), { title: "Não foi possível dividir", kind: "error" });
+  }
+  sessionDirty = true;
+  scheduleSave();
+}
+
+/** Ctrl+\: divide o painel do foco. Com várias abas nele, a aberta vai para o painel novo. */
+function splitActive(side: Side) {
+  if (!session.active) return;
+  void splitGroup(cur, side, tabsOf(cur).length > 1 ? session.active : undefined);
+}
+
+/** Ctrl+1…9: foca o painel de número `n` (na ordem da grade). */
+function focusGroupNumber(n: number) {
+  const g = groups.get(groupsOf(layout.root)[n - 1]);
+  if (!g) return;
+  enterGroup(g);
+  g.view.focus();
 }
 
 // ---- várias janelas ---------------------------------------------------------
 
 /** Tira a aba desta janela depois de ela ter ido para outra (o texto já foi gravado). */
-async function removeLocalTab(id: string) {
-  const idx = session.tabs.findIndex((t) => t.id === id);
-  if (idx < 0) return;
-  session.tabs.splice(idx, 1);
-  states.delete(id);
-  detected.delete(id);
-  if (session.tabs.length === 0) {
-    if (!isMain) {
-      await thisWindow.destroy();
-      return;
-    }
-    const fresh = await api.newNote();
-    session.tabs.push(fresh);
-    await show(fresh, "");
-  } else if (id === session.active) {
-    await show(session.tabs[Math.min(idx, session.tabs.length - 1)]);
-  } else {
-    renderTabs();
-  }
-  sessionDirty = true;
-  await flush();
-}
+const removeLocalTab = dropLocalTab;
 
 /** Grava o que for preciso para outra janela ler a aba, e devolve uma cópia do estado dela. */
 async function prepareToLeave(id: string): Promise<TabState | null> {
   const tab = session.tabs.find((t) => t.id === id);
   if (!tab) return null;
-  if (id === session.active) snapshotActive();
+  const showing = groupShowing(id);
+  if (showing) snapshotGroup(showing);
   if (dirtyNotes.has(id)) {
     dirtyNotes.delete(id);
     const text = states.get(id)!.doc.toString();
@@ -732,23 +1024,94 @@ async function sendTab(id: string, to: string) {
   if (dest !== winLabel) await removeLocalTab(id);
 }
 
-// ---- arrastar a aba para fora: uma sombra segue o mouse e a janela nasce ao soltar -------
+// ---- arrastar a aba: dentro da janela divide/move painéis; fora, uma sombra e uma janela nova ----
 
 let dragChain: Promise<unknown> = Promise.resolve(); // mantém a ordem: início, movimentos, fim
 let dragPos: { x: number; y: number } | null = null; // só o movimento mais recente importa
 let dragTitle = "";
+let selfDragging = false; // a única aba da janela: é a janela inteira que anda
+let dragId: string | null = null; // a aba arrastada (a que ficou apagada na barra)
 
 const inDrag = (job: () => Promise<unknown>) => (dragChain = dragChain.then(job, job).catch((e) => console.error("arrasto", e)));
 
-function tearStart(id: string, p: { x: number; y: number; gx: number; gy: number }) {
+/** Onde a aba arrastada cairia dentro desta janela. */
+type DropTarget = { kind: "strip"; g: Group; cx: number } | { kind: "zone"; g: Group; zone: Zone };
+
+function localTarget(id: string, cx: number, cy: number): DropTarget | null {
+  if (selfDragging || cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return null;
   const tab = session.tabs.find((t) => t.id === id);
-  dragTitle = tab?.title || "Nova nota";
-  // a única aba de uma janela: quem anda com o mouse é a janela inteira, não uma sombra
-  const selfDrag = !isMain && session.tabs.length === 1;
-  inDrag(() => api.dragStart(dragTitle, p.x, p.y, p.gx, p.gy, selfDrag));
+  if (!tab) return null;
+  const src = groups.get(tab.group)!;
+  const el = document.elementFromPoint(cx, cy);
+  const strip = el?.closest<HTMLElement>(".tabs");
+  if (strip) return { kind: "strip", g: [...groups.values()].find((g) => g.tabsEl === strip)!, cx };
+  const body = el?.closest<HTMLElement>(".group");
+  const g = body && [...groups.values()].find((x) => x.el === body);
+  if (!g) return null;
+  const zone = zoneAt(g.bodyEl.getBoundingClientRect(), cx, cy);
+  const alone = g === src && tabsOf(src).length === 1;
+  // o meio do próprio painel não faz nada (cai como antes: janela nova); sozinha, uma aba não divide o próprio painel
+  if (zone === "center" ? g === src : alone) return null;
+  return { kind: "zone", g, zone };
 }
 
-function tearMove(x: number, y: number) {
+let overlay: HTMLElement | null = null;
+
+function showDropHint(t: DropTarget | null) {
+  if (!t) return clearDropHint();
+  if (t.kind === "strip") {
+    overlay?.remove();
+    overlay = null;
+    return showGhost(t.cx, dragTitle, t.g);
+  }
+  clearGhost();
+  const r = t.g.bodyEl.getBoundingClientRect();
+  const w = workEl.getBoundingClientRect();
+  let { left, top, width, height } = { left: r.left - w.left, top: r.top - w.top, width: r.width, height: r.height };
+  if (t.zone === "left") width /= 2;
+  else if (t.zone === "right") (left += width / 2), (width /= 2);
+  else if (t.zone === "top") height /= 2;
+  else if (t.zone === "bottom") (top += height / 2), (height /= 2);
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "drop-overlay";
+    workEl.append(overlay);
+  }
+  Object.assign(overlay.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+}
+
+function clearDropHint() {
+  overlay?.remove();
+  overlay = null;
+  clearGhost();
+}
+
+async function dropLocal(id: string, t: DropTarget) {
+  if (t.kind === "strip") {
+    const mine = tabsOf(t.g).filter((x) => x.id !== id);
+    const centers = [...t.g.tabsEl.querySelectorAll<HTMLElement>(".tab:not(.ghost)")]
+      .filter((x) => x.dataset.id !== id)
+      .map((x) => {
+        const r = x.getBoundingClientRect();
+        return r.left + r.width / 2;
+      });
+    const index = Math.min(insertionIndex(centers, t.cx), mine.length);
+    await moveTabToGroup(id, t.g, index);
+  } else if (t.zone === "center") await moveTabToGroup(id, t.g);
+  else await splitGroup(t.g, t.zone, id);
+}
+
+function tearStart(id: string, p: TearPoint) {
+  const tab = session.tabs.find((t) => t.id === id);
+  dragTitle = tab?.title || "Nova nota";
+  dragId = id;
+  // a única aba de uma janela: quem anda com o mouse é a janela inteira, não uma sombra
+  selfDragging = !isMain && session.tabs.length === 1;
+  inDrag(() => api.dragStart(dragTitle, p.x, p.y, p.gx, p.gy, selfDragging));
+}
+
+function tearMove(x: number, y: number, cx: number, cy: number) {
+  if (dragId) showDropHint(localTarget(dragId, cx, cy));
   const pending = dragPos !== null;
   dragPos = { x, y };
   if (pending) return; // já há um envio na fila: ele leva a posição mais nova
@@ -759,9 +1122,19 @@ function tearMove(x: number, y: number) {
   });
 }
 
-function tearEnd(id: string, p: { x: number; y: number; gx: number; gy: number }, cancelled: boolean) {
+function tearEnd(id: string, p: TearPoint, cancelled: boolean) {
   dragPos = null;
+  dragId = null;
+  selfDragging = false;
+  const target = cancelled ? null : (localTarget(id, p.cx, p.cy) ?? null);
+  clearDropHint();
   if (cancelled) return void inDrag(() => api.dragCancel());
+  if (target) {
+    return void inDrag(async () => {
+      await api.dragCancel();
+      await dropLocal(id, target);
+    });
+  }
   inDrag(async () => {
     const copy = await prepareToLeave(id);
     if (!copy) return void (await api.dragCancel());
@@ -771,10 +1144,17 @@ function tearEnd(id: string, p: { x: number; y: number; gx: number; gy: number }
   });
 }
 
-/** Menu de contexto da aba: mover para outra janela, fechar. */
+/** Menu de contexto da aba: dividir, mover para outra janela, fechar. */
 async function openTabMenu(tab: TabState, anchor: HTMLElement) {
   const others = (await api.listWindows()).filter((w) => w.label !== winLabel);
+  const g = groups.get(tab.group)!;
+  const split = (label: string, side: Side): MenuItem => ({ label, action: () => void splitGroup(g, side, tabsOf(g).length > 1 ? tab.id : undefined) });
   const items: MenuItem[] = [
+    split("Dividir à direita", "right"),
+    split("Dividir abaixo", "bottom"),
+    split("Dividir à esquerda", "left"),
+    split("Dividir acima", "top"),
+    "sep",
     { label: "Mover para uma nova janela", action: () => void sendTab(tab.id, "new") },
     ...others.map((w): MenuItem => ({ label: `Mover para: ${w.name}`, action: () => void sendTab(tab.id, w.label) })),
   ];
@@ -783,23 +1163,9 @@ async function openTabMenu(tab: TabState, anchor: HTMLElement) {
   showMenu(anchor, items, "below");
 }
 
-attachTabDrag(tabsEl, {
-  onReorder(ids) {
-    const byId = new Map(session.tabs.map((t) => [t.id, t]));
-    session.tabs = ids.map((i) => byId.get(i)!).filter(Boolean);
-    sessionDirty = true;
-    scheduleSave();
-    renderTabs();
-  },
-  canTear: () => !isMain || session.tabs.length > 1,
-  onTearStart: tearStart,
-  onTearMove: tearMove,
-  onTearEnd: tearEnd,
-});
-
 // ---- onde a aba arrastada de outra janela vai entrar ----------------------------------
 
-let ghost: { el: HTMLElement; index: number; timer: number } | null = null;
+let ghost: { el: HTMLElement; index: number; timer: number; group: Group } | null = null;
 
 function clearGhost() {
   if (!ghost) return;
@@ -808,9 +1174,10 @@ function clearGhost() {
   ghost = null;
 }
 
-/** Mostra, na barra, um espaço com o título da aba no lugar exato em que ela entraria. */
-function showGhost(cx: number, title: string) {
-  const tabs = [...tabsEl.querySelectorAll<HTMLElement>(".tab:not(.ghost)")];
+/** Mostra, na barra do painel `g`, um espaço com o título da aba no lugar exato em que ela entraria. */
+function showGhost(cx: number, title: string, g: Group) {
+  if (ghost && ghost.group !== g) clearGhost();
+  const tabs = [...g.tabsEl.querySelectorAll<HTMLElement>(".tab:not(.ghost):not(.torn)")];
   const gw = ghost?.el.offsetWidth ?? 0;
   const centers = tabs.map((t) => {
     const r = t.getBoundingClientRect();
@@ -821,18 +1188,27 @@ function showGhost(cx: number, title: string) {
   if (!ghost) {
     const el = document.createElement("div");
     el.className = "tab ghost";
-    ghost = { el, index: -1, timer: 0 };
+    ghost = { el, index: -1, timer: 0, group: g };
   }
   ghost.el.textContent = title || "Nova nota";
   if (ghost.index !== index || !ghost.el.isConnected) {
     ghost.index = index;
-    tabsEl.insertBefore(ghost.el, tabs[index] ?? tabsEl.querySelector("#new-tab"));
+    g.tabsEl.insertBefore(ghost.el, tabs[index] ?? g.tabsEl.querySelector(".new-tab"));
   }
   window.clearTimeout(ghost.timer);
   ghost.timer = window.setTimeout(clearGhost, 1200); // some sozinho se o aviso de saída se perder
 }
 
-void listen<{ cx: number; title: string; target: string }>("drag-over", (e) => e.payload.target === winLabel && showGhost(e.payload.cx, e.payload.title));
+/** O painel cuja barra está sob a posição horizontal `cx` (a de cima, se houver várias). */
+function stripGroupAt(cx: number): Group {
+  const hit = [...groups.values()]
+    .map((g) => ({ g, r: g.tabsEl.getBoundingClientRect() }))
+    .filter(({ r }) => cx >= r.left && cx <= r.right)
+    .sort((a, b) => a.r.top - b.r.top)[0];
+  return hit?.g ?? cur;
+}
+
+void listen<{ cx: number; title: string; target: string }>("drag-over", (e) => e.payload.target === winLabel && showGhost(e.payload.cx, e.payload.title, stripGroupAt(e.payload.cx)));
 void listen<string>("drag-leave", (e) => e.payload === winLabel && clearGhost());
 
 // uma aba chegou de outra janela (no lugar que a barra mostrou, se foi arrastada)
@@ -844,12 +1220,13 @@ async function receiveTab(tab: TabState) {
     return;
   }
   if (tab.window !== winLabel || session.tabs.some((t) => t.id === tab.id)) return;
-  const at = ghost && ghost.index >= 0 ? Math.min(ghost.index, session.tabs.length) : session.tabs.length;
+  const g = ghost?.group ?? cur;
+  const at = ghost && ghost.index >= 0 ? Math.min(ghost.index, tabsOf(g).length) : undefined;
   clearGhost();
   snapshotActive();
   states.delete(tab.id);
   detected.delete(tab.id);
-  session.tabs.splice(at, 0, tab);
+  placeInGroup(tab, g, at);
   await show(tab); // lê o texto gravado pela janela de origem
   sessionDirty = true;
   scheduleSave();
@@ -909,7 +1286,7 @@ async function exportHtml() {
     });
     if (!path) return;
     const { markdownToHtml } = await import("./mdexport");
-    const html = await markdownToHtml(view.state.doc.toString(), exportBaseName(tab));
+    const html = await markdownToHtml(cur.view.state.doc.toString(), exportBaseName(tab));
     await api.exportFile(path, Array.from(new TextEncoder().encode(html)));
   } catch (e) {
     await message(String(e), { title: "Não foi possível exportar", kind: "error" });
@@ -921,7 +1298,7 @@ async function exportPdf() {
   if (effectiveLang(tab) !== "markdown") return;
   try {
     const { printAsPdf } = await import("./mdexport");
-    await printAsPdf(view.state.doc.toString(), exportBaseName(tab));
+    await printAsPdf(cur.view.state.doc.toString(), exportBaseName(tab));
   } catch (e) {
     await message(String(e), { title: "Não foi possível exportar", kind: "error" });
   }
@@ -931,7 +1308,7 @@ async function copyHtml() {
   if (effectiveLang(activeTab()) !== "markdown") return;
   try {
     const { copyAsHtml } = await import("./mdexport");
-    await copyAsHtml(view.state.doc.toString());
+    await copyAsHtml(cur.view.state.doc.toString());
   } catch (e) {
     await message(String(e), { title: "Não foi possível copiar", kind: "error" });
   }
@@ -973,7 +1350,8 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
     path = await saveDialog({ defaultPath: tab.path ?? suggestedName(tab), filters: FILTERS });
     if (!path) return false;
   }
-  if (tab.id === session.active) snapshotActive();
+  const showing = groupShowing(tab.id);
+  if (showing) snapshotGroup(showing);
   const text = states.get(tab.id)!.doc.toString();
   try {
     await enqueue(() => api.saveFile(tab.id, path, text, tab.encoding, tab.eol));
@@ -1006,7 +1384,7 @@ function setView(mode: ViewMode) {
   sessionDirty = true;
   scheduleSave();
   applyTabConfig();
-  view.focus();
+  cur.view.focus();
 }
 
 /** Ctrl+E: liga/desliga a visão renderizada (no markdown, a do próprio texto). */
@@ -1023,13 +1401,13 @@ function toggleWrap() {
   wrap = !wrap;
   writeSetting("wrap", wrap);
   applyTabConfig();
-  view.focus();
+  cur.view.focus();
 }
 
 function toggleOverwrite() {
   overwrite = !overwrite;
   applyTabConfig();
-  view.focus();
+  cur.view.focus();
 }
 
 function setLanguage(l: Language) {
@@ -1039,7 +1417,7 @@ function setLanguage(l: Language) {
   sessionDirty = true;
   scheduleSave();
   applyTabConfig();
-  view.focus();
+  cur.view.focus();
 }
 
 const menuActions = {
@@ -1056,18 +1434,20 @@ const menuActions = {
   exportPdf: () => void exportPdf(),
   copyHtml: () => void copyHtml(),
   exit: () => void thisWindow.close(),
-  undo: () => (undo(view), view.focus()),
-  redo: () => (redo(view), view.focus()),
-  selectAll: () => (selectAll(view), view.focus()),
-  find: () => openSearchPanel(view),
-  replace: () => openSearchPanel(view),
-  gotoLine: () => gotoLine(view),
+  undo: () => (undo(cur.view), cur.view.focus()),
+  redo: () => (redo(cur.view), cur.view.focus()),
+  selectAll: () => (selectAll(cur.view), cur.view.focus()),
+  find: () => openSearchPanel(cur.view),
+  replace: () => openSearchPanel(cur.view),
+  gotoLine: () => gotoLine(cur.view),
   togglePreview,
   toggleSplit,
   setView,
   toggleDetached,
   toggleWrap,
   setLanguage,
+  splitRight: () => splitActive("right"),
+  splitDown: () => splitActive("bottom"),
   current: () => {
     const tab = activeTab();
     return {
@@ -1091,6 +1471,14 @@ window.addEventListener(
     }
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     const key = e.key.toLowerCase();
+    if (e.code === "Backslash" || e.code === "IntlBackslash" || key === "\\") {
+      e.preventDefault();
+      return splitActive(e.shiftKey ? "bottom" : "right");
+    }
+    if (/^[1-9]$/.test(key) && !e.shiftKey) {
+      e.preventDefault();
+      return focusGroupNumber(Number(key));
+    }
     const run = (fn: () => void) => (e.preventDefault(), fn());
     if (key === "t" && e.shiftKey) run(() => void reopenTab());
     else if (key === "n" && e.shiftKey) run(menuActions.newWindow);
@@ -1117,20 +1505,45 @@ async function boot() {
   const startup = await api.loadStartup();
   session = startup.session;
   const idle = session.tabs.length === 0; // janela reserva: espera uma aba
-  const tab = idle ? null : activeTab();
-  const st = createState(startup.active_text, tab?.cursor ?? 0, onEditorUpdate);
-  if (tab) states.set(tab.id, st);
-  view = createView(editorEl, st);
+
+  // a grade: um painel por grupo das abas; a gravada vale se ainda bater com elas
+  for (const t of session.tabs) t.group = Number.isInteger(t.group) ? t.group : 0;
+  const gids = [...new Set(session.tabs.map((t) => t.group))].sort((a, b) => a - b);
+  const saved = startup.layout as (Layout & { active?: Record<string, string | null> }) | null;
+  layout = normalize(saved, gids.length > 0 ? gids : [0]);
+  workEl.replaceChildren();
+  for (const gid of groupsOf(layout.root)) createGroup(gid);
+  const startTab = session.tabs.find((t) => t.id === session.active);
+  cur = groups.get(startTab?.group ?? layout.focus) ?? groups.get(layout.focus)!;
+  layout.focus = cur.id;
+  for (const g of groups.values()) {
+    const mine = tabsOf(g);
+    const wanted = g === cur ? session.active : (saved?.active?.[g.id] ?? null);
+    g.active = mine.find((t) => t.id === wanted)?.id ?? mine[0]?.id ?? null;
+  }
+  session.active = cur.active;
+  renderLayout();
+
+  for (const g of groups.values()) {
+    const tab = tabOf(g);
+    if (!tab) continue;
+    const text = tab.id === startTab?.id ? startup.active_text : await api.readNote(tab.id);
+    const st = createState(text, tab.cursor, onEditorUpdate);
+    states.set(tab.id, st);
+    g.view.setState(st);
+    redetect(tab);
+  }
   void refreshClosed();
   mountMenuBar(menubarEl, menuActions);
-  view.scrollDOM.addEventListener("scroll", followScroll, { passive: true });
-  if (tab) {
-    redetect(tab);
-    applyTabConfig();
+  if (!idle) {
+    forEachGroup(applyTabConfig);
     renderTabs();
     requestAnimationFrame(() => {
-      view.scrollDOM.scrollTop = tab.scroll;
-      view.focus();
+      for (const g of groups.values()) {
+        const tab = tabOf(g);
+        if (tab) g.view.scrollDOM.scrollTop = tab.scroll;
+      }
+      cur.view.focus();
     });
   }
 

@@ -125,7 +125,7 @@ export function normalize(layout: Layout | null | undefined, groups: number[]): 
 
 function isNode(n: unknown): n is Node {
   if (!n || typeof n !== "object") return false;
-  const x = n as Partial<Split> & { t?: string; g?: unknown };
+  const x = n as { t?: string; g?: unknown; dir?: unknown; kids?: unknown };
   if (x.t === "leaf") return typeof x.g === "number";
   return x.t === "split" && (x.dir === "row" || x.dir === "col") && Array.isArray(x.kids) && x.kids.length > 0 && x.kids.every(isNode);
 }

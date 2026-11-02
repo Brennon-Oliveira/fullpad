@@ -69,7 +69,7 @@ button { font: inherit; color: inherit; }
 .menu-sep { height: 1px; margin: 4px 0; background: var(--border); }
 
 /* ---- abas ---- */
-#tabs {
+.tabs {
   display: flex; align-items: stretch; flex: none; overflow-x: auto;
   background: var(--bar); border-bottom: 1px solid var(--border); scrollbar-width: none;
 }
@@ -81,12 +81,12 @@ button { font: inherit; color: inherit; }
 .tab .label { overflow: hidden; text-overflow: ellipsis; }
 .tab:hover { background: var(--tab); }
 .tab.active { background: var(--bg); box-shadow: inset 0 2px 0 var(--accent); }
-.tab .close, #new-tab {
+.tab .close, .new-tab {
   border: 0; background: none; cursor: pointer; border-radius: 4px;
   font-size: 16px; line-height: 1; padding: 2px 6px; opacity: .6;
 }
-.tab .close:hover, #new-tab:hover { background: var(--border); opacity: 1; }
-#new-tab { align-self: center; margin: 0 4px; }
+.tab .close:hover, .new-tab:hover { background: var(--border); opacity: 1; }
+.new-tab { align-self: center; margin: 0 4px; }
 
 /* ---- barra de status ---- */
 #status {
@@ -103,8 +103,30 @@ button { font: inherit; color: inherit; }
 
 
 /* ---- editor ---- */
-#work { flex: 1; min-height: 0; display: flex; }
-#editor { flex: 1; min-width: 0; min-height: 0; }
+#work { flex: 1; min-height: 0; display: flex; position: relative; }
+.editor { flex: 1; min-width: 0; min-height: 0; }
+
+/* ---- grade de painéis (grupos de abas lado a lado ou empilhados) ---- */
+.split { display: flex; flex: 1 1 0; min-width: 0; min-height: 0; }
+.split.row { flex-direction: row; }
+.split.col { flex-direction: column; }
+.group { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; min-height: 0; }
+.group .body { flex: 1; min-height: 0; display: flex; }
+.splitter { flex: none; background: var(--border); position: relative; z-index: 3; }
+.splitter::after { content: ""; position: absolute; inset: 0; }
+.split.row > .splitter { width: 1px; cursor: col-resize; }
+.split.row > .splitter::after { left: -3px; right: -3px; }
+.split.col > .splitter { height: 1px; cursor: row-resize; }
+.split.col > .splitter::after { top: -3px; bottom: -3px; }
+.splitter:hover, .splitter.active { background: var(--accent); }
+.group:not(.focused) .tab.active { box-shadow: inset 0 2px 0 var(--border); }
+.group:not(.focused) .tab.active .label { opacity: .8; }
+/* onde a aba arrastada vai cair */
+.drop-overlay {
+  position: absolute; z-index: 20; pointer-events: none; border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); border: 2px solid var(--accent);
+  transition: left .08s, top .08s, width .08s, height .08s;
+}
 
 /* ---- popups do CodeMirror (autocomplete, diagnóstico) ----
    Prefixo `.cm-editor` de propósito: o tema padrão do CodeMirror tem especificidade maior que
@@ -156,10 +178,10 @@ button { font: inherit; color: inherit; }
 .cm-editor .cm-diagnosticAction:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 
 /* ---- diagrama DBML (painel dividido) ---- */
-#mdview { display: none; flex: 1; min-width: 0; min-height: 0; border-left: 1px solid var(--border); }
-#mdview.on { display: block; }
-#diagram { display: none; flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--border); background: var(--bg); }
-#diagram.on { display: block; }
+#mdview, .mdview { display: none; flex: 1; min-width: 0; min-height: 0; border-left: 1px solid var(--border); }
+#mdview.on, .mdview.on { display: block; }
+#diagram, .diagram { display: none; flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--border); background: var(--bg); }
+#diagram.on, .diagram.on { display: block; }
 .dbml-svg { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; touch-action: none; }
 .dbml-svg.panning { cursor: grabbing; }
 .dbml-box { fill: var(--bar); stroke: var(--border); stroke-width: 1; }
@@ -243,7 +265,7 @@ button { font: inherit; color: inherit; }
 .tab.dragging { background: var(--bg); box-shadow: 0 4px 14px rgba(0,0,0,.4); position: relative; z-index: 2; }
 
 /* ---- janela de preview: só a visão renderizada, ocupando tudo ---- */
-.preview-only #menubar, .preview-only #tabs, .preview-only #editor, .preview-only #status { display: none; }
+.preview-only #menubar, .preview-only #status { display: none; }
 .preview-only #mdview, .preview-only #diagram { border-left: 0; }
 
 /* ---- janelas flutuantes: só abas e barra de status ---- */

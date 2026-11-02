@@ -107,7 +107,13 @@ Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), arrastar 
 - ✅ 7.5 Várias janelas: tirar aba arrastando, reordenar, mover entre janelas, voltar para a principal, várias abas por janela; janelas reabertas no mesmo lugar.
 - ✅ 7.6 Preview/diagrama numa janela separada, ligado à mesma aba.
 
-Fica para depois: dividir uma janela em dois editores lado a lado (hoje dois arquivos juntos = duas abas na mesma janela); mover aba entre janelas com o histórico de desfazer; arrastar a aba visualmente "para dentro" de outra janela (hoje solta-se sobre a janela).
+## Fase 8 — Grade de painéis, abas fechadas e exportação
+
+- ✅ 8.1 Reabrir aba fechada (Ctrl+Shift+T e lista no menu Arquivo): a lixeira guarda também o estado da aba.
+- ✅ 8.2 Exportar markdown como HTML, como PDF (impressão do sistema) e copiar como HTML formatado.
+- ✅ 8.3 Grade de painéis dentro da janela, como no VS Code: dividir à direita/abaixo/esquerda/acima (Ctrl+\\, Ctrl+Shift+\\, menu da aba), redimensionar pelos divisores, arrastar a aba para uma borda (divide) ou para a barra de outro painel (move, na posição exata), Ctrl+1…9 foca o painel, painel sem abas some. A grade é gravada por janela e restaurada.
+
+Fica para depois: mover aba entre janelas com o histórico de desfazer; soltar uma aba de outra janela no corpo de um painel (hoje ela entra pela barra); duas visões da mesma aba em painéis diferentes.
 
 ## Pendências de ambiente
 
