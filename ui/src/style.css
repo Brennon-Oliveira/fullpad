@@ -268,3 +268,4 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 
 /* só a aba aberta mostra o ×: evita fechar a errada num clique torto (o espaço fica reservado, a largura não muda) */
 .tab:not(.active) .close { visibility: hidden; pointer-events: none; }
+.tab.torn:only-of-type { opacity: 1; } /* única aba: é a janela que anda, não há sombra */

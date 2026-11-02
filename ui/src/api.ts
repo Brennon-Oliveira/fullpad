@@ -55,7 +55,8 @@ export const api = {
   /** Cria em segundo plano a janela reserva: arrastar uma aba para fora fica instantâneo. */
   prewarm: () => invoke<void>("prewarm"),
   /** Começou a arrastar uma aba para fora da barra: mostra a sombra no ponteiro (tela, px físicos). */
-  dragStart: (title: string, x: number, y: number) => invoke<void>("drag_start", { title, x, y }),
+  dragStart: (title: string, x: number, y: number, gx: number, gy: number, selfDrag: boolean) =>
+    invoke<void>("drag_start", { title, x, y, gx, gy, selfDrag }),
   dragMove: (title: string, x: number, y: number) => invoke<void>("drag_move", { title, x, y }),
   dragCancel: () => invoke<void>("drag_cancel"),
   /** Soltou a aba na tela: vai para a barra de outra janela ou vira uma janela nova ali. Devolve o destino. */

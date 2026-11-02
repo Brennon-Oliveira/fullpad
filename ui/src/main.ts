@@ -712,10 +712,12 @@ let dragTitle = "";
 
 const inDrag = (job: () => Promise<unknown>) => (dragChain = dragChain.then(job, job).catch((e) => console.error("arrasto", e)));
 
-function tearStart(id: string, p: { x: number; y: number }) {
+function tearStart(id: string, p: { x: number; y: number; gx: number; gy: number }) {
   const tab = session.tabs.find((t) => t.id === id);
   dragTitle = tab?.title || "Nova nota";
-  inDrag(() => api.dragStart(dragTitle, p.x, p.y));
+  // a única aba de uma janela: quem anda com o mouse é a janela inteira, não uma sombra
+  const selfDrag = !isMain && session.tabs.length === 1;
+  inDrag(() => api.dragStart(dragTitle, p.x, p.y, p.gx, p.gy, selfDrag));
 }
 
 function tearMove(x: number, y: number) {
