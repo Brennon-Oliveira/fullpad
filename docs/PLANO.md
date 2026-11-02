@@ -139,4 +139,4 @@ Fica para depois: editar valor na árvore, busca/filtro na árvore (o jsonformat
 ## Pendências de ambiente
 
 - O WSL desta máquina não tem `pkg-config` nem `libwebkit2gtk-4.1-dev`, então o crate `app` não compila nativamente aqui. O `.exe` de Windows sai por cross-compile com `cargo-xwin` (veja `docs/rules/build-windows.md`); o app em si só foi executado no Windows do usuário.
-- Ícones atuais são um quadrado azul provisório; trocar por `pnpm tauri icon <imagem>` quando tiver um.
+- Ícone do app: o SVG é `crates/app/icons/fullpad.svg` (folha com canto dobrado e cursor de texto em "I"); para regerar os PNG/ICO/ICNS, `cd crates/app && cargo tauri icon icons/fullpad.svg -o /tmp/novos` e copie por cima só os arquivos que já existem em `icons/` (sem as pastas `android`/`ios`). Os ícones provisórios antigos (quadrado azul) ficam em `crates/app/icons/original/`.
