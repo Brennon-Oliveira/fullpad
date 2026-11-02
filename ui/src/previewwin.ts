@@ -5,7 +5,7 @@ import { api } from "./api";
 import "./style.css";
 
 /**
- * Janela com a visão renderizada de uma aba (markdown ou diagrama DBML) que está em outra janela, a
+ * Janela com a visão renderizada de uma aba (markdown, diagrama DBML ou árvore JSON) que está em outra janela, a
  * "dona". O texto chega por eventos `pv-text`; passar o mouse no diagrama avisa a dona
  * (`pv-hover:<aba>`) para ela destacar a linha. Fechar a janela avisa a dona (`pv-closed:<aba>`), que
  * volta a mostrar a visão ao lado do código.
@@ -15,6 +15,7 @@ interface TextMsg {
   rev: number;
   title: string;
   cursor: number | null;
+  base?: string | null;
 }
 
 async function boot() {
@@ -24,10 +25,27 @@ async function boot() {
   const { owner, tab } = info;
   const mdEl = document.getElementById("mdview")!;
   const diagramEl = document.getElementById("diagram")!;
+  const jsonEl = document.getElementById("jsonview")!;
 
   let rev = 0; // versão do texto que está na tela (a dona só aceita o destaque se ainda for a atual)
   let apply: (m: TextMsg) => void;
-  if (info.lang === "dbml") {
+  let base: string | null = null;
+  if (info.lang === "json") {
+    const { createJsonPanel } = await import("./json/panel");
+    const panel = createJsonPanel(jsonEl, {
+      onHover: (spans, rev) => void emitTo(owner, `pv-hover:${tab}`, { spans, rev }),
+      baseDir: () => base,
+    });
+    let first = true;
+    apply = (m) => {
+      base = m.base ?? null;
+      if (first) panel.show(m.text, true, m.rev);
+      else panel.update(m.text, m.rev);
+      first = false;
+      panel.setCursor(m.cursor, m.rev);
+    };
+    void listen<{ offset: number | null; rev: number }>("pv-cursor", (e) => panel.setCursor(e.payload.offset, e.payload.rev));
+  } else if (info.lang === "dbml") {
     const { createDiagramPanel } = await import("./dbml/panel");
     const panel = createDiagramPanel(diagramEl, {
       onHover: (spans, rev) => void emitTo(owner, `pv-hover:${tab}`, { spans, rev }),

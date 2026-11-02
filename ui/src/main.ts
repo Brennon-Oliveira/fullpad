@@ -10,11 +10,14 @@ import { getVersion } from "@tauri-apps/api/app";
 import { api, type ClosedTab, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
 import type { DiagramPanel } from "./dbml/panel";
+import type { JsonPanel } from "./json/panel";
+import { mapCursor } from "./json/format";
 import type { MarkdownPane } from "./mdpreview";
 import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
-import { exportItem, languageItems, mountMenuBar, viewItems } from "./menus";
+const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
+import { exportItem, languageItems, mountMenuBar, sideOnly, viewItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
@@ -72,6 +75,10 @@ interface Group {
   diagramTab: string | null; // aba cujo diagrama está na tela
   mdPane?: MarkdownPane;
   mdLoading?: Promise<void>;
+  jsonEl: HTMLElement;
+  json?: JsonPanel;
+  jsonLoading?: Promise<void>;
+  jsonTab: string | null; // aba cuja árvore JSON está na tela
 }
 
 const groups = new Map<number, Group>();
@@ -90,6 +97,20 @@ function readSetting(key: string, fallback: boolean): boolean {
     return v === null ? fallback : v === "1";
   } catch {
     return fallback;
+  }
+}
+function readString(key: string, fallback: string): string {
+  try {
+    return localStorage.getItem(`fullpad.${key}`) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writeString(key: string, value: string) {
+  try {
+    localStorage.setItem(`fullpad.${key}`, value);
+  } catch {
+    /* sem storage: só não lembra */
   }
 }
 function writeSetting(key: string, value: boolean) {
@@ -118,7 +139,7 @@ function effectiveLang(tab: TabState): Lang {
 function previewAvailable(tab: TabState): boolean {
   const len = states.get(tab.id)?.doc.length ?? 0;
   const lang = effectiveLang(tab);
-  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS);
+  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (lang === "json" && len <= MAX_JSON_CHARS);
 }
 
 /** Como o arquivo aparece: só código, renderizado no próprio texto (markdown) ou ao lado do código. */
@@ -126,7 +147,7 @@ type ViewKind = "source" | "inline" | "split";
 
 function viewKind(tab: TabState): ViewKind {
   if (!previewAvailable(tab) || tab.mode === "source") return "source";
-  if (effectiveLang(tab) === "dbml") return "split"; // o diagrama sempre fica ao lado
+  if (sideOnly(effectiveLang(tab))) return "split"; // diagrama e árvore sempre ficam ao lado
   return tab.mode === "split" ? "split" : "inline";
 }
 
@@ -137,6 +158,7 @@ function viewLabel(tab: TabState): string {
   if (k === "source") return "Código";
   if (tab.detached) return "Janela separada";
   if (effectiveLang(tab) === "dbml") return "Diagrama";
+  if (effectiveLang(tab) === "json") return "Árvore";
   return k === "inline" ? "Preview" : "Lado a lado";
 }
 
@@ -154,14 +176,16 @@ function applyTabConfig() {
     effects: tabEffects({
       markdown: effectiveLang(tab) === "markdown",
       dbml: effectiveLang(tab) === "dbml",
+      json: effectiveLang(tab) === "json",
       dark: isDark(),
-      support: effectiveLang(tab) === "dbml" ? dbmlSupport : undefined,
+      support: effectiveLang(tab) === "dbml" ? dbmlSupport : effectiveLang(tab) === "json" ? jsonSupport : undefined,
       preview: viewKind(tab) === "inline" && effectiveLang(tab) === "markdown",
       wrap,
       overwrite,
     }),
   });
   ensureDbmlSupport();
+  ensureJsonSupport();
   cur.mdPane?.setDark(isDark());
   reconcileDetached();
   syncDiagram();
@@ -190,12 +214,33 @@ function ensureDbmlSupport() {
     .finally(() => (dbmlSupportLoading = false));
 }
 
+// ---- recursos de editor do JSON (linguagem, dobrar blocos, erro de sintaxe; sob demanda) ----
+
+let jsonSupport: Extension | undefined;
+let jsonSupportLoading = false;
+
+function ensureJsonSupport() {
+  if (jsonSupport || jsonSupportLoading || effectiveLang(activeTab()) !== "json") return;
+  jsonSupportLoading = true;
+  import("./json/editor")
+    .then((m) => m.jsonEditorSupport())
+    .then((ext) => {
+      jsonSupport = ext;
+      forEachGroup(() => effectiveLang(activeTab()) === "json" && applyTabConfig());
+    })
+    .catch((e) => console.error("falha ao carregar o suporte a JSON", e))
+    .finally(() => (jsonSupportLoading = false));
+}
+
 // ---- visão renderizada em janela separada ------------------------------------------
 
 const previewOpen = new Map<string, UnlistenFn[]>(); // abas com janela de preview aberta
 let pvTimer: number | undefined;
 
-const previewLang = (tab: TabState) => (effectiveLang(tab) === "dbml" ? "dbml" : "markdown");
+const previewLang = (tab: TabState) => (effectiveLang(tab) === "dbml" ? "dbml" : effectiveLang(tab) === "json" ? "json" : "markdown");
+
+/** Pasta do arquivo da aba (para imagens de caminho relativo no JSON). */
+const dirOf = (p: string | null) => (p && /[\\/]/.test(p) ? p.replace(/[\\/][^\\/]*$/, "") : null);
 
 async function textOf(id: string): Promise<string> {
   const showing = groupShowing(id);
@@ -207,7 +252,7 @@ async function pushPreview(tab: TabState) {
   const text = await textOf(tab.id);
   const showing = groupShowing(tab.id);
   const cursor = showing ? showing.view.state.selection.main.head : null;
-  await emitTo(`preview-${tab.id}`, "pv-text", { text, rev: showing?.rev ?? 0, title: tab.title || "Nova nota", cursor }).catch(() => {});
+  await emitTo(`preview-${tab.id}`, "pv-text", { text, rev: showing?.rev ?? 0, title: tab.title || "Nova nota", cursor, base: dirOf(tab.path) }).catch(() => {});
 }
 
 function openPreviewWindow(tab: TabState) {
@@ -284,7 +329,7 @@ function toggleDetached() {
   if (tab.detached) tab.detached = false;
   else {
     tab.detached = true;
-    if (viewKind(tab) === "source") tab.mode = effectiveLang(tab) === "dbml" ? "rendered" : "split";
+    if (viewKind(tab) === "source") tab.mode = sideOnly(effectiveLang(tab)) ? "rendered" : "split";
     else if (effectiveLang(tab) === "markdown") tab.mode = "split";
   }
   sessionDirty = true;
@@ -296,6 +341,53 @@ function toggleDetached() {
 // ---- diagrama DBML (carregado sob demanda) ------------------------------------
 
 const diagramWanted = (tab: TabState) => previewOn(tab) && !tab.detached && effectiveLang(tab) === "dbml";
+
+// ---- árvore JSON ao lado do código (carregada sob demanda) ----------------------------
+
+const jsonWanted = (tab: TabState) => effectiveLang(tab) === "json" && viewKind(tab) === "split" && !tab.detached;
+let jsonPath: string | null = null; // caminho do nó sob o cursor, para a barra de status
+
+function syncJson(textChanged: boolean) {
+  const g = cur;
+  const tab = activeTab();
+  if (!jsonWanted(tab)) {
+    g.json?.hide();
+    g.jsonTab = null;
+    jsonPath = null;
+    return;
+  }
+  const text = g.view.state.doc.toString();
+  const run = () => {
+    const t = tabOf(g);
+    if (!g.json || !t || !jsonWanted(t)) return;
+    const fresh = g.jsonTab !== tab.id;
+    if (fresh) jsonPath = null;
+    if (textChanged && !fresh) g.json.update(text, g.rev);
+    else g.json.show(text, fresh, g.rev);
+    g.jsonTab = tab.id;
+    g.json.setCursor(g.view.state.selection.main.head, g.rev);
+  };
+  if (g.json) return run();
+  g.jsonEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
+  g.jsonLoading ??= import("./json/panel").then((m) => {
+    g.json = m.createJsonPanel(g.jsonEl, {
+      // mouse sobre um nó → destaca o trecho no código (sem selecionar)
+      onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
+      onSelect: (pos, rev) => rev === g.rev && g.view.dispatch({ selection: { anchor: pos }, scrollIntoView: true }),
+      onGoto: (span, rev) => {
+        if (rev !== g.rev) return;
+        g.view.dispatch({ selection: { anchor: span.from, head: span.to }, scrollIntoView: true });
+        g.view.focus();
+      },
+      onPath: (p) => {
+        jsonPath = p;
+        if (g === cur) refreshStatus(false);
+      },
+      baseDir: () => dirOf(tabOf(g)?.path ?? null),
+    });
+  });
+  void g.jsonLoading.then(run);
+}
 
 // ---- markdown renderizado ao lado do código (carregado sob demanda) ----------------
 
@@ -340,6 +432,7 @@ function followScroll(g: Group = cur) {
 function syncDiagram(textChanged = false) {
   const g = cur;
   syncMdPane(textChanged);
+  syncJson(textChanged);
   syncDetached(textChanged);
   const tab = activeTab();
   if (!diagramWanted(tab)) {
@@ -388,7 +481,7 @@ const ENC_LABEL: Record<Encoding, string> = {
   utf16be: "UTF-16 BE BOM",
   windows1252: "Windows-1252",
 };
-const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML" };
+const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON" };
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
@@ -423,7 +516,12 @@ function refreshStatus(recomputeSize = true) {
     eolLabel: EOL_LABEL[tab.eol],
     encodingLabel: ENC_LABEL[tab.encoding],
     overwrite,
+    path: jsonTreeOn() ? jsonPath : null,
   });
+}
+
+function jsonTreeOn() {
+  return cur.jsonTab !== null && cur.jsonTab === session.active;
 }
 
 function scheduleSizeRefresh() {
@@ -547,6 +645,7 @@ function onEditorUpdate(u: ViewUpdate) {
     scheduleDetect();
     scheduleSizeRefresh();
   }
+  if (u.selectionSet && !u.docChanged && g.jsonTab === activeTab().id) g.json?.setCursor(u.state.selection.main.head, g.rev); // cursor → nó na árvore
   if (u.selectionSet && !u.docChanged && g.diagramTab === activeTab().id) {
     g.diagram?.setCursor(u.state.selection.main.head, g.rev); // cursor → destaque no diagrama
     g.mdPane?.setCursor(u.state.selection.main.head); // ... ou a linha no markdown renderizado
@@ -795,16 +894,18 @@ function createGroup(id: number): Group {
   const editorEl = div("editor");
   const mdEl = div("mdview");
   const diagramEl = div("diagram");
-  bodyEl.append(editorEl, mdEl, diagramEl);
+  const jsonEl = div("jsonview");
+  bodyEl.append(editorEl, mdEl, diagramEl, jsonEl);
   el.append(tabsEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, view, active: null, rev: 0, diagramTab: null };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null };
   groups.set(id, g);
   view.scrollDOM.addEventListener("scroll", () => followScroll(g), { passive: true });
-  // botão direito num markdown: copiar/colar e exportar (nos outros tipos fica o menu padrão)
+  // botão direito num markdown ou JSON: copiar/colar e exportar/formatar (nos outros tipos fica o menu padrão)
   el.addEventListener("contextmenu", (e) => {
     const t = tabOf(g);
-    if (!t || effectiveLang(t) !== "markdown" || (e.target as HTMLElement).closest(".tabs")) return;
+    const lang = t ? effectiveLang(t) : "plain";
+    if (!t || (lang !== "markdown" && lang !== "json") || (e.target as HTMLElement).closest(".tabs")) return;
     e.preventDefault();
     enterGroup(g);
     const inEditor = e.target instanceof HTMLElement && editorEl.contains(e.target);
@@ -828,7 +929,16 @@ function createGroup(id: number): Group {
     } else {
       items.push({ label: "Copiar", shortcut: "Ctrl+C", disabled: !window.getSelection()?.toString(), action: () => document.execCommand("copy") });
     }
-    items.push("sep", exportItem(menuActions, true));
+    if (lang === "markdown") items.push("sep", exportItem(menuActions, true));
+    else if (inEditor) {
+      items.push(
+        "sep",
+        { label: "Formatar documento", shortcut: "Alt+Shift+F", action: menuActions.formatJson },
+        { label: "Formatar seleção", disabled: sel.empty, action: menuActions.formatJsonSelection },
+        { label: "Minificar", action: menuActions.minifyJson },
+        { label: "Ordenar chaves e formatar", action: menuActions.sortJson },
+      );
+    }
     showMenuAt(e.clientX, e.clientY, items);
   });
   // qualquer clique ou foco dentro do painel o torna o painel ativo
@@ -1501,7 +1611,7 @@ async function checkUpdates(manual: boolean) {
 // ---- arquivos ---------------------------------------------------------------
 
 const FILTERS = [
-  { name: "Texto, Markdown e DBML", extensions: ["md", "markdown", "txt", "dbml", "dbmlx"] },
+  { name: "Texto, Markdown, DBML e JSON", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
@@ -1665,6 +1775,54 @@ function toggleSplit() {
   setView(viewKind(activeTab()) === "split" ? "source" : "split");
 }
 
+// ---- JSON: formatar (o trabalho é do Rust) -------------------------------------------
+
+let jsonIndent = readString("jsonIndent", "2");
+
+async function formatJson(opts: { selection?: boolean; indent?: string; sort?: boolean } = {}) {
+  const g = cur;
+  const tab = tabOf(g);
+  if (!tab || effectiveLang(tab) !== "json") return;
+  const st = g.view.state;
+  const sel = st.selection.main;
+  const useSel = !!opts.selection && !sel.empty;
+  const from = useSel ? sel.from : 0;
+  const to = useSel ? sel.to : st.doc.length;
+  const old = st.sliceDoc(from, to);
+  if (old.trim() === "") return;
+  const rev = g.rev;
+  let res;
+  try {
+    res = await api.jsonFormat(old, opts.indent ?? jsonIndent, !!opts.sort);
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível formatar", kind: "error" });
+    return;
+  }
+  if (g.rev !== rev || tabOf(g)?.id !== tab.id) return; // o texto mudou enquanto o Rust trabalhava
+  if ("Err" in res) {
+    const err = res.Err;
+    g.view.dispatch({ selection: { anchor: from + err.from, head: Math.min(from + err.to, st.doc.length) }, scrollIntoView: true });
+    g.view.focus();
+    await message(`${err.message}\n\nLinha ${err.line}, coluna ${err.col}`, { title: "Não foi possível formatar", kind: "warning" });
+    return;
+  }
+  const out = res.Ok;
+  if (out === old) return;
+  const head = from + mapCursor(old, sel.head - from, out);
+  g.view.dispatch({
+    changes: { from, to, insert: out },
+    selection: useSel ? { anchor: from, head: from + out.length } : { anchor: head },
+    scrollIntoView: true,
+    userEvent: "input.format",
+  });
+  g.view.focus();
+}
+
+function setJsonIndent(v: string) {
+  jsonIndent = v;
+  writeString("jsonIndent", v);
+}
+
 function toggleWrap() {
   wrap = !wrap;
   writeSetting("wrap", wrap);
@@ -1716,6 +1874,17 @@ const menuActions = {
   toggleDetached,
   toggleWrap,
   setLanguage,
+  formatJson: () => void formatJson(),
+  formatJsonSelection: () => void formatJson({ selection: true }),
+  minifyJson: () => void formatJson({ indent: "min" }),
+  sortJson: () => void formatJson({ sort: true }),
+  setJsonIndent,
+  expandJson: () => cur.json?.expandAll(),
+  collapseJson: () => cur.json?.collapseAll(),
+  copyJsonPath: () => {
+    const p = cur.json?.currentPath();
+    if (p) void navigator.clipboard.writeText(p).catch(() => {});
+  },
   splitRight: () => splitActive("right"),
   splitDown: () => splitActive("bottom"),
   current: () => {
@@ -1727,6 +1896,9 @@ const menuActions = {
       detached: tab.detached,
       previewAvailable: previewAvailable(tab),
       wrap,
+      jsonIndent,
+      hasSelection: !cur.view.state.selection.main.empty,
+      treeOn: jsonTreeOn(),
     };
   },
 };
@@ -1738,6 +1910,10 @@ window.addEventListener(
       e.preventDefault();
       toggleOverwrite();
       return;
+    }
+    if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyF") {
+      e.preventDefault();
+      return void menuActions.formatJson();
     }
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     const key = e.key.toLowerCase();

@@ -377,6 +377,19 @@ mod tests {
     }
 
     #[test]
+    fn json_language_survives_session_roundtrip() {
+        let (_d, s) = store();
+        let mut tab = s.create_note().unwrap();
+        tab.language = crate::Language::Json;
+        let mut session = Session::empty();
+        session.active = Some(tab.id);
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        let loaded = s.load_session().unwrap();
+        assert_eq!(loaded.tabs[0].language, crate::Language::Json);
+    }
+
+    #[test]
     fn unknown_language_or_mode_does_not_invalidate_the_session() {
         let (d, s) = store();
         let t = s.create_note().unwrap();

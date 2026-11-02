@@ -118,6 +118,24 @@ Fica para depois: roteamento ortogonal elaborado (sem cruzar tabelas), arrastar 
 
 Fica para depois: mover aba entre janelas com o histórico de desfazer; duas visões da mesma aba em painéis diferentes.
 
+## Fase 9 — JSON viewer e formatação
+
+Arquivos `.json` (ou nota avulsa com a linguagem "JSON") ganham uma árvore ao lado do texto, no estilo do jsonformatter.org/json-viewer, e formatação feita no Rust. Pesquisa e desenho em [json-viewer.md](json-viewer.md). Só visualização: o texto continua sendo a única fonte.
+
+| Milestone | Entrega | Critério de aceite |
+|---|---|---|
+| ✅ 9.A | Núcleo Rust (`crates/core/src/json.rs`): parser com posições em UTF-16, erros com linha/coluna, `format`/`minify`/ordenar chaves, dica de valor (url, imagem, cor) | `cargo test -p fullpad-core`: inteiro gigante, `1.0` e `1e400` preservados; chaves duplicadas mantidas; acento/emoji com posição certa; BOM; 8 MB (cerca de 800 mil nós) em poucos segundos mesmo em build de depuração; aninhamento muito fundo não estoura a pilha |
+| ✅ 9.B | Linguagem JSON (`Language::Json`, `Lang "json"`), extensões, menu Linguagem, destaque, dobrar blocos, erro sublinhado, filtros de abrir/salvar | Abrir `.json` mostra cores e dobra; erro de sintaxe aparece sublinhado com a mensagem; salvar preserva encoding e CRLF |
+| ✅ 9.C | Árvore ao lado do código (lista virtualizada, carga sob demanda, Ctrl+E, janela separada), expandir/recolher, contagens, Ctrl+clique expande filhos | Árvore de até 300 mil nós, virtualizada (acima disso aviso e só o texto); o boot não baixa nada de `json/`; recolher/expandir tudo; a árvore continua no último estado válido durante um erro de sintaxe |
+| ✅ 9.D | Formatar pelo menu superior "JSON" e pelo botão direito (código e árvore): formatar, minificar, ordenar chaves, indentação, formatar seleção, copiar caminho/valor | Formatar é um passo no Ctrl+Z; nenhum botão novo na tela; o texto formatado é igual ao original em tudo que não é espaço |
+| ✅ 9.E | Valores ricos: URL clicável (navegador do sistema), quadradinho de cor, miniatura de imagem ao passar o mouse (URL ou arquivo local) | Ctrl+clique em URL abre o navegador; `"#ff8800"` mostra a cor; imagem local relativa ao arquivo aparece; imagem quebrada mostra aviso discreto; só `http`, `https` e `mailto` abrem |
+| ✅ 9.F | Ligação código ↔ árvore (passar o mouse mostra a linha; cursor destaca o nó) | Igual ao diagrama do DBML, inclusive a regra da mesma versão do texto (`docRev`) |
+| ✅ 9.G | Docs (`AGENTS.md`), nota de versão, build de Windows | `docs/` atualizados no mesmo commit; build de Windows reportado |
+
+**PARADA 9:** você abre JSONs reais (grandes, com URLs, imagens e cores). Quero saber: o que fica estranho na árvore, o que falta no menu de formatar, desempenho.
+
+Fica para depois: editar valor na árvore, busca/filtro na árvore (o jsonformatter tem uma caixa de busca com anterior/próximo; aqui o Ctrl+F do editor já cobre o texto), conversão para CSV/YAML/XML, JSON Schema, consulta JMESPath/JSONPath, detecção automática de JSON em nota avulsa, formatar JSONC preservando comentários.
+
 ## Pendências de ambiente
 
 - O WSL desta máquina não tem `pkg-config` nem `libwebkit2gtk-4.1-dev`, então o crate `app` não compila nativamente aqui. O `.exe` de Windows sai por cross-compile com `cargo-xwin` (veja `docs/rules/build-windows.md`); o app em si só foi executado no Windows do usuário.

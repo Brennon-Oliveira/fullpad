@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use fullpad_core::json::{self, Doc, Indent, JsonError};
 use fullpad_core::{ClosedTab, Encoding, Eol, Geometry, Session, Store, TabState, MAIN_WINDOW};
 use serde::Serialize;
 use std::collections::HashSet;
@@ -650,6 +651,60 @@ fn save_file(
         .map_err(err)
 }
 
+/// Resultado de `json_analyze`: ou a árvore ou o erro (a UI mantém a última árvore boa no erro).
+#[derive(Serialize)]
+struct JsonAnalysis {
+    doc: Option<Doc>,
+    error: Option<JsonError>,
+}
+
+/// Analisa o JSON (posições, valores, dicas) fora da thread da janela.
+#[tauri::command]
+async fn json_analyze(text: String, lenient: bool) -> Result<JsonAnalysis, String> {
+    tauri::async_runtime::spawn_blocking(move || match json::analyze(&text, lenient) {
+        Ok(doc) => JsonAnalysis { doc: Some(doc), error: None },
+        Err(error) => JsonAnalysis { doc: None, error: Some(error) },
+    })
+    .await
+    .map_err(err)
+}
+
+/// Só valida (para sublinhar o erro com qualquer visão aberta): não monta nada para a UI.
+#[tauri::command]
+async fn json_check(text: String) -> Result<Option<JsonError>, String> {
+    tauri::async_runtime::spawn_blocking(move || json::validate(&text, true).err()).await.map_err(err)
+}
+
+/// Formata (`indent`: "2", "4", "tab" ou "min" para minificar). Erro: o `JsonError` da posição.
+#[tauri::command]
+async fn json_format(text: String, indent: String, sort_keys: bool) -> Result<Result<String, JsonError>, String> {
+    tauri::async_runtime::spawn_blocking(move || json::format(&text, Indent::parse(&indent), sort_keys))
+        .await
+        .map_err(err)
+}
+
+/// Bytes de uma imagem local citada num JSON, para a miniatura. Só extensões de imagem e com limite
+/// de tamanho; `base` é a pasta do arquivo da aba (para caminhos relativos).
+#[tauri::command]
+fn json_preview_image(value: String, base: Option<PathBuf>) -> Result<tauri::ipc::Response, String> {
+    let path = json::resolve_image_path(&value, base.as_deref()).map_err(err)?;
+    let (bytes, _mime) = json::read_image(&path).map_err(err)?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// Abre um link no navegador do sistema. Só `http`, `https` e `mailto`: um JSON não pode mandar
+/// o app abrir arquivo nem executar nada.
+#[tauri::command]
+fn open_url(app: AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let lower = url.to_ascii_lowercase();
+    let ok = ["http://", "https://", "mailto:"].iter().any(|p| lower.starts_with(p)) && !url.chars().any(|c| c.is_control() || c.is_whitespace());
+    if !ok {
+        return Err("só links http, https e mailto podem ser abertos".into());
+    }
+    app.opener().open_url(url, None::<&str>).map_err(err)
+}
+
 fn main() {
     let store = Store::open_default().expect("diretório de dados indisponível");
 
@@ -669,6 +724,7 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
         self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()),
@@ -720,7 +776,12 @@ fn main() {
             download_update,
             install_update,
             release_notes,
-            startup_release_notes
+            startup_release_notes,
+            json_analyze,
+            json_check,
+            json_format,
+            json_preview_image,
+            open_url
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Fullpad");

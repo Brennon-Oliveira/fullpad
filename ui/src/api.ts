@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { Analysis, JsonError } from "./json/tree";
 
 export type ViewMode = "rendered" | "source" | "split";
-export type Language = "auto" | "plain" | "markdown" | "dbml";
+export type Language = "auto" | "plain" | "markdown" | "dbml" | "json";
 export type Eol = "lf" | "crlf";
 export type Encoding = "utf8" | "utf8-bom" | "utf16le" | "utf16be" | "windows1252";
 
@@ -77,7 +78,7 @@ export const api = {
   /** Esta janela terminou de carregar e pode aparecer. */
   windowReady: () => invoke<void>("window_ready"),
   newWindow: () => invoke<string>("new_window"),
-  /** Abre a janela com a visão renderizada da aba (`lang`: "markdown" ou "dbml"). */
+  /** Abre a janela com a visão renderizada da aba (`lang`: "markdown", "dbml" ou "json"). */
   openPreview: (tab: string, lang: string) => invoke<void>("open_preview", { tab, lang }),
   previewInfo: () => invoke<{ owner: string; tab: string; lang: string }>("preview_info"),
   closePreview: (tab: string) => invoke<void>("close_preview", { tab }),
@@ -100,6 +101,17 @@ export const api = {
   /** Reabre uma aba fechada nesta janela. */
   restoreTab: (id: string) => invoke<{ tab: TabState; text: string }>("restore_tab", { id }),
   openFile: (path: string) => invoke<{ tab: TabState; text: string }>("open_file", { path }),
+  /** Analisa o JSON (nós com posições UTF-16, dicas de valor). Em erro, `doc` é nulo. */
+  jsonAnalyze: (text: string, lenient = true) => invoke<Analysis>("json_analyze", { text, lenient }),
+  /** Só valida: o erro (com posição) ou `null`. */
+  jsonCheck: (text: string) => invoke<JsonError | null>("json_check", { text }),
+  /** Formata (`indent`: "2", "4", "tab" ou "min"). Rejeita com o `JsonError` se o texto for inválido. */
+  jsonFormat: (text: string, indent: string, sortKeys: boolean) =>
+    invoke<{ Ok: string } | { Err: JsonError }>("json_format", { text, indent, sortKeys }),
+  /** Bytes de uma imagem local citada no JSON (só extensões de imagem, até 8 MB). */
+  jsonPreviewImage: (value: string, base: string | null) => invoke<ArrayBuffer>("json_preview_image", { value, base }),
+  /** Abre um link (http, https ou mailto) no navegador do sistema. */
+  openUrl: (url: string) => invoke<void>("open_url", { url }),
   exportFile: (path: string, bytes: number[]) => invoke<void>("export_file", { path, bytes }),
   saveFile: (id: string, path: string, text: string, encoding: Encoding, eol: Eol) =>
     invoke<void>("save_file", { id, path, text, encoding, eol }),

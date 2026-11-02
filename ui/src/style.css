@@ -329,3 +329,41 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .dock-tile.center::after { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; color: color-mix(in srgb, var(--fg) 45%, transparent); }
 .dock-tile.on { background: color-mix(in srgb, var(--accent) 45%, transparent); border: 1px solid var(--accent); transform: scale(1.04); }
 @keyframes dock-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- JSON: erro no editor, dobrar blocos e árvore ---- */
+.cm-json-error { text-decoration: underline wavy var(--err) 2px; text-underline-offset: 4px; background: color-mix(in srgb, var(--err) 16%, transparent); }
+.cm-editor .cm-gutters { background: var(--bg); border: 0; color: var(--muted); }
+.cm-editor .cm-foldGutter .cm-gutterElement { cursor: pointer; padding: 0 4px; }
+.cm-editor .cm-matchingBracket { background: color-mix(in srgb, var(--accent) 25%, transparent); outline: none; }
+#jsonview, .jsonview { display: none; flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--border); background: var(--bg); }
+#jsonview.on, .jsonview.on { display: block; }
+.preview-only #jsonview { border-left: 0; }
+.jt-host { overflow: hidden; }
+.jt-scroll { position: absolute; inset: 0; overflow: auto; font: 13px var(--mono); }
+.jt-spacer { position: relative; min-width: 100%; width: max-content; }
+.jt-rows { position: absolute; left: 0; top: 0; min-width: 100%; }
+.jt-row { display: flex; align-items: center; height: 22px; white-space: nowrap; padding-right: 16px; cursor: default; }
+.jt-row:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.jt-row.fc { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.jt-tog { width: 14px; flex: none; color: var(--muted); text-align: center; cursor: pointer; }
+.jt-key { color: var(--syn-prop); }
+.jt-idx { color: var(--muted); }
+.jt-colon { color: var(--muted); margin: 0 6px 0 2px; }
+.jt-sum { color: var(--muted); }
+.jt-val.jt-string { color: var(--syn-string); }
+.jt-val.jt-number { color: var(--syn-number); }
+.jt-val.jt-bool, .jt-val.jt-null { color: var(--syn-keyword); font-weight: bold; }
+.jt-link { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.jt-link:hover { color: var(--accent); }
+.jt-img:not(.jt-link) { text-decoration: underline dotted; text-underline-offset: 2px; }
+.jt-sw { width: 12px; height: 12px; flex: none; margin-right: 6px; border: 1px solid var(--border); border-radius: 2px; }
+.jt-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
+.jt-msg[hidden] { display: none; }
+.jt-error { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 12px; font: 12px var(--mono); background: color-mix(in srgb, var(--err) 22%, var(--bar)); border-top: 1px solid var(--err); cursor: pointer; }
+.jt-error[hidden] { display: none; }
+.jt-tip { position: fixed; z-index: 200; max-width: 260px; padding: 4px; background: var(--pop); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,.3); pointer-events: none; }
+.jt-tip[hidden] { display: none; }
+.jt-tip img { display: block; max-width: 248px; max-height: 180px; }
+.jt-tip-msg { padding: 4px 6px; font: 12px var(--sans); color: var(--muted); max-width: 240px; }
+#status .seg.path { font-family: var(--mono); color: var(--muted); max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#status .seg[hidden] { display: none; }

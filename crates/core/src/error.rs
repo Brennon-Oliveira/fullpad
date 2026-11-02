@@ -14,6 +14,8 @@ pub enum Error {
     Unencodable(&'static str),
     #[error("não foi possível determinar o diretório de dados")]
     NoDataDir,
+    #[error("{0}")]
+    Invalid(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

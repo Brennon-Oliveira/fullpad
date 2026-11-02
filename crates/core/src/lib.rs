@@ -3,6 +3,7 @@
 pub mod atomic;
 pub mod error;
 pub mod fileio;
+pub mod json;
 pub mod model;
 pub mod store;
 pub mod windows;

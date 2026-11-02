@@ -11,6 +11,8 @@ export interface StatusInfo {
   eolLabel: string;
   encodingLabel: string;
   overwrite: boolean;
+  /** Caminho do nó sob o cursor (JSON com a árvore aberta). */
+  path?: string | null;
 }
 
 export interface StatusHandlers {
@@ -35,6 +37,8 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   const view = button("view", "Como mostrar o arquivo: código, renderizado ou lado a lado (Ctrl+E)");
   const spacer = document.createElement("div");
   spacer.className = "spacer";
+  const path = document.createElement("span");
+  path.className = "seg path";
   const size = document.createElement("span");
   size.className = "seg";
   const cursor = document.createElement("span");
@@ -49,13 +53,16 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   enc.addEventListener("click", () => h.onEncoding(enc));
   ins.addEventListener("click", () => h.onOverwrite());
 
-  root.append(lang, view, spacer, size, cursor, eol, enc, ins);
+  root.append(lang, view, path, spacer, size, cursor, eol, enc, ins);
 
   return {
     update(i: StatusInfo) {
       lang.textContent = i.languageLabel;
       view.textContent = `Visão: ${i.viewLabel} ▾`;
       view.disabled = !i.viewAvailable;
+      path.textContent = i.path ?? "";
+      path.hidden = !i.path;
+      path.title = i.path ? "Caminho do nó sob o cursor" : "";
       size.textContent = `tamanho: ${nf.format(i.size)}   linhas: ${nf.format(i.lines)}`;
       cursor.textContent = `Ln: ${nf.format(i.ln)}   Col: ${nf.format(i.col)}   Pos: ${nf.format(i.pos)}`;
       eol.textContent = i.eolLabel;

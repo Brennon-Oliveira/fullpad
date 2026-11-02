@@ -36,6 +36,7 @@ const highlight = HighlightStyle.define([
   { tag: tags.special(tags.string), color: "var(--syn-string)" },
   { tag: tags.number, color: "var(--syn-number)" },
   { tag: tags.atom, color: "var(--syn-number)" },
+  { tag: [tags.bool, tags.null], color: "var(--syn-keyword)", fontWeight: "bold" },
   { tag: tags.typeName, color: "var(--syn-type)" },
   { tag: tags.definition(tags.variableName), color: "var(--syn-def)", fontWeight: "bold" },
   { tag: tags.propertyName, color: "var(--syn-prop)" },
@@ -84,6 +85,34 @@ const hintField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+/**
+ * Sublinhado do erro de sintaxe do JSON (vindo do Rust). Qualquer edição o apaga: o trecho deixaria de
+ * valer, e a próxima verificação o recoloca.
+ */
+const setJsonError = StateEffect.define<{ from: number; to: number; message: string } | null>();
+const jsonErrorField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    if (tr.docChanged) value = Decoration.none;
+    for (const e of tr.effects) {
+      if (!e.is(setJsonError)) continue;
+      const len = tr.state.doc.length;
+      const r = e.value;
+      if (!r || len === 0) value = Decoration.none;
+      else {
+        const from = Math.min(r.from, len - 1);
+        const to = Math.min(Math.max(r.to, from + 1), len);
+        value = Decoration.set([Decoration.mark({ class: "cm-json-error", attributes: { title: r.message } }).range(from, to)]);
+      }
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+/** Efeito para sublinhar o erro (ou limpar, com `null`). */
+export const jsonErrorMark = (r: { from: number; to: number; message: string } | null) => setJsonError.of(r);
+
 /** Campo do destaque de linhas, para outras visões do mesmo texto (o painel do markdown). */
 export const hintExtension: Extension = hintField;
 
@@ -112,6 +141,7 @@ export const syntaxColors: Extension = syntaxHighlighting(highlight);
 export interface TabConfig {
   markdown: boolean;
   dbml: boolean;
+  json: boolean;
   /** Tema escuro do sistema: sem isso o CodeMirror pinta popups e seleção como se fosse claro. */
   dark: boolean;
   /** Diagnóstico/autocomplete da linguagem; `undefined` enquanto carrega ou quando não há. */
@@ -141,7 +171,7 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
     langC.reconfigure(c.markdown ? markdown({ base: markdownLanguage, codeLanguages }) : c.dbml ? dbmlLanguage : []),
     previewC.reconfigure(c.preview ? livePreview() : []),
     supportC.reconfigure(c.support ?? []),
-    bracketsC.reconfigure(c.dbml ? closeBrackets() : []),
+    bracketsC.reconfigure(c.dbml || c.json ? closeBrackets() : []),
     themeC.reconfigure(EditorView.darkTheme.of(c.dark)),
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),
@@ -173,6 +203,7 @@ export function createState(
       wrapC.of(EditorView.lineWrapping),
       overwriteC.of([]),
       hintField,
+      jsonErrorField,
       syntaxHighlighting(highlight),
       syntaxHighlighting(markdownSource),
       keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
