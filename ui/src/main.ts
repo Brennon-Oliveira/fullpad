@@ -2,10 +2,11 @@ import { gotoLine, openSearchPanel } from "@codemirror/search";
 import { redo, selectAll, undo } from "@codemirror/commands";
 import type { EditorState, Extension } from "@codemirror/state";
 import type { EditorView, ViewUpdate } from "@codemirror/view";
-import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { ask, message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { type UnlistenFn, emit, emitTo, listen as listenAll } from "@tauri-apps/api/event";
 import { listenHere as listen } from "./events";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getVersion } from "@tauri-apps/api/app";
 import { api, type ClosedTab, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
 import type { DiagramPanel } from "./dbml/panel";
@@ -1431,6 +1432,11 @@ void listenAll("app-exit", async () => {
 
 /** Principal: pede às outras janelas que gravem e espera as respostas (com limite de tempo). */
 async function closeEverything() {
+  await saveEverything();
+  await api.exitApp();
+}
+
+async function saveEverything() {
   await flush();
   const others = (await api.listWindows()).map((w) => w.label).filter((l) => l !== "main");
   if (others.length > 0) {
@@ -1446,7 +1452,50 @@ async function closeEverything() {
       }).then(() => emit("app-exit"));
     });
   }
-  await api.exitApp();
+}
+
+// ---- atualização ------------------------------------------------------------
+
+let updating = false;
+
+/** Procura versão nova; `manual` (menu Ajuda) também avisa quando não há ou quando falha. */
+async function checkUpdates(manual: boolean) {
+  if (updating) return;
+  updating = true;
+  try {
+    let info;
+    try {
+      info = await api.checkUpdate();
+    } catch (e) {
+      if (manual) await message(String(e), { title: "Não foi possível verificar atualizações", kind: "error" });
+      return;
+    }
+    if (!info) {
+      if (manual) await message(`Você já está na versão mais recente (${await getVersion()}).`, { title: "Fullpad" });
+      return;
+    }
+    const notes = info.notes?.trim() ? `\n\nNovidades:\n${info.notes.trim()}` : "";
+    const yes = await ask(
+      `A versão ${info.version} do Fullpad está disponível (você tem a ${info.current}).${notes}\n\n` +
+        "Atualizar agora? O Fullpad fecha, instala e abre de novo. Tudo o que você escreveu é gravado antes.",
+      { title: "Atualização disponível", okLabel: "Atualizar", cancelLabel: "Agora não" },
+    );
+    if (!yes) return;
+    try {
+      await api.downloadUpdate();
+    } catch (e) {
+      await message(String(e), { title: "Não foi possível baixar a atualização", kind: "error" });
+      return;
+    }
+    await saveEverything(); // nada se perde: todas as janelas gravam antes do instalador fechar o app
+    try {
+      await api.installUpdate();
+    } catch (e) {
+      await message(String(e), { title: "Não foi possível instalar a atualização", kind: "error" });
+    }
+  } finally {
+    updating = false;
+  }
 }
 
 // ---- arquivos ---------------------------------------------------------------
@@ -1629,6 +1678,7 @@ const menuActions = {
   exportPdf: () => void exportPdf(),
   copyHtml: () => void copyHtml(),
   exit: () => void thisWindow.close(),
+  checkUpdates: () => void checkUpdates(true),
   undo: () => (undo(cur.view), cur.view.focus()),
   redo: () => (redo(cur.view), cur.view.focus()),
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
@@ -1758,6 +1808,7 @@ async function boot() {
   if (isMain) {
     void listen("open-paths", () => void openRequested());
     void openRequested();
+    window.setTimeout(() => void checkUpdates(false), 5000); // sem atrapalhar a abertura
   }
   for (const t of pendingIn.splice(0)) await receiveTab(t);
   if (idle && pendingIn.length === 0 && session.tabs.length === 0) return; // segue escondida

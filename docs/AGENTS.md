@@ -8,7 +8,9 @@ O roteiro de entrega por fases está em [PLANO.md](PLANO.md). Siga-o: cada fase 
 
 ```
 crates/core   persistência (sessão, notas, arquivos, escrita atômica, lixeira). Sem UI, testável.
-crates/app    Tauri 2: comandos IPC (load_startup, read_note, save_note, save_window, new_note, close_note, list_closed, restore_tab, open_file, save_file, export_file, list_windows, move_tab, new_window, prewarm, drag_start, drag_move, drag_cancel, drag_accept, drop_tab, window_ready, open_preview, preview_info, close_preview, exit_app, take_open_paths), janelas, single-instance. Arquivos pedidos na linha de comando (duplo clique, "Abrir com", segunda instância) ficam em `AppState.open_paths`; a janela principal os retira por `take_open_paths` (ao abrir e ao receber o evento `open-paths`).
+crates/app    Tauri 2: comandos IPC (load_startup, read_note, save_note, save_window, new_note, close_note, list_closed, restore_tab, open_file, save_file, export_file, list_windows, move_tab, new_window, prewarm, drag_start, drag_move, drag_cancel, drag_accept, drop_tab, window_ready, open_preview, preview_info, close_preview, exit_app, take_open_paths, check_update, download_update, install_update), janelas, single-instance. Arquivos pedidos na linha de comando (duplo clique, "Abrir com", segunda instância) ficam em `AppState.open_paths`; a janela principal os retira por `take_open_paths` (ao abrir e ao receber o evento `open-paths`).
+crates/app/windows/  template e ganchos do instalador NSIS (integração com o Windows); ver rules/build-windows.md.
+scripts/release.sh  gera o instalador assinado e publica a versão nos Releases públicos (atualização automática).
 ui/           TypeScript + CodeMirror 6 + Vite (abas, editor, live preview, menus, barra de status).
 ui/src/codelangs.ts  linguagens dos blocos de código do markdown (carga sob demanda; para acrescentar uma, é só mais uma entrada).
 ui/src/dbmllang.ts  destaque de sintaxe do DBML (CodeMirror StreamLanguage; pequeno, entra no bundle de abertura).
@@ -31,6 +33,7 @@ ui/src/dbml/  diagrama DBML (parse → modelo → layout dagre → SVG, pan/zoom
 - Reabrir aba fechada (Ctrl+Shift+T reabre a última; Arquivo > "Histórico de abas fechadas…" ou Ctrl+Shift+H abre uma janelinha com filtro e as mais antigas, `history.ts`): `close_note` guarda o estado da aba em `trash/<id>.json` ao lado do texto (`Store::close_tab`); `list_closed` lista as mais recentes e `restore_tab` devolve a nota à janela que pediu, com título, arquivo, linguagem e visão de antes.
 - O documento é sempre texto puro; renderizar markdown ou DBML nunca reescreve o conteúdo.
 - DBML: o painel, o diagnóstico (e o autocomplete) compartilham um único `Compiler` em `ui/src/dbml/service.ts`; `ui/src/dbml/editor.ts` entrega os recursos de editor por `import()` dinâmico. `.dbml`/`.dbmlx` ou escolha manual no menu Linguagem (sem detecção por conteúdo). O diagrama usa `@dbml/parse` **v11** (entende a sintaxe nova: relações opcionais `?>`/`<?`, `Records`; o `@dbml/core` pesa 15 MB e a 3.9 não conhece a sintaxe nova) com um `MemoryProjectLayout` de um arquivo só e `@dagrejs/dagre`, ambos via `import()` dinâmico em `ui/src/dbml/panel.ts`: **nada de `dbml/` pode ser importado estaticamente a partir de `main.ts`**, para não pesar a abertura do app. Só visualização por enquanto (sem posições salvas). O modelo guarda o trecho do texto de cada elemento (`span`): passar o mouse no diagrama pinta a linha no código (`hintLines` em `editor.ts`, sem selecionar) e o cursor do editor destaca o elemento no diagrama (`Rendered.focusAt`). Os dois só valem se o diagrama for da mesma versão do texto (`docRev`), senão os trechos apontariam para o lugar errado.
+- Atualização automática (`tauri-plugin-updater`): a principal procura versão nova ao abrir e pelo menu Ajuda; antes de instalar, `saveEverything` faz todas as janelas gravarem (o instalador fecha o app). Publicar uma versão: [rules/build-windows.md](rules/build-windows.md).
 - Dados em `%APPDATA%\fullpad` / `~/.local/share/fullpad`. `FULLPAD_DATA_DIR=/caminho` sobrescreve (use para testar sem mexer nas notas reais).
 
 ## Rodar e testar
@@ -54,6 +57,7 @@ Não há pipeline de CI por enquanto (nenhum workflow do GitHub); testes e build
 - Mudou comportamento, arquitetura, comando ou convenção: atualize `docs/` no mesmo commit (veja [rules/harness.md](rules/harness.md)).
 - Commits: [rules/commits.md](rules/commits.md).
 - Persistência (`crates/core`): [rules/persistencia.md](rules/persistencia.md).
+- Publicar uma versão (tag, notas, instalador, release): skill [gerar-versao](skills/gerar-versao/SKILL.md).
 - Ao terminar qualquer ajuste, gere o build de Windows e reporte o resultado: [rules/build-windows.md](rules/build-windows.md).
 
 ## Segurança

@@ -27,14 +27,35 @@ cargo xwin build --release --target x86_64-pc-windows-msvc -p fullpad --features
 
 ## Instalador (NSIS)
 
-Configurado em `crates/app/tauri.conf.json` (`bundle`): só NSIS, instalação por usuário (`currentUser`, sem pedir administrador), em português, WebView2 baixado se faltar, associação de `.md`/`.markdown`, `.txt` e `.dbml`/`.dbmlx` (o app recebe o arquivo como argumento; ver `take_open_paths`).
+Configurado em `crates/app/tauri.conf.json` (`bundle`): só NSIS, instalação por usuário (`currentUser`, sem pedir administrador), em português, WebView2 baixado se faltar. A versão vem do `crates/app/Cargo.toml` (o `tauri.conf.json` não tem `version`).
+
+A integração com o Windows **não** usa o `fileAssociations` do Tauri (ele sempre associa, grava "Open with Fullpad" em inglês e não registra `OpenWithProgids`, então o app sumia do "Abrir com" quando não era o padrão). Ela fica em:
+
+- `crates/app/windows/installer.nsi`: cópia do template do `tauri-bundler` 2.10.4 com as linhas marcadas `FULLPAD` (inclui os ganchos depois das variáveis do Tauri, acrescenta a página e lê as escolhas no `.onInit`). **Ao atualizar o Tauri**, compare com o template novo e reaplique só essas linhas.
+- `crates/app/windows/fullpad.nsh` (`installerHooks`): página "Integração com o Windows" com duas opções, as duas marcadas por padrão:
+  - abrir `.md`/`.markdown`/`.dbml`/`.dbmlx` com o Fullpad por padrão (ProgIDs `Fullpad.md`/`Fullpad.dbml`, `Capabilities` + `RegisteredApplications`). O Windows não deixa um instalador passar por cima de um programa que o usuário já escolheu (`UserChoice`); nesse caso o instalador oferece abrir `ms-settings:defaultapps?registeredAppUser=Fullpad`;
+  - mostrar o Fullpad em "Abrir com" nos arquivos de texto (`OpenWithProgids` numa lista de extensões e `SystemFileAssociations\text\OpenWithList`), sem mudar o padrão deles.
+- As escolhas ficam em `HKCU\Software\Fullpad` (`AssocDefault`, `AssocOpenWith`): a atualização automática (modo passivo, sem páginas) reaplica o que foi escolhido. Reinstalar refaz a integração do zero, e desinstalar a remove (devolvendo o padrão anterior de cada extensão). Também limpa a associação gravada pelo instalador 0.1.0 (ProgIDs `Markdown`, `Texto`, `DBML`).
 
 ```sh
-cargo tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis
+cd crates/app && cargo tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis
 ```
 
-- Saída: `target/x86_64-pc-windows-msvc/release/bundle/nsis/Fullpad_<versão>_x64-setup.exe`.
+- Saída: `target/x86_64-pc-windows-msvc/release/bundle/nsis/Fullpad_<versão>_x64-setup.exe` (e o `.sig` da atualização).
+- Sem `TAURI_SIGNING_PRIVATE_KEY` o build falha no fim (`createUpdaterArtifacts`); use `scripts/release.sh` (abaixo), que a configura.
 - Pré-requisitos extras no WSL: `cargo install tauri-cli --version "^2" --locked` e `makensis` (`sudo apt-get install -y nsis`).
+- Neste `cargo-tauri` os comandos `beforeDevCommand`/`beforeBuildCommand` rodam em `crates/`, por isso o `--dir ../ui`.
 - Os dados do usuário ficam em `%APPDATA%\fullpad`; o desinstalador só apaga `%APPDATA%\dev.brennon.fullpad` (a opção "apagar dados do aplicativo"), então **as notas sobrevivem à desinstalação**. Não mude o nome da pasta de dados sem rever isso.
 - Sem assinatura de código: o SmartScreen avisa "editor desconhecido" na primeira execução.
-- Atualização por cima: rodar o instalador novo sobre o antigo basta (mesmo `identifier`); atualização automática (`tauri-plugin-updater`) ainda não existe.
+
+## Atualização automática e publicar uma versão
+
+O app usa o `tauri-plugin-updater` (só do lado do Rust: `check_update`, `download_update`, `install_update`). A janela principal procura versão nova 5 s depois de abrir e pelo menu Ajuda > "Verificar atualizações…"; se houver, pergunta, baixa, **grava todas as janelas** e roda o instalador em modo passivo, que fecha e reabre o app.
+
+- O código é privado; as versões ficam nos Releases do repositório **público** `Brennon-Oliveira/fullpad-releases` (só instaladores e `latest.json`, sem código). Endpoint: `releases/latest/download/latest.json`.
+- As atualizações são assinadas com uma chave própria do updater (não é assinatura de código do Windows). A pública está no `tauri.conf.json` (`plugins.updater.pubkey`); a **privada fica em `~/.tauri/fullpad.key`, fora do repositório, sem senha**. Sem ela não dá para publicar uma versão que os apps já instalados aceitem: guarde uma cópia em lugar seguro.
+
+Para publicar, use a skill `gerar-versao` ([../skills/gerar-versao/SKILL.md](../skills/gerar-versao/SKILL.md)): ela calcula a versão pelos commits, escreve as notas, cria a tag `v<versão>` e chama o script. Por baixo:
+
+1. Suba `version` em `crates/app/Cargo.toml` (o updater só oferece versão maior).
+2. `NOTES="o que mudou" scripts/release.sh`: gera o instalador assinado, monta o `latest.json` e cria o release `v<versão>` com os dois arquivos. `PUBLISH=0` só gera.

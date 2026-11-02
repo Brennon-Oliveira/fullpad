@@ -1,6 +1,6 @@
 [package]
 name = "fullpad"
-version = "0.1.0"
+version = "0.2.1"
 edition = "2024"
 
 [dependencies]
@@ -10,6 +10,7 @@ serde_json = "1.0.154"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
 uuid = "1.29.0"
 
 [build-dependencies]

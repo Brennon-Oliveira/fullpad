@@ -81,6 +81,11 @@ export const api = {
   closePreview: (tab: string) => invoke<void>("close_preview", { tab }),
   /** Arquivos pedidos na linha de comando que ainda não foram abertos (só a janela principal usa). */
   takeOpenPaths: () => invoke<string[]>("take_open_paths"),
+  /** Versão nova disponível (ou `null`). */
+  checkUpdate: () => invoke<{ version: string; current: string; notes: string | null } | null>("check_update"),
+  downloadUpdate: () => invoke<void>("download_update"),
+  /** Instala a versão baixada: o app encerra. Grave tudo antes. */
+  installUpdate: () => invoke<void>("install_update"),
   exitApp: () => invoke<void>("exit_app"),
   newNote: () => invoke<TabState>("new_note"),
   closeNote: (id: string) => invoke<void>("close_note", { id }),

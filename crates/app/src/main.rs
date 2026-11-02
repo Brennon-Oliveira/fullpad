@@ -45,6 +45,9 @@ struct AppState {
     /// Arquivos pedidos na linha de comando (duplo clique, "Abrir com") que a janela principal
     /// ainda não abriu. Ela os retira com `take_open_paths`.
     open_paths: Mutex<Vec<PathBuf>>,
+    /// Versão nova achada por `check_update` e, depois de `download_update`, o instalador baixado.
+    update: Mutex<Option<tauri_plugin_updater::Update>>,
+    update_bytes: Mutex<Option<Vec<u8>>>,
 }
 
 /// Caminhos de arquivo dos argumentos (sem o executável e sem opções), absolutos: uma segunda
@@ -58,6 +61,46 @@ fn paths_from_args(args: &[String], cwd: &std::path::Path) -> Vec<PathBuf> {
             if p.is_absolute() { p } else { cwd.join(p) }
         })
         .collect()
+}
+
+#[derive(Serialize)]
+struct UpdateInfo {
+    version: String,
+    current: String,
+    notes: Option<String>,
+}
+
+/// Procura uma versão nova nos Releases públicos (`plugins.updater` no `tauri.conf.json`).
+#[tauri::command]
+async fn check_update(app: AppHandle, state: State<'_, AppState>) -> Result<Option<UpdateInfo>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let update = app.updater().map_err(err)?.check().await.map_err(err)?;
+    let info = update.as_ref().map(|u| UpdateInfo {
+        version: u.version.clone(),
+        current: u.current_version.clone(),
+        notes: u.body.clone(),
+    });
+    *state.update.lock().unwrap() = update;
+    *state.update_bytes.lock().unwrap() = None;
+    Ok(info)
+}
+
+/// Baixa e confere a assinatura do instalador. Não mexe em nada: a UI ainda vai gravar tudo.
+#[tauri::command]
+async fn download_update(state: State<'_, AppState>) -> Result<(), String> {
+    let update = state.update.lock().unwrap().clone().ok_or("nenhuma atualização pendente")?;
+    let bytes = update.download(|_, _| {}, || {}).await.map_err(err)?;
+    *state.update_bytes.lock().unwrap() = Some(bytes);
+    Ok(())
+}
+
+/// Roda o instalador baixado. No Windows o app encerra aqui e o instalador o reabre.
+/// Só chamar depois de gravar todas as janelas.
+#[tauri::command]
+fn install_update(state: State<AppState>) -> Result<(), String> {
+    let update = state.update.lock().unwrap().clone().ok_or("nenhuma atualização pendente")?;
+    let bytes = state.update_bytes.lock().unwrap().take().ok_or("a atualização não foi baixada")?;
+    update.install(bytes).map_err(err)
 }
 
 /// Entrega (e esvazia) os arquivos pedidos na linha de comando.
@@ -604,9 +647,11 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
         self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()),
-        open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()) })
+        open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()),
+        update: Mutex::new(None), update_bytes: Mutex::new(None) })
         .setup(|app| {
             // reabre as janelas flutuantes da sessão anterior, no mesmo lugar
             let state = app.state::<AppState>();
@@ -642,7 +687,10 @@ fn main() {
             preview_info,
             close_preview,
             exit_app,
-            take_open_paths
+            take_open_paths,
+            check_update,
+            download_update,
+            install_update
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Fullpad");

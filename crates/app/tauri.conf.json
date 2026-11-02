@@ -47,6 +47,18 @@
         "template": "windows/installer.nsi",
         "installerHooks": "windows/fullpad.nsh"
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhCMTA4ODE4NzI5QTY5MjQKUldRa2FacHlHSWdRaTBzM1RrUUwrYnM5THhnblNRRjAzZTRLNWlRSjBrZXd4Tjh0UGxaRm5JREMK",
+      "endpoints": [
+        "https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }
