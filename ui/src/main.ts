@@ -895,6 +895,48 @@ const FILTERS = [
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
+function exportBaseName(tab: TabState): string {
+  return suggestedName(tab).replace(/\.[^.]+$/, "");
+}
+
+async function exportHtml() {
+  const tab = activeTab();
+  if (effectiveLang(tab) !== "markdown") return;
+  try {
+    const path = await saveDialog({
+      defaultPath: `${exportBaseName(tab)}.html`,
+      filters: [{ name: "HTML", extensions: ["html"] }],
+    });
+    if (!path) return;
+    const { markdownToHtml } = await import("./mdexport");
+    const html = await markdownToHtml(view.state.doc.toString(), exportBaseName(tab));
+    await api.exportFile(path, Array.from(new TextEncoder().encode(html)));
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível exportar", kind: "error" });
+  }
+}
+
+async function exportPdf() {
+  const tab = activeTab();
+  if (effectiveLang(tab) !== "markdown") return;
+  try {
+    const { printAsPdf } = await import("./mdexport");
+    await printAsPdf(view.state.doc.toString(), exportBaseName(tab));
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível exportar", kind: "error" });
+  }
+}
+
+async function copyHtml() {
+  if (effectiveLang(activeTab()) !== "markdown") return;
+  try {
+    const { copyAsHtml } = await import("./mdexport");
+    await copyAsHtml(view.state.doc.toString());
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível copiar", kind: "error" });
+  }
+}
+
 async function openFiles() {
   const picked = await openDialog({ multiple: true, filters: FILTERS });
   if (!picked) return;
@@ -1010,6 +1052,9 @@ const menuActions = {
   closeTab: () => void closeTab(session.active!),
   reopenTab: (id?: string) => void reopenTab(id),
   closedTabs: () => closedCache.map((c) => ({ id: c.tab.id, title: c.tab.title })),
+  exportHtml: () => void exportHtml(),
+  exportPdf: () => void exportPdf(),
+  copyHtml: () => void copyHtml(),
   exit: () => void thisWindow.close(),
   undo: () => (undo(view), view.focus()),
   redo: () => (redo(view), view.focus()),

@@ -15,6 +15,7 @@ ui/src/dbmllang.ts  destaque de sintaxe do DBML (CodeMirror StreamLanguage; pequ
 ui/src/entry.ts  ponto de entrada: janelas `preview-*` carregam `previewwin.ts`, as demais `main.ts`.
 ui/src/previewwin.ts  janela só com a visão renderizada (preview/diagrama) de uma aba de outra janela.
 ui/src/tabdrag.ts  arrastar abas (reordenar e tirar da janela) com eventos de ponteiro.
+ui/src/mdexport.ts  exportação do markdown (HTML autônomo, copiar como HTML, PDF pela impressão do sistema); `marked` carrega só ao exportar.
 ui/src/mdpreview.ts  painel do markdown renderizado (somente leitura) para a visão lado a lado; carga sob demanda.
 ui/src/dbml/  diagrama DBML (parse → modelo → layout dagre → SVG, pan/zoom). Carregado só sob demanda.
 ```

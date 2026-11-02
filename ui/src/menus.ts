@@ -13,6 +13,9 @@ export interface MenuActions {
   reopenTab(id?: string): void;
   /** Abas fechadas recentemente (a mais nova primeiro). */
   closedTabs(): { id: string; title: string }[];
+  exportHtml(): void;
+  exportPdf(): void;
+  copyHtml(): void;
   exit(): void;
   undo(): void;
   redo(): void;
@@ -79,6 +82,7 @@ export function languageItems(a: MenuActions): MenuItem[] {
 }
 
 export function mountMenuBar(root: HTMLElement, a: MenuActions) {
+  const md = () => a.current().lang === "markdown";
   const menus: { label: string; items: () => MenuItem[] }[] = [
     {
       label: "Arquivo",
@@ -93,6 +97,11 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
         "sep",
         { label: "Fechar", shortcut: "Ctrl+W", action: a.closeTab },
         ...reopenItems(a),
+        "sep",
+        { label: "Exportar como HTML…", disabled: !md(), action: a.exportHtml },
+        { label: "Exportar como PDF…", disabled: !md(), action: a.exportPdf },
+        { label: "Copiar como HTML", disabled: !md(), action: a.copyHtml },
+        "sep",
         { label: "Sair", shortcut: "Alt+F4", action: a.exit },
       ],
     },
