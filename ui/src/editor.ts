@@ -84,6 +84,9 @@ const hintField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+/** Campo do destaque de linhas, para outras visões do mesmo texto (o painel do markdown). */
+export const hintExtension: Extension = hintField;
+
 /** Efeito para destacar os trechos (ou limpar, com `null`). */
 export const hintLines = (spans: { from: number; to: number }[] | null) => setHint.of(spans);
 

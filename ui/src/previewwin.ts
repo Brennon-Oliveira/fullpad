@@ -24,6 +24,7 @@ async function boot() {
   const mdEl = document.getElementById("mdview")!;
   const diagramEl = document.getElementById("diagram")!;
 
+  let rev = 0; // versão do texto que está na tela (a dona só aceita o destaque se ainda for a atual)
   let apply: (m: TextMsg) => void;
   if (info.lang === "dbml") {
     const { createDiagramPanel } = await import("./dbml/panel");
@@ -40,13 +41,20 @@ async function boot() {
     void listen<{ offset: number | null; rev: number }>("pv-cursor", (e) => panel.setCursor(e.payload.offset, e.payload.rev));
   } else {
     const { createMarkdownPane } = await import("./mdpreview");
-    const pane = createMarkdownPane(mdEl);
+    const pane = createMarkdownPane(mdEl, {
+      onHover: (span) => void emitTo(owner, `pv-hover:${tab}`, { spans: span ? [span] : null, rev }),
+    });
     mdEl.classList.add("on");
-    apply = (m) => pane.show(m.text);
+    apply = (m) => {
+      pane.show(m.text);
+      pane.setCursor(m.cursor);
+    };
+    void listen<{ offset: number | null }>("pv-cursor", (e) => pane.setCursor(e.payload.offset));
   }
 
   let shown = false;
   await listen<TextMsg>("pv-text", (e) => {
+    rev = e.payload.rev;
     apply(e.payload);
     void win.setTitle(`${e.payload.title} — Preview`);
     if (!shown) {

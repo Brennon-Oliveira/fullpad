@@ -275,13 +275,17 @@ function syncMdPane(textChanged: boolean) {
   }
   mdEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
   mdLoading ??= import("./mdpreview").then((m) => {
-    mdPane = m.createMarkdownPane(mdEl);
+    mdPane = m.createMarkdownPane(mdEl, {
+      // mouse sobre uma linha do painel → destaca a linha no código (como no diagrama DBML)
+      onHover: (span) => view.dispatch({ effects: hintLines(span ? [span] : null) }),
+    });
   });
   void mdLoading.then(() => {
     if (!mdPane || !mdWanted(activeTab())) return;
     const text = view.state.doc.toString();
     if (textChanged) mdPane.update(text);
     else mdPane.show(text);
+    mdPane.setCursor(view.state.selection.main.head);
     followScroll();
   });
 }
@@ -490,6 +494,7 @@ function onEditorUpdate(u: ViewUpdate) {
   }
   if (u.selectionSet && !u.docChanged && diagramTab === activeTab().id) {
     diagram?.setCursor(u.state.selection.main.head, docRev); // cursor → destaque no diagrama
+    mdPane?.setCursor(u.state.selection.main.head); // ... ou a linha no markdown renderizado
   }
   if (u.selectionSet && !u.docChanged && activeTab().detached && previewOpen.has(session.active!)) {
     void emitTo(`preview-${session.active}`, "pv-cursor", { offset: u.state.selection.main.head, rev: docRev }).catch(() => {});
