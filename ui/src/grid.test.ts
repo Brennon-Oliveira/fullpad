@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, zoneAt, type Split } from "./grid";
+import { swapAdjacent, groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, zoneAt, type Split } from "./grid";
 
 describe("grid", () => {
   it("divide um painel em duas colunas e depois a coluna da direita em duas linhas", () => {
@@ -77,5 +77,14 @@ describe("grid", () => {
     expect(zoneAt(rect, 95, 50)).toBe("right");
     expect(zoneAt(rect, 50, 5)).toBe("top");
     expect(zoneAt(rect, 50, 95)).toBe("bottom");
+  });
+
+  it("swapAdjacent inverte dois vizinhos levando os tamanhos junto", () => {
+    const n = { t: "split", dir: "row", sizes: [1, 3, 2], kids: [leaf(0), leaf(1), leaf(2)] } as Split;
+    swapAdjacent(n, 0);
+    expect(groupsOf(n)).toEqual([1, 0, 2]);
+    expect(n.sizes).toEqual([3, 1, 2]);
+    swapAdjacent(n, 5); // fora do intervalo: nada
+    expect(groupsOf(n)).toEqual([1, 0, 2]);
   });
 });

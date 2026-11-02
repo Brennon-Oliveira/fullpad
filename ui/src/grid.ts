@@ -162,3 +162,10 @@ export function zoneAt(rect: { left: number; top: number; width: number; height:
   if (dx <= dy) return fx < 0.5 ? "left" : "right";
   return fy < 0.5 ? "top" : "bottom";
 }
+
+/** Troca de lugar os filhos `i` e `i+1` de uma divisão (cada um leva o próprio tamanho). Altera `n`. */
+export function swapAdjacent(n: Split, i: number): void {
+  if (i < 0 || i + 1 >= n.kids.length) return;
+  [n.kids[i], n.kids[i + 1]] = [n.kids[i + 1], n.kids[i]];
+  [n.sizes[i], n.sizes[i + 1]] = [n.sizes[i + 1], n.sizes[i]];
+}

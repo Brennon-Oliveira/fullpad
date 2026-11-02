@@ -304,3 +304,13 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .modal-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modal-meta { flex: none; color: var(--muted); font-size: 12px; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
 .modal-empty { padding: 18px; color: var(--muted); text-align: center; }
+
+/* três pontinhos no meio da divisa entre painéis */
+.splitter-grip {
+  position: absolute; z-index: 4; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bar); color: var(--muted);
+  font-size: 14px; line-height: 1; padding: 0; cursor: pointer; opacity: .55;
+}
+.splitter-grip:hover, .splitter:hover .splitter-grip { opacity: 1; background: var(--accent); color: #fff; border-color: var(--accent); }
+.split.row > .splitter > .splitter-grip { width: 14px; height: 30px; left: -7px; top: calc(50% - 15px); }
+.split.col > .splitter > .splitter-grip { width: 30px; height: 14px; top: -7px; left: calc(50% - 15px); }

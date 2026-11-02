@@ -17,7 +17,7 @@ import { exportItem, languageItems, mountMenuBar, viewItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
-import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, zoneAt } from "./grid";
+import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, swapAdjacent, zoneAt } from "./grid";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -877,6 +877,36 @@ function renderLayout() {
 function makeSplitter(n: Extract<Node, { t: "split" }>, i: number, container: HTMLElement): HTMLElement {
   const sp = document.createElement("div");
   sp.className = "splitter";
+  // três pontinhos no meio da divisa: menu (também com o botão direito) para inverter os lados etc.
+  const grip = document.createElement("button");
+  grip.className = "splitter-grip";
+  grip.textContent = n.dir === "row" ? "⋮" : "⋯";
+  grip.title = "Opções da divisão";
+  const menu = (x: number, y: number) => {
+    const row = n.dir === "row";
+    const apply = (fn: () => void) => () => {
+      fn();
+      renderLayout();
+      sessionDirty = true;
+      scheduleSave();
+    };
+    showMenuAt(x, y, [
+      { label: row ? "Inverter esquerda e direita" : "Inverter cima e baixo", action: apply(() => swapAdjacent(n, i)) },
+      { label: row ? "Empilhar (uma sobre a outra)" : "Colocar lado a lado", action: apply(() => (n.dir = row ? "col" : "row")) },
+      { label: "Dividir igualmente", action: apply(() => (n.sizes = n.kids.map(() => 1))) },
+    ]);
+  };
+  grip.addEventListener("pointerdown", (e) => e.stopPropagation());
+  grip.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const r = grip.getBoundingClientRect();
+    menu(r.right, r.top);
+  });
+  sp.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    menu(e.clientX, e.clientY);
+  });
+  sp.append(grip);
   sp.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     sp.setPointerCapture(e.pointerId);
@@ -1090,16 +1120,16 @@ function targetAt(cx: number, cy: number, src?: Group): DropTarget | null {
   const body = el?.closest<HTMLElement>(".group");
   const g = body && [...groups.values()].find((x) => x.el === body);
   if (!g) return null;
-  if (el?.closest(".diagram, .mdview")) {
-    if (!src) return null;
-    return g === src ? { kind: "none" } : { kind: "zone", g, zone: "center" };
-  }
+  // código e preview formam uma unidade: as bordas valem para o conjunto, esteja o ponteiro onde estiver
   const zone = zoneAt(g.bodyEl.getBoundingClientRect(), cx, cy);
   if (!src) return zone === "center" ? null : { kind: "zone", g, zone };
-  const alone = g === src && tabsOf(src).length === 1;
-  // o meio do próprio painel não faz nada (cai como antes: janela nova); sozinha, uma aba não divide o próprio painel
-  if (zone === "center" ? g === src : alone) return null;
-  return { kind: "zone", g, zone };
+  if (zone === "center") {
+    if (g !== src) return { kind: "zone", g, zone };
+    // o meio do próprio painel: sobre o preview não faz nada; sobre o código cai como antes (janela nova)
+    return el?.closest(".diagram, .mdview") ? { kind: "none" } : null;
+  }
+  const alone = g === src && tabsOf(src).length === 1; // sozinha, uma aba não divide o próprio painel
+  return alone ? null : { kind: "zone", g, zone };
 }
 
 function localTarget(id: string, cx: number, cy: number): DropTarget | null {
