@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "dev.brennon.fullpad",
   "build": {
-    "beforeDevCommand": "pnpm --dir ../../ui dev",
-    "beforeBuildCommand": "pnpm --dir ../../ui build",
+    "beforeDevCommand": "pnpm --dir ../ui dev",
+    "beforeBuildCommand": "pnpm --dir ../ui build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../../ui/dist"
   },
@@ -20,11 +20,62 @@
         "visible": false
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"]
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "Editor de notas e markdown rápido",
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown",
+        "description": "Documento Markdown",
+        "mimeType": "text/markdown",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "txt"
+        ],
+        "name": "Texto",
+        "description": "Documento de texto",
+        "mimeType": "text/plain",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "dbml",
+          "dbmlx"
+        ],
+        "name": "DBML",
+        "description": "Diagrama DBML",
+        "role": "Editor"
+      }
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "PortugueseBR"
+        ],
+        "displayLanguageSelector": false
+      }
+    }
   }
 }
