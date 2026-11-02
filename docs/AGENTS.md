@@ -16,7 +16,7 @@ ui/src/entry.ts  ponto de entrada: janelas `preview-*` carregam `previewwin.ts`,
 ui/src/previewwin.ts  janela só com a visão renderizada (preview/diagrama) de uma aba de outra janela.
 ui/src/tabdrag.ts  arrastar abas (reordenar e tirar da janela) com eventos de ponteiro.
 ui/src/grid.ts  grade de painéis da janela (árvore de divisões, sem DOM; testada em `grid.test.ts`).
-ui/src/mdexport.ts  exportação do markdown (HTML autônomo, copiar como HTML, PDF pela impressão do sistema); `marked` carrega só ao exportar.
+ui/src/mdexport.ts  exportação do markdown (HTML autônomo, copiar como HTML, PDF pela impressão do sistema); `marked` carrega só ao exportar. As opções (HTML, PDF, copiar como HTML) ficam num submenu "Exportar" (`exportItem` em `menus.ts`) no menu Arquivo, no menu de contexto da aba e no botão direito sobre o conteúdo de um markdown (que tem Recortar/Copiar/Colar próprios; nas outras linguagens vale o menu padrão). `popup.ts` aceita `submenu` e `showMenuAt(x, y, …)`.
 ui/src/mdpreview.ts  painel do markdown renderizado (somente leitura) para a visão lado a lado; carga sob demanda.
 ui/src/dbml/  diagrama DBML (parse → modelo → layout dagre → SVG, pan/zoom). Carregado só sob demanda.
 ```

@@ -13,8 +13,8 @@ import type { MarkdownPane } from "./mdpreview";
 import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
-import { languageItems, mountMenuBar, viewItems } from "./menus";
-import { type MenuItem, showMenu } from "./popup";
+import { exportItem, languageItems, mountMenuBar, viewItems } from "./menus";
+import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
 import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, normalize, removeLeaf, resizeSizes, splitLeaf, zoneAt } from "./grid";
@@ -791,6 +791,36 @@ function createGroup(id: number): Group {
   const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, view, active: null, rev: 0, diagramTab: null };
   groups.set(id, g);
   view.scrollDOM.addEventListener("scroll", () => followScroll(g), { passive: true });
+  // botão direito num markdown: copiar/colar e exportar (nos outros tipos fica o menu padrão)
+  el.addEventListener("contextmenu", (e) => {
+    const t = tabOf(g);
+    if (!t || effectiveLang(t) !== "markdown" || (e.target as HTMLElement).closest(".tabs")) return;
+    e.preventDefault();
+    enterGroup(g);
+    const inEditor = e.target instanceof HTMLElement && editorEl.contains(e.target);
+    const sel = g.view.state.selection.main;
+    const items: MenuItem[] = [];
+    if (inEditor) {
+      items.push(
+        { label: "Recortar", shortcut: "Ctrl+X", disabled: sel.empty, action: () => (g.view.focus(), document.execCommand("cut")) },
+        { label: "Copiar", shortcut: "Ctrl+C", disabled: sel.empty, action: () => (g.view.focus(), document.execCommand("copy")) },
+        {
+          label: "Colar",
+          shortcut: "Ctrl+V",
+          action: () =>
+            void navigator.clipboard
+              .readText()
+              .then((text) => g.view.dispatch(g.view.state.replaceSelection(text), { scrollIntoView: true }))
+              .catch(() => {}),
+        },
+        { label: "Selecionar tudo", shortcut: "Ctrl+A", action: () => (selectAll(g.view), g.view.focus()) },
+      );
+    } else {
+      items.push({ label: "Copiar", shortcut: "Ctrl+C", disabled: !window.getSelection()?.toString(), action: () => document.execCommand("copy") });
+    }
+    items.push("sep", exportItem(menuActions, true));
+    showMenuAt(e.clientX, e.clientY, items);
+  });
   // qualquer clique ou foco dentro do painel o torna o painel ativo
   el.addEventListener("pointerdown", () => enterGroup(g), true);
   el.addEventListener("focusin", () => enterGroup(g));
@@ -1149,7 +1179,11 @@ async function openTabMenu(tab: TabState, anchor: HTMLElement) {
   const others = (await api.listWindows()).filter((w) => w.label !== winLabel);
   const g = groups.get(tab.group)!;
   const split = (label: string, side: Side): MenuItem => ({ label, action: () => void splitGroup(g, side, tabsOf(g).length > 1 ? tab.id : undefined) });
+  const asTab = (fn: () => void) => () => void activate(tab.id).then(fn);
   const items: MenuItem[] = [
+    ...(effectiveLang(tab) === "markdown"
+      ? [exportItem({ exportHtml: asTab(menuActions.exportHtml), exportPdf: asTab(menuActions.exportPdf), copyHtml: asTab(menuActions.copyHtml) }, true), "sep" as const]
+      : []),
     split("Dividir à direita", "right"),
     split("Dividir abaixo", "bottom"),
     split("Dividir à esquerda", "left"),

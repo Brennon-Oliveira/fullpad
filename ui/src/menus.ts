@@ -59,6 +59,20 @@ export function viewItems(a: MenuActions): MenuItem[] {
   ];
 }
 
+/** Submenu "Exportar" do markdown (Arquivo, menu da aba e menu do conteúdo). */
+export function exportItem(a: Pick<MenuActions, "exportHtml" | "exportPdf" | "copyHtml">, enabled: boolean): MenuItem {
+  return {
+    label: "Exportar",
+    disabled: !enabled,
+    submenu: [
+      { label: "HTML…", action: a.exportHtml },
+      { label: "PDF…", action: a.exportPdf },
+      "sep",
+      { label: "Copiar como HTML", action: a.copyHtml },
+    ],
+  };
+}
+
 /** "Reabrir aba fechada" e a lista das últimas fechadas. */
 function reopenItems(a: MenuActions): MenuItem[] {
   const closed = a.closedTabs();
@@ -100,9 +114,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
         { label: "Fechar", shortcut: "Ctrl+W", action: a.closeTab },
         ...reopenItems(a),
         "sep",
-        { label: "Exportar como HTML…", disabled: !md(), action: a.exportHtml },
-        { label: "Exportar como PDF…", disabled: !md(), action: a.exportPdf },
-        { label: "Copiar como HTML", disabled: !md(), action: a.copyHtml },
+        exportItem(a, md()),
         "sep",
         { label: "Sair", shortcut: "Alt+F4", action: a.exit },
       ],
