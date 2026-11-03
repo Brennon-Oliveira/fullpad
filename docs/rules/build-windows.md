@@ -18,6 +18,12 @@ cargo xwin build --release --target x86_64-pc-windows-msvc -p fullpad --features
 - Os avisos `LNK4099` (pdb de `libcmt`/`libvcruntime` não encontrado) são inofensivos.
 - Pré-requisitos no WSL: `cargo-xwin`, alvo `x86_64-pc-windows-msvc` (`rustup target add`) e as ferramentas LLVM (`llvm`, `lld`, `clang`; o `tauri-winres` precisa de `llvm-rc`): `sudo apt-get install -y llvm lld clang`.
 
+## Checagem automática
+
+`scripts/check-build-windows.sh` imprime só `ok` ou `pendencia de build` (pendência = algum arquivo que entra no app, em `crates/` ou `ui/src`, é mais novo que o `fullpad.exe`, ou o `.exe` não existe; não depende do git, então pega também mudança commitada sem build). Rode-o ao concluir qualquer ajuste: se disser `pendencia de build`, faça o build acima antes de dar por encerrado.
+
+Um hook `Stop` (`.claude/settings.json`, modo `--hook` do mesmo script) faz essa checagem sozinho: com pendência, impede o agente de encerrar o turno e manda rodar o build. Ele bloqueia **uma vez** por encerramento (`stop_hook_active`), para não prender o agente num laço se o build falhar; nesse caso relate o erro, conforme as regras abaixo.
+
 ## Regras
 
 - Falhou o build: o ajuste **não** está concluído. Conserte ou relate o erro com a saída; não pule a etapa.
