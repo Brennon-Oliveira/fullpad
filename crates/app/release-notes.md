@@ -1,12 +1,11 @@
 ## Novidades
 
-- **Leitor de PDF**: abra PDFs dentro do Fullpad, só para ler. O arquivo só é lido quando você clica em "Carregar", então abrir continua instantâneo. Tem texto selecionável, links, zoom (Ctrl+roda e Ctrl+/-) e página X de Y.
-- **Leitor de EPUB**: livros com sumário ao lado, imagens e o estilo do livro adaptado ao tema claro ou escuro, com zoom do texto.
-- **Volta de onde parou**: o PDF e o EPUB reabrem na página ou no capítulo em que você estava, mesmo depois de fechar a aba ou mover o arquivo de pasta.
-- **Copiar como citação**: selecione um trecho e use Ctrl+Shift+C (ou o botão direito) para copiar em markdown com o nome do livro e a página ou o capítulo, pronto para colar numa nota.
-- **Busca no PDF e no EPUB** (Ctrl+F): ignora maiúsculas e acentos, mostra "3 de 17" e destaca o trecho.
-- **Arraste arquivos** do Explorer para a janela do Fullpad para abri-los, com um aviso na tela.
+- **Tabela para CSV e TSV**: abra arquivos `.csv` e `.tsv` como uma tabela editável. Você escolhe entre só a tabela (padrão), só o código ou os dois lado a lado. O texto do arquivo continua sendo a única fonte: editar uma célula muda só os caracteres dela.
+- **Editar na tabela**: duplo clique, F2 ou digitar. Dá para colar um bloco de células de qualquer formato (inclusive do Excel), renomear colunas, inserir, apagar e mover linhas e colunas, e ordenar o arquivo de verdade. Tudo desfaz com Ctrl+Z.
+- **Separador automático**: o app descobre se o arquivo usa vírgula, ponto e vírgula, tab ou barra vertical, e você pode escolher na mão (a escolha nunca é trocada depois). O separador decimal é o ponto, ou a vírgula se você preferir.
+- **Ordenar, filtrar e somar**: clique no cabeçalho para ordenar, filtre pela caixa acima da tabela e veja soma, média, mínimo, máximo e contagem no rodapé. Colunas coloridas também no modo código.
+- **Números de linha no código**: uma margem à parte mostra o número de cada linha em qualquer tipo de arquivo. Visualizar > "Números de linha" liga e desliga.
 
 ## Melhorias
 
-- PDFs e EPUBs são abertos com proteção: scripts nunca rodam, e arquivos feitos para travar o programa (bombas de compressão) são recusados com um aviso. O arquivo original nunca é alterado.
+- A tabela lê o arquivo por faixas e abre arquivos de dezenas de MB; acima de 50 milhões de caracteres uma faixa avisa que só o código está disponível.
