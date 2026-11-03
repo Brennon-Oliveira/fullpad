@@ -3,6 +3,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
+import { fullpadSearch } from "./searchpanel";
 import { Compartment, EditorState, type Extension, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, drawSelection, keymap, lineNumbers, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
@@ -248,6 +249,7 @@ export function createState(
       linkExtension,
       syntaxHighlighting(highlight),
       syntaxHighlighting(markdownSource),
+      fullpadSearch,
       keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
       EditorView.updateListener.of(onUpdate),
     ],

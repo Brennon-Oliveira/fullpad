@@ -1,7 +1,9 @@
-import { gotoLine, openSearchPanel } from "@codemirror/search";
+import { gotoLine } from "@codemirror/search";
+import { mountGlobalSearch } from "./globalsearch";
+import { openSearch } from "./searchpanel";
 import { redo, selectAll, undo } from "@codemirror/commands";
 import type { EditorState, Extension } from "@codemirror/state";
-import type { EditorView, ViewUpdate } from "@codemirror/view";
+import { EditorView as CMEditorView, type EditorView, type ViewUpdate } from "@codemirror/view";
 import { ask, message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { type UnlistenFn, emit, emitTo, listen as listenAll } from "@tauri-apps/api/event";
 import { listenHere as listen } from "./events";
@@ -1194,6 +1196,79 @@ async function saveAll() {
   for (const t of withUnsavedChanges(session.tabs)) if (!(await save(t))) return;
 }
 
+// ---- busca global (todas as abas desta janela) ----------------------------------------
+
+const textTabIds = () => session.tabs.filter((t) => !isReader(t)).map((t) => t.id);
+
+/** Ativa a aba e seleciona o resultado nela. */
+async function gotoMatch(id: string, m: { start: number; end: number }) {
+  await activate(id);
+  const tab = session.tabs.find((t) => t.id === id);
+  const g = tab && groups.get(tab.group);
+  if (!g || g.active !== id) return;
+  const len = g.view.state.doc.length;
+  if (m.end > len) return; // o texto mudou depois da busca
+  g.view.dispatch({ selection: { anchor: m.start, head: m.end }, effects: CMEditorView.scrollIntoView(m.start, { y: "center" }) });
+  g.view.focus();
+}
+
+/** Aplica as trocas da busca global: uma transação por aba (um passo no Ctrl+Z de cada). */
+async function applyGlobalReplace(all: import("./api").TabHits[]): Promise<number> {
+  let done = 0;
+  let skipped = 0;
+  for (const h of all) {
+    const tab = session.tabs.find((t) => t.id === h.id);
+    if (!tab || isReader(tab)) continue;
+    if (h.hits.total > h.hits.matches.length) {
+      skipped++; // mais resultados do que o Rust devolve: trocar só uma parte enganaria
+      continue;
+    }
+    const changes = h.hits.matches.map((m) => ({ from: m.start, to: m.end, insert: m.replacement ?? "" }));
+    const showing = groupShowing(h.id);
+    const doc = showing ? showing.view.state.doc : (await loadState(tab)).doc;
+    if (changes.some((c) => c.to > doc.length)) {
+      skipped++;
+      continue;
+    }
+    if (showing) {
+      showing.view.dispatch({ changes, userEvent: "input.replace" });
+      if (showing !== cur) markModified(tab);
+    } else {
+      states.set(h.id, (await loadState(tab)).update({ changes, userEvent: "input.replace" }).state);
+      markModified(tab);
+    }
+    if (!tab.path) tab.title = titleOf(states.get(h.id)?.doc.toString() ?? showing!.view.state.doc.toString());
+    done += changes.length;
+  }
+  renderTabs();
+  if (skipped > 0) {
+    await message(`${skipped} ${skipped === 1 ? "arquivo ficou" : "arquivos ficaram"} sem trocar: tem mais de 2000 resultados ou mudou desde a busca. Refine a busca e tente de novo.`, { title: "Fullpad", kind: "warning" });
+  }
+  return done;
+}
+
+const gsEl = document.getElementById("gsearch")!;
+const globalSearch = mountGlobalSearch(gsEl, {
+  titleOf: (id) => session.tabs.find((t) => t.id === id)?.title || "Nova nota",
+  tabIds: textTabIds,
+  search: async (query, options, replace) => {
+    await flush(); // a busca lê do disco: o que está só na memória precisa ir antes
+    return api.searchTabs(textTabIds(), query, options, replace);
+  },
+  open: (id, m) => void gotoMatch(id, m),
+  applyReplace: applyGlobalReplace,
+  confirm: async (text) => (await message(text, { title: "Substituir em todas as abas", kind: "warning", buttons: { ok: "Substituir", cancel: "Cancelar" } })) === "Substituir",
+  close: () => {
+    globalSearch.hide();
+    cur.view.focus();
+  },
+});
+
+function openGlobalSearch() {
+  const sel = session.active && !isReader(activeTab()) ? cur.view.state.sliceDoc(cur.view.state.selection.main.from, cur.view.state.selection.main.to) : "";
+  globalSearch.show(sel && !sel.includes("\n") && sel.length <= 200 ? sel : undefined);
+}
+
 function cycle(delta: number) {
   const mine = tabsOf(cur);
   if (mine.length < 2) return;
@@ -2212,6 +2287,7 @@ const menuActions = {
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
   saveAll: () => void saveAll(),
+  globalSearch: openGlobalSearch,
   setCodeLang,
   closeTab: () => void closeTab(session.active!),
   reopenTab: () => void reopenTab(),
@@ -2225,8 +2301,8 @@ const menuActions = {
   undo: () => (undo(cur.view), cur.view.focus()),
   redo: () => (redo(cur.view), cur.view.focus()),
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
-  find: () => void (readerZoom((r) => r.find()) || openSearchPanel(cur.view)),
-  replace: () => openSearchPanel(cur.view),
+  find: () => void (readerZoom((r) => r.find()) || openSearch(cur.view)),
+  replace: () => openSearch(cur.view, true),
   gotoLine: () => gotoLine(cur.view),
   togglePreview,
   toggleSplit,
@@ -2286,6 +2362,10 @@ window.addEventListener(
     if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyF") {
       e.preventDefault();
       return void menuActions.formatJson();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.code === "KeyF") {
+      e.preventDefault();
+      return openGlobalSearch();
     }
     if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.code === "KeyS") {
       e.preventDefault();

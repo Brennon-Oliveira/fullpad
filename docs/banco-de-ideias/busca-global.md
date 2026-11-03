@@ -1,7 +1,7 @@
 ---
 titulo: Busca em todas as abas + refação visual completa da busca
-feita: não
-versao: —
+feita: sim
+versao: próxima (a definir ao gerar a versão)
 ---
 
 # Busca em todas as abas (Ctrl+Shift+F)
@@ -31,3 +31,7 @@ Motivação: a busca atual (localizar/substituir) está **muito feia**. Redesenh
 
 - Painel lateral fixo ou janelinha flutuante (como `history.ts`)?
 - Busca global em arquivos em disco (pasta) fica fora; só abas do Fullpad.
+
+## Entregue
+
+Painel lateral fixo (`globalsearch.ts`), busca no Rust (`search.rs`) e a barra de localizar/substituir refeita (`searchpanel.ts`). Ficaram de fora, por ora: todas as janelas, o histórico de fechadas e a busca na tabela do CSV e na árvore do JSON.

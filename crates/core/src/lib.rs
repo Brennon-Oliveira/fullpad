@@ -9,6 +9,7 @@ pub mod fileio;
 pub mod json;
 pub mod model;
 pub mod reader;
+pub mod search;
 pub mod store;
 pub mod windows;
 

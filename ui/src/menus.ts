@@ -13,6 +13,7 @@ export interface MenuActions {
   save(): void;
   saveAs(): void;
   saveAll(): void;
+  globalSearch(): void;
   /** `undefined` volta ao automático (extensão); `NO_CODE_LANG` desliga o destaque. */
   setCodeLang(v: string | undefined): void;
   closeTab(): void;
@@ -313,6 +314,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
         "sep",
         { label: "Localizar…", shortcut: "Ctrl+F", action: a.find },
         { label: "Substituir…", action: a.replace },
+        { label: "Buscar em todas as abas…", shortcut: "Ctrl+Shift+F", action: a.globalSearch },
         { label: "Ir para linha…", shortcut: "Ctrl+Alt+G", action: a.gotoLine },
       ],
     },

@@ -101,6 +101,29 @@ export interface CsvFilter {
   text: string;
 }
 
+export interface SearchOptions {
+  case_sensitive: boolean;
+  whole_word: boolean;
+  regex: boolean;
+}
+
+export interface SearchMatch {
+  /** Intervalo no texto (UTF-16, como o CodeMirror). */
+  start: number;
+  end: number;
+  line: number;
+  col: number;
+  preview: string;
+  preview_start: number;
+  preview_end: number;
+  replacement: string | null;
+}
+
+export interface TabHits {
+  id: string;
+  hits: { matches: SearchMatch[]; total: number };
+}
+
 export interface TabState {
   id: string;
   title: string;
@@ -228,6 +251,9 @@ export const api = {
   openFile: (path: string) => invoke<{ tab: TabState; text: string }>("open_file", { path }),
   /** Analisa o JSON (nós com posições UTF-16, dicas de valor). Em erro, `doc` é nulo. */
   jsonAnalyze: (text: string, lenient = true) => invoke<Analysis>("json_analyze", { text, lenient }),
+  /** Busca global: resultados nas abas pedidas (só as que têm). Rejeita com a mensagem se a expressão for inválida. */
+  searchTabs: (ids: string[], query: string, options: SearchOptions, replace: string | null) =>
+    invoke<TabHits[]>("search_tabs", { ids, query, options, replace }),
   /** Só valida: o erro (com posição) ou `null`. */
   jsonCheck: (text: string) => invoke<JsonError | null>("json_check", { text }),
   /** Formata (`indent`: "2", "4", "tab" ou "min"). Rejeita com o `JsonError` se o texto for inválido. */

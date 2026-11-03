@@ -1058,6 +1058,43 @@ fn csv_cell(state: State<AppState>, tab: String, row: usize, col: usize) -> Resu
     Ok(csv_entry(&state, &tab)?.csv.cell(row, col))
 }
 
+/// Resultado da busca global numa aba.
+#[derive(serde::Serialize)]
+struct TabHits {
+    id: String,
+    hits: fullpad_core::search::Hits,
+}
+
+/// Busca global: procura `query` no texto das abas pedidas (lidas de `notes/`; a UI grava as
+/// pendências antes). `Err` leva a mensagem de expressão inválida. `replace` pede, junto, o texto
+/// que entraria no lugar de cada resultado. Abas sem resultado não voltam.
+#[tauri::command]
+async fn search_tabs(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    query: String,
+    options: fullpad_core::search::Options,
+    replace: Option<String>,
+) -> Result<Vec<TabHits>, String> {
+    let ids = ids.iter().map(|i| parse_id(i)).collect::<Result<Vec<_>, _>>()?;
+    // valida a consulta uma vez, antes de ler qualquer nota
+    fullpad_core::search::compile(&query, &options)?;
+    let store = state.store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut out = Vec::new();
+        for id in ids {
+            let Ok(text) = store.read_note(id) else { continue };
+            let hits = fullpad_core::search::find(&text, &query, &options, replace.as_deref())?;
+            if hits.total > 0 {
+                out.push(TabHits { id: id.to_string(), hits });
+            }
+        }
+        Ok::<_, String>(out)
+    })
+    .await
+    .map_err(err)?
+}
+
 /// Só valida (para sublinhar o erro com qualquer visão aberta): não monta nada para a UI.
 #[tauri::command]
 async fn json_check(text: String) -> Result<Option<JsonError>, String> {
@@ -1178,6 +1215,7 @@ fn main() {
             startup_release_notes,
             json_analyze,
             json_check,
+            search_tabs,
             csv_detect,
             csv_load,
             csv_view,
