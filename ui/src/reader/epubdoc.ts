@@ -27,12 +27,16 @@ export const BASE_FONT_PX = 18;
  * ilegível); no claro o livro mantém as dele.
  */
 export function appCss(t: Theme): string {
+  // `body *`, não `*`: o html e o body precisam manter o fundo e a cor do tema (com `*` o fundo ficava
+  // transparente e a página branca); os de dentro herdam deles. Links ficam de fora (têm a cor de destaque).
   const dark = t.dark
-    ? `*:not(a):not(a *){color:inherit !important;background-color:transparent !important;border-color:${t.border} !important}`
+    ? `body *:not(a){color:inherit !important;background-color:transparent !important;border-color:${t.border} !important}`
     : "";
   return `html{background:${t.bg};color:${t.fg}}
 body{margin:0 auto;padding:28px 28px 40px;max-width:46em;font:${(BASE_FONT_PX * t.scale).toFixed(2)}px/1.65 Georgia,"Noto Serif","Times New Roman",serif;background:${t.bg};color:${t.fg};overflow-wrap:break-word}
 a{color:${t.accent}}
+a:not([href]){color:inherit;text-decoration:none}
+img:not([src]){display:none}
 img,svg,video{max-width:100%;height:auto}
 table{max-width:100%}
 pre{white-space:pre-wrap}

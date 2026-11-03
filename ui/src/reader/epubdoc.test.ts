@@ -25,9 +25,22 @@ describe("documento do capítulo", () => {
   });
 
   it("no tema escuro troca as cores do livro; no claro mantém", () => {
-    expect(appCss(dark)).toContain("color:inherit !important");
+    expect(appCss(dark)).toContain("body *:not(a){color:inherit !important");
     expect(appCss(dark)).toContain("background-color:transparent !important");
     expect(appCss(light)).not.toContain("inherit !important");
+  });
+
+  it("o fundo e a cor do tema ficam no html e no body: a regra de trocar as cores não os atinge", () => {
+    const css = appCss(dark);
+    expect(css).toContain("html{background:#1e1f22;color:#dcddde}");
+    expect(css).toMatch(/body\{[^}]*background:#1e1f22;color:#dcddde/);
+    // nenhuma regra com !important mira `*`, `html` ou `body` sozinhos (senão apagaria o fundo)
+    for (const rule of css.split("\n").filter((l) => l.includes("!important"))) expect(rule, rule).toMatch(/^(body \*:not\(a\)|\.fp-nav a)\{/);
+  });
+
+  it("imagem bloqueada some e link sem destino não parece link", () => {
+    expect(appCss(light)).toContain("img:not([src]){display:none}");
+    expect(appCss(light)).toContain("a:not([href]){color:inherit");
   });
 
   it("a mensagem de erro é escapada", () => {

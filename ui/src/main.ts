@@ -542,7 +542,7 @@ const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Ma
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
-  return tab.language === "auto" ? `${l} (automático)` : l;
+  return tab.language === "auto" && !isReader(tab) ? `${l} (automático)` : l; // aba de leitura não tem linguagem a detectar
 }
 
 function computeSize(): number {
