@@ -305,8 +305,10 @@ mod tests {
         e.finish().unwrap()
     }
 
+    /// `n` bytes de zeros no nível padrão (razão acima de 1000:1, como numa bomba de verdade; o
+    /// nível rápido do zlib-rs deixa a razão perto do limite e não representa o ataque).
     fn zeros(n: usize) -> Vec<u8> {
-        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
+        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
         let block = vec![0u8; 1 << 20];
         for _ in 0..n / block.len() {
             e.write_all(&block).unwrap();

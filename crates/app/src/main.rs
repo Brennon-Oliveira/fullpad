@@ -44,6 +44,8 @@ struct AppState {
     session_lock: Mutex<()>,
     /// Serializa ler-alterar-gravar de `reader-positions.json` (várias janelas lembram posições).
     positions_lock: Mutex<()>,
+    /// EPUBs abertos (só metadados e sumário), por aba: `epub_chapter` lê os capítulos sob demanda.
+    epubs: Mutex<std::collections::HashMap<Uuid, fullpad_core::epub::Epub>>,
     /// Abas fechadas nesta execução: uma gravação atrasada de uma janela não pode ressuscitá-las.
     closed: Mutex<HashSet<Uuid>>,
     /// Arquivos pedidos na linha de comando (duplo clique, "Abrir com") que a janela principal
@@ -262,6 +264,7 @@ fn new_note(state: State<AppState>) -> Result<TabState, String> {
 fn close_note(state: State<AppState>, id: String) -> Result<(), String> {
     let id = parse_id(&id)?;
     state.closed.lock().unwrap().insert(id);
+    state.epubs.lock().unwrap().remove(&id);
     let _g = state.session_lock.lock().unwrap();
     let mut session = state.store.load_session().map_err(err)?;
     match session.tabs.iter().find(|t| t.id == id) {
@@ -669,17 +672,49 @@ async fn reader_info(state: State<'_, AppState>, id: String) -> Result<FileStatu
 }
 
 /// Verifica o PDF antes de entregá-lo ao pdf.js: bomba de compressão (um trecho minúsculo que
-/// expande para gigabytes). Roda no Rust, fora da UI, e só lê o arquivo, sem guardá-lo.
+/// expande para gigabytes). Roda no Rust, fora da UI, e só lê o arquivo, sem guardá-lo. O EPUB não
+/// precisa: o leitor dele (`Epub`) já limita cada leitura e recusa o que passa do teto.
 #[tauri::command]
 async fn reader_check(state: State<'_, AppState>, id: String) -> Result<PdfScan, String> {
     let id = parse_id(&id)?;
     let store = state.store.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let (_, path) = store.reader_file(id).map_err(err)?;
-        fullpad_core::reader::scan_pdf(&path).map_err(err)
+        let (kind, path) = store.reader_file(id).map_err(err)?;
+        match kind {
+            TabKind::Pdf => fullpad_core::reader::scan_pdf(&path).map_err(err),
+            _ => Ok(PdfScan::Ok),
+        }
     })
     .await
     .map_err(err)?
+}
+
+/// Abre o EPUB da aba: metadados, ordem de leitura e sumário (não lê os capítulos). O livro
+/// aberto fica em memória (só isso, nunca o conteúdo) para os capítulos pedidos em seguida.
+#[tauri::command]
+async fn epub_open(state: State<'_, AppState>, id: String) -> Result<fullpad_core::epub::EpubInfo, String> {
+    let uuid = parse_id(&id)?;
+    let store = state.store.clone();
+    let book = tauri::async_runtime::spawn_blocking(move || {
+        let (kind, path) = store.reader_file(uuid).map_err(err)?;
+        if kind != TabKind::Epub {
+            return Err("a aba não é um EPUB".to_string());
+        }
+        fullpad_core::epub::Epub::open(&path).map_err(err)
+    })
+    .await
+    .map_err(err)??;
+    let info = book.info().clone();
+    state.epubs.lock().unwrap().insert(uuid, book);
+    Ok(info)
+}
+
+/// Um capítulo do EPUB já aberto, com o HTML limpo (sem scripts, só imagens do próprio livro) e o CSS filtrado.
+#[tauri::command]
+async fn epub_chapter(state: State<'_, AppState>, id: String, index: usize) -> Result<fullpad_core::epub::Chapter, String> {
+    let uuid = parse_id(&id)?;
+    let book = state.epubs.lock().unwrap().get(&uuid).cloned().ok_or("o EPUB não está aberto")?;
+    tauri::async_runtime::spawn_blocking(move || book.chapter(index).map_err(err)).await.map_err(err)?
 }
 
 #[derive(Serialize)]
@@ -839,7 +874,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
-        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()),
+        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), epubs: Mutex::new(Default::default()), closed: Mutex::new(HashSet::new()),
         open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()),
         update: Mutex::new(None), update_bytes: Mutex::new(None), just_updated: Mutex::new(false) })
         .setup(|app| {
@@ -871,6 +906,8 @@ fn main() {
             open_reader,
             reader_info,
             reader_check,
+            epub_open,
+            epub_chapter,
             reader_memo,
             reader_remember,
             reader_read,

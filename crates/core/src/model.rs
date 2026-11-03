@@ -53,11 +53,11 @@ pub enum TabKind {
 
 impl TabKind {
     /// Tipo de leitor para o arquivo, pela extensão (`None`: abre como texto, como sempre).
-    /// O EPUB entra aqui quando o leitor dele existir.
     pub fn for_path(path: &Path) -> Option<Self> {
         let ext = path.extension()?.to_string_lossy().to_ascii_lowercase();
         match ext.as_str() {
             "pdf" => Some(Self::Pdf),
+            "epub" => Some(Self::Epub),
             _ => None,
         }
     }

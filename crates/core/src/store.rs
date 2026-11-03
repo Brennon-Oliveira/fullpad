@@ -695,6 +695,7 @@ mod tests {
     #[test]
     fn for_path_maps_extensions() {
         assert_eq!(TabKind::for_path(Path::new("a/B.PDF")), Some(TabKind::Pdf));
+        assert_eq!(TabKind::for_path(Path::new("livros/Romance.EPUB")), Some(TabKind::Epub));
         assert_eq!(TabKind::for_path(Path::new("a/nota.md")), None);
         assert_eq!(TabKind::for_path(Path::new("pdf")), None);
     }
