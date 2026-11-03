@@ -151,6 +151,14 @@ pub struct TabState {
     /// só a UI a entende e valida (`ui/src/csv/settings.ts`); sem ela vale o automático.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub csv: Option<serde_json::Value>,
+    /// Aba fixada: mostra um alfinete no lugar do ×, fica à esquerda e não fecha por "Fechar todas",
+    /// "Fechar outras" nem "Fechar salvos". Sessões antigas não têm o campo.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
+    /// Linguagem de programação escolhida à mão para o destaque de sintaxe (`ts`, `rust`…). Vazia:
+    /// vale a detectada pela extensão. Só colore o texto; não muda o tipo de arquivo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_lang: Option<String>,
 }
 
 fn is_text(kind: &TabKind) -> bool {
@@ -177,6 +185,8 @@ impl TabState {
             kind: TabKind::Text,
             reader: None,
             csv: None,
+            pinned: false,
+            code_lang: None,
         }
     }
 }

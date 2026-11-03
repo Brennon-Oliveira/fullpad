@@ -20,6 +20,7 @@ import type { ReaderPanel } from "./reader/panel";
 import type { ReaderPos } from "./reader/pos";
 import { type CsvSettings, activeDelimiter, readCsvSettings } from "./csv/settings";
 import { type Lang, detectLanguage, extOf } from "./language";
+import { pinnedFirst, toCloseAll, toCloseOthers, toCloseSaved, withUnsavedChanges } from "./tabsets";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
@@ -876,6 +877,10 @@ function updateTitle() {
   if (session.active) void thisWindow.setTitle(`${tabLabel(activeTab())} — Fullpad`);
 }
 
+/** Alfinete (agulha) mostrado no lugar do × nas abas fixadas. */
+const PIN_ICON =
+  '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M9.5 1.5 14.5 6.5l-1.4.4-2.4 2.4.3 3.1-1 1-2.6-2.6L3.6 13.3 2.7 13.3l0-.9 3.2-3.2L3.3 6.6l1-1 3.1.3 2.4-2.4z"/></svg>';
+
 function renderTabs() {
   clearGhost();
   for (const g of groups.values()) renderStrip(g);
@@ -886,7 +891,7 @@ function renderStrip(g: Group) {
   g.tabsEl.replaceChildren(
     ...tabsOf(g).map((t) => {
       const el = document.createElement("div");
-      el.className = "tab" + (t.id === g.active ? " active" : "");
+      el.className = "tab" + (t.id === g.active ? " active" : "") + (t.pinned ? " pinned" : "");
       el.role = "tab";
       el.dataset.id = t.id;
       el.title = t.path ?? (t.title || "Nova nota");
@@ -894,15 +899,29 @@ function renderStrip(g: Group) {
       label.className = "label";
       label.textContent = tabLabel(t);
       const close = document.createElement("button");
-      close.className = "close";
-      close.textContent = "×";
-      close.title = "Fechar (Ctrl+W)";
+      if (t.pinned) {
+        close.className = "close pin";
+        close.innerHTML = PIN_ICON;
+        close.title = "Desafixar";
+      } else {
+        close.className = "close";
+        close.textContent = "×";
+        close.title = "Fechar (Ctrl+W)";
+      }
       close.addEventListener("click", (e) => {
         e.stopPropagation();
-        void closeTab(t.id);
+        if (t.pinned) setPinned(t.id, false);
+        else void closeTab(t.id);
       });
       el.addEventListener("click", () => void activate(t.id));
-      el.addEventListener("auxclick", (e) => e.button === 1 && void closeTab(t.id));
+      // botão do meio fecha. O mousedown é cancelado para o WebView não ligar a rolagem automática
+      el.addEventListener("mousedown", (e) => e.button === 1 && e.preventDefault());
+      el.addEventListener("mouseup", (e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        void closeTab(t.id);
+      });
+      el.addEventListener("auxclick", (e) => e.button === 1 && e.preventDefault());
       el.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         void openTabMenu(t, el);
@@ -920,6 +939,19 @@ function renderStrip(g: Group) {
     void newTab();
   });
   g.tabsEl.append(add);
+  if (!g.tabsEl.dataset.wheel) {
+    g.tabsEl.dataset.wheel = "1";
+    // a roda comum rola a barra na horizontal (Ctrl+roda continua sendo o zoom)
+    g.tabsEl.addEventListener(
+      "wheel",
+      (e) => {
+        if (e.ctrlKey || e.deltaY === 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+        e.preventDefault();
+        g.tabsEl.scrollLeft += e.deltaY;
+      },
+      { passive: false },
+    );
+  }
   g.tabsEl.querySelector(".active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
@@ -1058,13 +1090,13 @@ async function showHistory() {
   openHistory(await api.listClosed(300), (id) => void reopenTab(id));
 }
 
-async function closeTab(id: string) {
+async function closeTab(id: string, ask = true) {
   const tab = session.tabs.find((t) => t.id === id);
-  if (!tab) return;
-  if (groups.get(tab.group) !== cur) enterGroup(groups.get(tab.group)!);
+  if (!tab || (ask && tab.pinned)) return; // fixada: só fecha depois de desafixar
+  if (ask && groups.get(tab.group) !== cur) enterGroup(groups.get(tab.group)!);
   if (id === session.active) snapshotActive();
 
-  if (tab.dirty && tab.path) {
+  if (ask && tab.dirty && tab.path) {
     const r = await message(`Salvar as alterações em "${tab.title}"?`, {
       title: "Fullpad",
       kind: "warning",
@@ -1083,6 +1115,45 @@ async function closeTab(id: string) {
   await enqueue(() => api.closeNote(id));
   void refreshClosed();
   await dropLocalTab(id);
+}
+
+/** Fixa/desafixa a aba; as fixadas ficam juntas à esquerda do painel dela. */
+function setPinned(id: string, pinned: boolean) {
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab || !!tab.pinned === pinned) return;
+  tab.pinned = pinned || undefined;
+  const mine = tabsOf(groups.get(tab.group)!);
+  const ordered = pinnedFirst(mine);
+  const slots = session.tabs.map((t, i) => (t.group === tab.group ? i : -1)).filter((i) => i >= 0);
+  ordered.forEach((t, k) => (session.tabs[slots[k]] = t));
+  sessionDirty = true;
+  scheduleSave();
+  renderTabs();
+}
+
+/**
+ * Fecha várias abas desta janela de uma vez. Se alguma tem alterações num arquivo, pergunta uma só
+ * vez; "Cancelar" (ou uma falha ao salvar) não fecha nenhuma.
+ */
+async function closeMany(targets: TabState[]) {
+  if (targets.length === 0) return;
+  snapshotActive();
+  const dirty = withUnsavedChanges(targets);
+  if (dirty.length > 0) {
+    const r = await message(
+      dirty.length === 1 ? `Salvar as alterações em "${dirty[0].title}"?` : `Salvar as alterações em ${dirty.length} arquivos?`,
+      { title: "Fullpad", kind: "warning", buttons: { yes: "Salvar", no: "Não salvar", cancel: "Cancelar" } },
+    );
+    if (r === "Cancelar") return;
+    if (r === "Salvar") for (const t of dirty) if (!(await save(t))) return;
+  }
+  for (const t of targets) await closeTab(t.id, false);
+}
+
+/** Grava todas as abas desta janela que têm alterações em arquivo. */
+async function saveAll() {
+  snapshotActive();
+  for (const t of withUnsavedChanges(session.tabs)) if (!(await save(t))) return;
 }
 
 function cycle(delta: number) {
@@ -1642,7 +1713,17 @@ async function openTabMenu(tab: TabState, anchor: HTMLElement) {
     ...others.map((w): MenuItem => ({ label: `Mover para: ${w.name}`, action: () => void sendTab(tab.id, w.label) })),
   ];
   if (!isMain) items.push({ label: "Voltar para a janela principal", action: () => void sendTab(tab.id, "main") });
-  items.push("sep", { label: "Fechar", shortcut: "Ctrl+W", action: () => void closeTab(tab.id) });
+  items.push(
+    "sep",
+    { label: tab.pinned ? "Desafixar" : "Fixar", action: () => setPinned(tab.id, !tab.pinned) },
+    "sep",
+    { label: "Fechar", shortcut: "Ctrl+W", action: () => void closeTab(tab.id) },
+    { label: "Fechar outras", action: () => void closeMany(toCloseOthers(session.tabs, tab.id)) },
+    { label: "Fechar todas", action: () => void closeMany(toCloseAll(session.tabs)) },
+    { label: "Fechar salvos", action: () => void closeMany(toCloseSaved(session.tabs)) },
+    "sep",
+    { label: "Salvar todos", action: () => void saveAll() },
+  );
   showMenu(anchor, items, "below");
 }
 
@@ -2092,6 +2173,7 @@ const menuActions = {
   readerQuote: () => void cur.reader?.quote(),
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
+  saveAll: () => void saveAll(),
   closeTab: () => void closeTab(session.active!),
   reopenTab: () => void reopenTab(),
   history: () => void showHistory(),
@@ -2164,6 +2246,10 @@ window.addEventListener(
     if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyF") {
       e.preventDefault();
       return void menuActions.formatJson();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.code === "KeyS") {
+      e.preventDefault();
+      return menuActions.saveAll();
     }
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     const key = e.key.toLowerCase();

@@ -130,6 +130,10 @@ export interface TabState {
   reader?: unknown;
   /** Escolhas da visão de CSV (`CsvSettings`, validadas em `csv/settings.ts`); o Rust as guarda sem interpretar. */
   csv?: unknown;
+  /** Aba fixada: alfinete no lugar do ×, à esquerda, imune a "Fechar todas/outras/salvos". */
+  pinned?: boolean;
+  /** Linguagem de código escolhida à mão (só destaque de sintaxe); ausente = a da extensão. */
+  code_lang?: string;
 }
 
 export interface Session {

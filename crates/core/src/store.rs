@@ -494,6 +494,26 @@ mod tests {
     }
 
     #[test]
+    fn pinned_and_code_lang_survive_roundtrip_and_old_sessions_lack_them() {
+        let (_d, s) = store();
+        let mut tab = s.create_note().unwrap();
+        let json = serde_json::to_string(&tab).unwrap();
+        assert!(!json.contains("pinned") && !json.contains("code_lang"), "{json}");
+        tab.pinned = true;
+        tab.code_lang = Some("rust".into());
+        let mut session = Session::empty();
+        session.active = Some(tab.id);
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        let loaded = s.load_session().unwrap();
+        assert!(loaded.tabs[0].pinned);
+        assert_eq!(loaded.tabs[0].code_lang.as_deref(), Some("rust"));
+        let old = r#"{"id":"00000000-0000-0000-0000-000000000001","title":"x"}"#;
+        let t: crate::TabState = serde_json::from_str(old).unwrap();
+        assert!(!t.pinned && t.code_lang.is_none());
+    }
+
+    #[test]
     fn tab_without_csv_settings_does_not_write_the_field() {
         let (_d, s) = store();
         let tab = s.create_note().unwrap();

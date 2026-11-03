@@ -11,6 +11,7 @@ export interface MenuActions {
   openFile(): void;
   save(): void;
   saveAs(): void;
+  saveAll(): void;
   closeTab(): void;
   reopenTab(): void;
   history(): void;
@@ -273,6 +274,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
         "sep",
         { label: "Salvar", shortcut: "Ctrl+S", action: a.save },
         { label: "Salvar como…", shortcut: "Ctrl+Shift+S", action: a.saveAs },
+        { label: "Salvar todos", shortcut: "Ctrl+Alt+S", action: a.saveAll },
         "sep",
         { label: "Fechar", shortcut: "Ctrl+W", action: a.closeTab },
         ...reopenItems(a),

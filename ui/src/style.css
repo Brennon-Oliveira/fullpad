@@ -87,6 +87,8 @@ button { font: inherit; color: inherit; }
 }
 .tab .close:hover, .new-tab:hover { background: var(--border); opacity: 1; }
 .new-tab { align-self: center; margin: 0 4px; }
+.tab .close.pin { opacity: .9; color: var(--accent); display: inline-flex; align-items: center; }
+.tab.pinned { background: var(--tab); }
 
 /* ---- barra de status ---- */
 #status {
