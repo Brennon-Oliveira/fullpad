@@ -479,6 +479,32 @@ mod tests {
     }
 
     #[test]
+    fn csv_language_and_settings_survive_session_roundtrip() {
+        let (_d, s) = store();
+        let mut tab = s.create_note().unwrap();
+        tab.language = crate::Language::Csv;
+        tab.csv = Some(serde_json::json!({ "delimiter": ";", "header": false, "decimal": "," }));
+        let mut session = Session::empty();
+        session.active = Some(tab.id);
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        let loaded = s.load_session().unwrap();
+        assert_eq!(loaded.tabs[0].language, crate::Language::Csv);
+        assert_eq!(loaded.tabs[0].csv, tab.csv, "a escolha manual do separador sobrevive a reiniciar");
+    }
+
+    #[test]
+    fn tab_without_csv_settings_does_not_write_the_field() {
+        let (_d, s) = store();
+        let tab = s.create_note().unwrap();
+        let json = serde_json::to_string(&tab).unwrap();
+        assert!(!json.contains("csv"), "{json}");
+        let old = r#"{"id":"00000000-0000-0000-0000-000000000001","title":"x","language":"csv"}"#;
+        let t: crate::TabState = serde_json::from_str(old).unwrap();
+        assert_eq!((t.language, t.csv), (crate::Language::Csv, None));
+    }
+
+    #[test]
     fn unknown_language_or_mode_does_not_invalidate_the_session() {
         let (d, s) = store();
         let t = s.create_note().unwrap();

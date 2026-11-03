@@ -2,6 +2,7 @@
 
 pub mod atomic;
 pub mod css;
+pub mod csv;
 pub mod epub;
 pub mod error;
 pub mod fileio;

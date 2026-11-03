@@ -17,7 +17,7 @@ pub enum ViewMode {
 }
 
 /// Linguagem escolhida para a aba. `Auto` detecta pelo conteúdo/extensão;
-/// `Plain`, `Markdown`, `Dbml` e `Json` são escolhas manuais que nunca mudam sozinhas.
+/// `Plain`, `Markdown`, `Dbml`, `Json` e `Csv` são escolhas manuais que nunca mudam sozinhas.
 ///
 /// Uma linguagem que esta versão não conhece (gravada por uma versão mais nova) vira `Auto`:
 /// sem isso o `session.json` inteiro falharia ao ler e iria para `session.json.corrupt`,
@@ -29,6 +29,7 @@ pub enum Language {
     Markdown,
     Dbml,
     Json,
+    Csv,
     #[default]
     #[serde(other)]
     Auto,
@@ -146,6 +147,10 @@ pub struct TabState {
     /// Posição de leitura (página, rolagem, zoom). Opaca para o core: só o leitor a entende.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reader: Option<serde_json::Value>,
+    /// Escolhas do usuário para a visão de CSV (separador, cabeçalho, decimal). Opaca para o core:
+    /// só a UI a entende e valida (`ui/src/csv/settings.ts`); sem ela vale o automático.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub csv: Option<serde_json::Value>,
 }
 
 fn is_text(kind: &TabKind) -> bool {
@@ -171,6 +176,7 @@ impl TabState {
             release_notes: false,
             kind: TabKind::Text,
             reader: None,
+            csv: None,
         }
     }
 }

@@ -20,4 +20,4 @@ Ao implementar uma ideia, troque `feita` para `sim`, preencha `versao` e atualiz
 | [Paleta de comandos](paleta-de-comandos.md) | não | — |
 | [Sumário lateral](sumario-lateral.md) | não | — |
 | [YAML e TOML](yaml-toml.md) | não | — |
-| [Visão de CSV](csv.md) | não | — |
+| [Visão de CSV](csv.md) | sim | próxima (a definir) |

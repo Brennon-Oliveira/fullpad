@@ -1,12 +1,13 @@
 /** `pdf` e `epub`: aba de leitura (sem texto). Só `effectiveLang` o devolve; `detectLanguage` nunca. */
-export type Lang = "plain" | "markdown" | "dbml" | "json" | "pdf" | "epub";
+export type Lang = "plain" | "markdown" | "dbml" | "json" | "csv" | "pdf" | "epub";
 
 const MD_EXT = new Set(["md", "markdown", "mdown", "mkd", "mdx"]);
 const DBML_EXT = new Set(["dbml", "dbmlx"]);
 const JSON_EXT = new Set(["json", "jsonc", "geojson", "webmanifest"]);
-const PLAIN_EXT = new Set(["txt", "text", "log", "ini", "cfg", "conf", "csv"]);
+const CSV_EXT = new Set(["csv", "tsv"]);
+const PLAIN_EXT = new Set(["txt", "text", "log", "ini", "cfg", "conf"]);
 
-function extOf(path: string): string {
+export function extOf(path: string): string {
   const name = path.split(/[\\/]/).pop() ?? "";
   const dot = name.lastIndexOf(".");
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
@@ -45,6 +46,7 @@ export function detectLanguage(text: string, path: string | null): Lang {
     if (MD_EXT.has(ext)) return "markdown";
     if (DBML_EXT.has(ext)) return "dbml";
     if (JSON_EXT.has(ext)) return "json";
+    if (CSV_EXT.has(ext)) return "csv";
     if (PLAIN_EXT.has(ext)) return "plain";
   }
   const { score, firstIsHeading } = markdownScore(text);

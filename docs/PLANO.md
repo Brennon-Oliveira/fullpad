@@ -156,6 +156,21 @@ As quatro PARADAs da fase (base e PDF, integração com as notas, EPUB, busca e 
 
 Fica para depois: links internos do PDF (sumário clicável, "ver página 12"), tema escuro do documento do PDF, lista de resultados da busca; EPUB com paginação e rolagem contínua entre capítulos, opção "usar o estilo do livro" (hoje o CSS é filtrado: sem fontes nem imagens de fundo) e capas em SVG; testar no Linux (WebKitGTK); associar `.pdf`/`.epub` no instalador; assinatura de código do instalador e do executável (o Smart App Control e o SmartScreen barram o que não é assinado). As ideias [referência com volta](banco-de-ideias/referencia-com-volta.md) e [nota ao lado do leitor](banco-de-ideias/nota-ao-lado-do-leitor.md) estão no banco de ideias.
 
+## Fase 11 — Visão de CSV (tabela editável)
+
+Arquivos `.csv`/`.tsv` (ou a linguagem "CSV" no menu) ganham uma tabela, no molde do markdown: três visões, a padrão é **só a tabela editável**. O texto continua sendo a única fonte: editar uma célula reescreve só o trecho dela. Desenho, decisões e escopo em [csv.md](banco-de-ideias/csv.md). Fórmulas ficam de fora.
+
+| Milestone | Entrega | Critério de aceite |
+|---|---|---|
+| ✅ 11.A | Núcleo Rust (`crates/core/src/csv.rs`): parser RFC 4180 com posições em UTF-16, índice de linhas para ler por faixas, detecção do separador, tipo por coluna e estatísticas (soma, média, mín., máx., contagem) com separador decimal escolhido (ponto por padrão, vírgula opcional), escritor de célula que preserva o resto | `cargo test -p fullpad-core`: aspas, separador e quebra de linha dentro da célula, `""`, CRLF e LF misturados, BOM, acento e emoji com posição certa, linha com colunas a mais/a menos, arquivo sem quebra no fim; editar uma célula não muda nenhum outro byte; detecção em amostras `,` `;` tab `\|` e ambíguas; decimal com ponto (padrão) e com vírgula (escolhido); valor não numérico fora da conta e contado; arquivo grande em poucos segundos |
+| ✅ 11.B | `Language::Csv`, extensões, menu Linguagem, colorir colunas no código, campo por aba (separador manual, cabeçalho e separador decimal) na sessão, menu "CSV" | Abrir `.csv` mostra colunas coloridas; escolher o separador na mão sobrevive a reiniciar e nunca é redetectado; sessão antiga sem o campo abre normal |
+| ✅ 11.C | Tabela somente leitura (virtualizada por faixas), três visões (padrão: tabela), cabeçalho congelado, colunas redimensionáveis, ordenar/filtrar na visão, ligação código ↔ tabela, rodapé de estatísticas | **PARADA 11.1**: abrir CSVs reais (grandes, `;`, vírgula decimal, aspas com quebra de linha); a tabela nunca altera o texto |
+| ✅ 11.D | Editar célula na tabela (uma transação, um passo no Ctrl+Z) | **PARADA 11.2**: editar e salvar; `git diff`-style: só a célula muda; Ctrl+Z desfaz |
+| ✅ 11.E | Adicionar/remover linha e coluna, reordenar colunas, "ordenar o arquivo" (ação explícita) | **PARADA 11.3** |
+| ✅ 11.F | Docs (`AGENTS.md`), nota de versão, build de Windows | `docs/` atualizados no mesmo commit; ideia marcada como feita; build de Windows reportado |
+
+Fica para depois: fórmulas, tipos de coluna editáveis (datas com seletor), exportar a tabela (markdown, JSON), altura de linha guardada pela linha do arquivo (hoje pela posição na tela), atalhos de teclado para inserir/apagar linha e coluna, teste de arquivos de dezenas de MB (um CSV grande de teste é gerado para isso).
+
 ## Pendências de ambiente
 
 - O WSL desta máquina não tem `pkg-config` nem `libwebkit2gtk-4.1-dev`, então o crate `app` não compila nativamente aqui. O `.exe` de Windows sai por cross-compile com `cargo-xwin` (veja `docs/rules/build-windows.md`); o app em si só foi executado no Windows do usuário.

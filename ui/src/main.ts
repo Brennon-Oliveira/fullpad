@@ -10,17 +10,20 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { createFileDrop } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type ClosedTab, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
-import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
+import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import type { DiagramPanel } from "./dbml/panel";
+import type { CsvPanel } from "./csv/panel";
 import type { JsonPanel } from "./json/panel";
 import { mapCursor } from "./json/format";
 import type { MarkdownPane } from "./mdpreview";
 import type { ReaderPanel } from "./reader/panel";
 import type { ReaderPos } from "./reader/pos";
-import { type Lang, detectLanguage } from "./language";
+import { type CsvSettings, activeDelimiter, readCsvSettings } from "./csv/settings";
+import { type Lang, detectLanguage, extOf } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
+const MAX_CSV_CHARS = 50_000_000; // mesmo valor de csv/panel.ts
 import { exportItem, languageItems, mountMenuBar, sideOnly, viewItems, zoomItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
@@ -84,6 +87,13 @@ interface Group {
   json?: JsonPanel;
   jsonLoading?: Promise<void>;
   jsonTab: string | null; // aba cuja árvore JSON está na tela
+  /** Tabela do CSV: ocupa o painel sozinha ou ao lado do código. */
+  csvEl: HTMLElement;
+  /** Faixa de aviso logo abaixo das abas (CSV grande demais para a tabela). */
+  noteEl: HTMLElement;
+  csv?: CsvPanel;
+  csvLoading?: Promise<void>;
+  csvTab: string | null; // aba cuja tabela está na tela
   /** Leitor de PDF/EPUB (aba só de leitura): carregado sob demanda, cobre o editor. */
   readerEl: HTMLElement;
   reader?: ReaderPanel;
@@ -155,7 +165,7 @@ function effectiveLang(tab: TabState): Lang {
 function previewAvailable(tab: TabState): boolean {
   const len = states.get(tab.id)?.doc.length ?? 0;
   const lang = effectiveLang(tab);
-  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (lang === "json" && len <= MAX_JSON_CHARS);
+  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (lang === "json" && len <= MAX_JSON_CHARS) || (lang === "csv" && len <= MAX_CSV_CHARS);
 }
 
 /** Como o arquivo aparece: só código, renderizado no próprio texto (markdown) ou ao lado do código. */
@@ -175,6 +185,7 @@ function viewLabel(tab: TabState): string {
   if (tab.detached) return "Janela separada";
   if (effectiveLang(tab) === "dbml") return "Diagrama";
   if (effectiveLang(tab) === "json") return "Árvore";
+  if (effectiveLang(tab) === "csv") return k === "inline" ? "Tabela" : "Tabela e código";
   return k === "inline" ? "Preview" : "Lado a lado";
 }
 
@@ -194,7 +205,7 @@ function applyTabConfig() {
       dbml: effectiveLang(tab) === "dbml",
       json: effectiveLang(tab) === "json",
       dark: isDark(),
-      support: effectiveLang(tab) === "dbml" ? dbmlSupport : effectiveLang(tab) === "json" ? jsonSupport : undefined,
+      support: supportFor(tab),
       preview: viewKind(tab) === "inline" && effectiveLang(tab) === "markdown",
       wrap,
       overwrite,
@@ -202,6 +213,7 @@ function applyTabConfig() {
   });
   ensureDbmlSupport();
   ensureJsonSupport();
+  ensureCsvSupport();
   cur.mdPane?.setDark(isDark());
   reconcileDetached();
   syncDiagram();
@@ -246,6 +258,68 @@ function ensureJsonSupport() {
     })
     .catch((e) => console.error("falha ao carregar o suporte a JSON", e))
     .finally(() => (jsonSupportLoading = false));
+}
+
+// ---- recursos de editor do CSV (colunas coloridas; sob demanda) ----
+
+let csvLang: typeof import("./csv/lang") | undefined;
+let csvLangLoading = false;
+const csvDetected = new Map<string, string>(); // separador achado pela estrutura, por aba (escolha automática)
+
+const csvSettings = (tab: TabState): CsvSettings => readCsvSettings(tab.csv);
+const csvDelimiter = (tab: TabState) => activeDelimiter(csvSettings(tab), csvDetected.get(tab.id));
+
+/** Recursos extras da linguagem da aba para o editor (`undefined` enquanto carregam ou quando não há). */
+function supportFor(tab: TabState): Extension | undefined {
+  switch (effectiveLang(tab)) {
+    case "dbml":
+      return dbmlSupport;
+    case "json":
+      return jsonSupport;
+    case "csv":
+      return csvLang?.csvSupport(csvDelimiter(tab));
+    default:
+      return undefined;
+  }
+}
+
+function ensureCsvSupport() {
+  if (csvLang || csvLangLoading || effectiveLang(activeTab()) !== "csv") return;
+  csvLangLoading = true;
+  import("./csv/lang")
+    .then((m) => {
+      csvLang = m;
+      forEachGroup(() => effectiveLang(activeTab()) === "csv" && applyTabConfig());
+    })
+    .catch((e) => console.error("falha ao carregar o suporte a CSV", e))
+    .finally(() => (csvLangLoading = false));
+}
+
+/**
+ * No automático, pergunta ao Rust qual é o separador (só olha o começo do texto). Escolha manual
+ * nunca é redetectada: o que o usuário disse vale dali em diante.
+ */
+async function syncCsv(tab: TabState) {
+  if (effectiveLang(tab) !== "csv" || csvSettings(tab).delimiter !== "auto") return;
+  const st = states.get(tab.id);
+  if (!st) return;
+  const found = await api.csvDetect(st.sliceDoc(0, 200_000), extOf(tab.path ?? "") || null).catch(() => ",");
+  if (csvDetected.get(tab.id) === found) return;
+  csvDetected.set(tab.id, found);
+  // reaplica no painel que mostra a aba (não necessariamente o que tem o foco)
+  const showing = groupShowing(tab.id);
+  if (showing && csvSettings(tab).delimiter === "auto") withGroup(showing, applyTabConfig);
+}
+
+/** Grava uma escolha do CSV na aba e reaplica o editor. */
+function patchCsv(patch: Partial<CsvSettings>) {
+  const tab = activeTab();
+  tab.csv = { ...csvSettings(tab), ...patch };
+  sessionDirty = true;
+  scheduleSave();
+  applyTabConfig();
+  void syncCsv(tab);
+  cur.view.focus();
 }
 
 // ---- visão renderizada em janela separada ------------------------------------------
@@ -405,6 +479,70 @@ function syncJson(textChanged: boolean) {
   void g.jsonLoading.then(run);
 }
 
+// ---- tabela do CSV (carregada sob demanda) --------------------------------------------
+
+/** A tabela aparece na visão "tabela" (sozinha) e "lado a lado". O separador precisa já estar decidido. */
+const csvWanted = (tab: TabState) =>
+  effectiveLang(tab) === "csv" && viewKind(tab) !== "source" && !tab.detached && (csvSettings(tab).delimiter !== "auto" || csvDetected.has(tab.id));
+
+function syncCsvTable(textChanged: boolean) {
+  const g = cur;
+  const tab = activeTab();
+  // CSV grande demais para a tabela: só o código funciona, e a faixa diz por quê
+  const big = effectiveLang(tab) === "csv" && g.view.state.doc.length > MAX_CSV_CHARS;
+  g.noteEl.hidden = !big;
+  if (big) {
+    const m = (n: number) => (n / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+    g.noteEl.textContent = `Arquivo grande demais para a tabela (${m(g.view.state.doc.length)} milhões de caracteres; o limite é ${m(MAX_CSV_CHARS)}). Só o código está disponível.`;
+  }
+  // separador ainda não decidido (abriu agora, ou o app acabou de iniciar): detecta; ao terminar, volta aqui
+  if (effectiveLang(tab) === "csv" && viewKind(tab) !== "source" && !csvWanted(tab) && !tab.detached) void syncCsv(tab);
+  const wanted = csvWanted(tab);
+  // sozinha, a tabela cobre o painel e o editor (que segue vivo, escondido, com o texto e o histórico) some
+  g.bodyEl.classList.toggle("tableonly", wanted && viewKind(tab) === "inline");
+  if (!wanted) {
+    g.csv?.hide();
+    g.csvEl.classList.remove("on");
+    if (g.csvTab !== null) queueMicrotask(() => g.view.dispatch({ effects: [csvSelectionMarks(null), csvHoverMarks(null)] })); // sai da tela: apaga os destaques no código
+    g.csvTab = null;
+    return;
+  }
+  const text = g.view.state.doc.toString();
+  const cfg = () => {
+    const s = csvSettings(tab);
+    return { delimiter: csvDelimiter(tab), header: s.header, decimal: s.decimal };
+  };
+  const run = () => {
+    const t = tabOf(g);
+    if (!g.csv || !t || !csvWanted(t)) return;
+    const fresh = g.csvTab !== tab.id;
+    if (textChanged && !fresh) g.csv.update(text, g.rev);
+    else g.csv.show(tab.id, text, cfg(), g.rev);
+    g.csvTab = tab.id;
+    g.csv.setCursor(g.view.state.selection.main.head, g.rev);
+  };
+  if (g.csv) return run();
+  g.csvEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
+  g.csvLoading ??= import("./csv/panel").then((m) => {
+    g.csv = m.createCsvPanel(g.csvEl, {
+      // clique numa célula → o cursor do código vai para ela (o foco fica na tabela)
+      onSelect: (pos, rev) => rev === g.rev && g.view.dispatch({ selection: { anchor: Math.min(pos, g.view.state.doc.length) }, scrollIntoView: true }),
+      // gravar uma célula: troca no texto do código, num passo só do desfazer (vale só para o texto que a tabela indexou)
+      onEdit: (edits, rev) => {
+        if (rev !== g.rev) return false;
+        g.view.dispatch({ changes: edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert })), userEvent: "input.csv" });
+        return true;
+      },
+      onUndo: () => void undo(g.view),
+      onRedo: () => void redo(g.view),
+      // células selecionadas / sob o mouse → o texto delas ganha fundo no código
+      onSelection: (spans, rev) => g.view.dispatch({ effects: csvSelectionMarks(spans && rev === g.rev ? spans : null) }),
+      onHover: (spans, rev) => g.view.dispatch({ effects: csvHoverMarks(spans && rev === g.rev ? spans : null) }),
+    });
+  });
+  void g.csvLoading.then(run);
+}
+
 // ---- leitor de PDF/EPUB (aba só de leitura; carregado sob demanda) ----------------------
 
 /** Mostra o leitor no lugar do editor se a aba ativa do painel é de leitura; senão o esconde. */
@@ -490,6 +628,7 @@ function syncDiagram(textChanged = false) {
   syncReader();
   syncMdPane(textChanged);
   syncJson(textChanged);
+  syncCsvTable(textChanged);
   syncDetached(textChanged);
   const tab = activeTab();
   if (!diagramWanted(tab)) {
@@ -521,6 +660,7 @@ function scheduleDetect() {
   window.clearTimeout(detectTimer);
   detectTimer = window.setTimeout(() => {
     const tab = activeTab();
+    void syncCsv(tab);
     if (tab.language !== "auto") return;
     const before = effectiveLang(tab);
     redetect(tab);
@@ -538,7 +678,7 @@ const ENC_LABEL: Record<Encoding, string> = {
   utf16be: "UTF-16 BE BOM",
   windows1252: "Windows-1252",
 };
-const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON", pdf: "PDF", epub: "EPUB" };
+const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON", csv: "CSV", pdf: "PDF", epub: "EPUB" };
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
@@ -713,6 +853,7 @@ function onEditorUpdate(u: ViewUpdate) {
     scheduleSizeRefresh();
   }
   if (u.selectionSet && !u.docChanged && g.jsonTab === activeTab().id) g.json?.setCursor(u.state.selection.main.head, g.rev); // cursor → nó na árvore
+  if (u.selectionSet && !u.docChanged && g.csvTab === activeTab().id) g.csv?.setCursor(u.state.selection.main.head, g.rev); // cursor → célula na tabela
   if (u.selectionSet && !u.docChanged && g.diagramTab === activeTab().id) {
     g.diagram?.setCursor(u.state.selection.main.head, g.rev); // cursor → destaque no diagrama
     g.mdPane?.setCursor(u.state.selection.main.head); // ... ou a linha no markdown renderizado
@@ -837,6 +978,7 @@ async function show(tab: TabState, text?: string) {
   g.view.setState(st);
   redetect(tab);
   applyTabConfig();
+  void syncCsv(tab);
   renderTabs();
   requestAnimationFrame(() => {
     g.view.scrollDOM.scrollTop = tab.scroll;
@@ -962,11 +1104,14 @@ function createGroup(id: number): Group {
   const mdEl = div("mdview");
   const diagramEl = div("diagram");
   const jsonEl = div("jsonview");
+  const csvEl = div("csvview");
   const readerEl = div("reader");
-  bodyEl.append(editorEl, mdEl, diagramEl, jsonEl, readerEl);
-  el.append(tabsEl, bodyEl);
+  bodyEl.append(editorEl, mdEl, diagramEl, jsonEl, csvEl, readerEl);
+  const noteEl = div("note");
+  noteEl.hidden = true;
+  el.append(tabsEl, noteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, csvEl, noteEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null };
   groups.set(id, g);
   view.scrollDOM.addEventListener("scroll", () => followScroll(g), { passive: true });
   // botão direito num markdown ou JSON: copiar/colar e exportar/formatar (nos outros tipos fica o menu padrão)
@@ -1153,6 +1298,7 @@ async function dropLocalTab(id: string) {
   session.tabs = session.tabs.filter((t) => t.id !== id);
   states.delete(id);
   detected.delete(id);
+  csvDetected.delete(id);
   const rest = tabsOf(g);
   if (rest.length > 0) {
     if (wasActive) await show(rest[Math.min(idx, rest.length - 1)]);
@@ -1580,6 +1726,7 @@ async function receiveTab(tab: TabState) {
   snapshotActive();
   states.delete(tab.id);
   detected.delete(tab.id);
+  csvDetected.delete(tab.id);
   if (inc?.zone) {
     // solta na borda de um painel: a aba ganha um painel novo ali (e é a última da lista de abas)
     const g = createGroup(newGroupId());
@@ -1680,12 +1827,12 @@ async function checkUpdates(manual: boolean) {
 // ---- arquivos ---------------------------------------------------------------
 
 const OPEN_FILTERS = [
-  { name: "Texto, Markdown, DBML, JSON, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "pdf", "epub"] },
+  { name: "Texto, Markdown, DBML, JSON, CSV, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "csv", "tsv", "pdf", "epub"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
 const FILTERS = [
-  { name: "Texto, Markdown, DBML e JSON", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc"] },
+  { name: "Texto, Markdown, DBML, JSON e CSV", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "csv", "tsv"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
@@ -1920,6 +2067,7 @@ function setLanguage(l: Language) {
   sessionDirty = true;
   scheduleSave();
   applyTabConfig();
+  void syncCsv(tab);
   cur.view.focus();
 }
 
@@ -1961,6 +2109,9 @@ const menuActions = {
   minifyJson: () => void formatJson({ indent: "min" }),
   sortJson: () => void formatJson({ sort: true }),
   setJsonIndent,
+  setCsvDelimiter: (v: string) => patchCsv({ delimiter: readCsvSettings({ delimiter: v }).delimiter }),
+  setCsvHeader: (v: boolean) => patchCsv({ header: v }),
+  setCsvDecimal: (v: string) => patchCsv({ decimal: v === "," ? "," : "." }),
   expandJson: () => cur.json?.expandAll(),
   collapseJson: () => cur.json?.collapseAll(),
   copyJsonPath: () => {
@@ -1982,6 +2133,8 @@ const menuActions = {
       previewAvailable: previewAvailable(tab),
       wrap,
       jsonIndent,
+      csv: csvSettings(tab),
+      csvDetected: csvDetected.get(tab.id) ?? ",",
       hasSelection: !cur.view.state.selection.main.empty,
       treeOn: jsonTreeOn(),
       zoom: currentZoom(),

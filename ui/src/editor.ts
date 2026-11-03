@@ -111,6 +111,39 @@ const jsonErrorField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+/**
+ * Células do CSV destacadas no código: as selecionadas na tabela (mais forte) e a sob o mouse (mais
+ * suave). Marcam só o texto das células, não a linha. Qualquer edição apaga: os trechos deixariam de valer.
+ */
+function cellMarkField(effect: ReturnType<typeof StateEffect.define<{ from: number; to: number }[] | null>>, cls: string) {
+  return StateField.define<DecorationSet>({
+    create: () => Decoration.none,
+    update(value, tr) {
+      if (tr.docChanged) value = Decoration.none;
+      for (const e of tr.effects) {
+        if (!e.is(effect)) continue;
+        const len = tr.state.doc.length;
+        const marks = (e.value ?? [])
+          .map((r) => ({ from: Math.min(r.from, len), to: Math.min(r.to, len) }))
+          .filter((r) => r.to > r.from)
+          .map((r) => Decoration.mark({ class: cls }).range(r.from, r.to));
+        value = Decoration.set(marks, true);
+      }
+      return value;
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  });
+}
+const setCellSel = StateEffect.define<{ from: number; to: number }[] | null>();
+const setCellHover = StateEffect.define<{ from: number; to: number }[] | null>();
+const cellSelField = cellMarkField(setCellSel, "cm-csv-sel");
+const cellHoverField = cellMarkField(setCellHover, "cm-csv-hover");
+
+/** Destaca (ou limpa, com `null`) o trecho das células selecionadas na tabela. */
+export const csvSelectionMarks = (spans: { from: number; to: number }[] | null) => setCellSel.of(spans);
+/** Destaca (ou limpa, com `null`) o trecho da célula sob o mouse na tabela. */
+export const csvHoverMarks = (spans: { from: number; to: number }[] | null) => setCellHover.of(spans);
+
 /** Efeito para sublinhar o erro (ou limpar, com `null`). */
 export const jsonErrorMark = (r: { from: number; to: number; message: string } | null) => setJsonError.of(r);
 
@@ -205,6 +238,8 @@ export function createState(
       overwriteC.of([]),
       hintField,
       jsonErrorField,
+      cellSelField,
+      cellHoverField,
       linkExtension,
       syntaxHighlighting(highlight),
       syntaxHighlighting(markdownSource),

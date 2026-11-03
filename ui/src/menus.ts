@@ -1,4 +1,5 @@
 import type { Language, ViewMode } from "./api";
+import { type CsvSettings, DELIMITERS, delimiterName } from "./csv/settings";
 import type { Lang } from "./language";
 import { type MenuItem, closeMenu, showMenu } from "./popup";
 import { ZOOM_PRESETS } from "./zoom";
@@ -38,6 +39,9 @@ export interface MenuActions {
   minifyJson(): void;
   sortJson(): void;
   setJsonIndent(v: string): void;
+  setCsvDelimiter(v: string): void;
+  setCsvHeader(v: boolean): void;
+  setCsvDecimal(v: string): void;
   expandJson(): void;
   collapseJson(): void;
   copyJsonPath(): void;
@@ -56,6 +60,9 @@ export interface MenuActions {
     previewAvailable: boolean;
     wrap: boolean;
     jsonIndent: string;
+    /** Escolhas do CSV da aba e o separador que a detecção achou (vale quando a escolha é automática). */
+    csv: CsvSettings;
+    csvDetected: string;
     hasSelection: boolean;
     treeOn: boolean;
     zoom: number;
@@ -82,6 +89,7 @@ export function viewItems(a: MenuActions): MenuItem[] {
   ];
   if (c.lang === "dbml") return [item("Somente código", "source"), item("Código e diagrama lado a lado", "split", "Ctrl+E"), ...detach];
   if (c.lang === "json") return [item("Somente código", "source"), item("Código e árvore lado a lado", "split", "Ctrl+E"), ...detach];
+  if (c.lang === "csv") return [item("Somente tabela", "rendered", "Ctrl+E"), item("Somente código", "source"), item("Tabela e código lado a lado", "split", "Ctrl+Shift+E")];
   return [
     item("Somente código", "source"),
     item("Preview no próprio texto", "rendered", "Ctrl+E"),
@@ -123,8 +131,47 @@ export function jsonItems(a: MenuActions): MenuItem[] {
   ];
 }
 
+/** Itens do menu "CSV": separador (automático ou escolhido), cabeçalho e separador decimal. */
+export function csvItems(a: MenuActions): MenuItem[] {
+  const c = a.current();
+  const s = c.csv;
+  return [
+    {
+      label: "Separador",
+      submenu: [
+        { label: `Automático (${delimiterName(c.csvDetected)})`, checked: s.delimiter === "auto", action: () => a.setCsvDelimiter("auto") },
+        "sep",
+        ...DELIMITERS.map((d): MenuItem => ({ label: d.label, checked: s.delimiter === d.value, action: () => a.setCsvDelimiter(d.value) })),
+      ],
+    },
+    { label: "Primeira linha é o cabeçalho", checked: s.header, action: () => a.setCsvHeader(!s.header) },
+    {
+      label: "Separador decimal",
+      submenu: [
+        { label: "Ponto ( . )", checked: s.decimal === ".", action: () => a.setCsvDecimal(".") },
+        { label: "Vírgula ( , )", checked: s.decimal === ",", action: () => a.setCsvDecimal(",") },
+      ],
+    },
+    "sep",
+    ...viewItems(a),
+    "sep",
+    ...textItems(a),
+  ];
+}
+
+/** Itens de um texto qualquer (também o fim do menu do CSV). */
+function textItems(a: MenuActions): MenuItem[] {
+  return [
+    { label: "Quebra de linha", checked: a.current().wrap, action: a.toggleWrap },
+    "sep",
+    { label: "Localizar…", shortcut: "Ctrl+F", action: a.find },
+    { label: "Substituir…", action: a.replace },
+    { label: "Ir para linha…", shortcut: "Ctrl+Alt+G", action: a.gotoLine },
+  ];
+}
+
 /** Nome do menu de ações do tipo de arquivo da aba ativa (muda com a linguagem). */
-export const LANG_MENU: Record<Lang, string> = { plain: "Texto", markdown: "Markdown", dbml: "DBML", json: "JSON", pdf: "PDF", epub: "EPUB" };
+export const LANG_MENU: Record<Lang, string> = { plain: "Texto", markdown: "Markdown", dbml: "DBML", json: "JSON", csv: "CSV", pdf: "PDF", epub: "EPUB" };
 
 /** Itens do menu do tipo de arquivo: só o que faz sentido para ele. */
 export function langMenuItems(a: MenuActions): MenuItem[] {
@@ -132,6 +179,8 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
   switch (c.lang) {
     case "json":
       return jsonItems(a);
+    case "csv":
+      return csvItems(a);
     case "markdown":
       return [
         { label: "Exportar como HTML…", action: a.exportHtml },
@@ -160,13 +209,7 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
         { label: "Copiar seleção como citação", shortcut: "Ctrl+Shift+C", action: a.readerQuote },
       ];
     default:
-      return [
-        { label: "Quebra de linha", checked: c.wrap, action: a.toggleWrap },
-        "sep",
-        { label: "Localizar…", shortcut: "Ctrl+F", action: a.find },
-        { label: "Substituir…", action: a.replace },
-        { label: "Ir para linha…", shortcut: "Ctrl+Alt+G", action: a.gotoLine },
-      ];
+      return textItems(a);
   }
 }
 
@@ -203,7 +246,7 @@ export function languageItems(a: MenuActions): MenuItem[] {
     checked: cur === l,
     action: () => a.setLanguage(l),
   });
-  return [mk("Automático", "auto"), "sep", mk("Texto simples", "plain"), mk("Markdown", "markdown"), mk("DBML", "dbml"), mk("JSON", "json")];
+  return [mk("Automático", "auto"), "sep", mk("Texto simples", "plain"), mk("Markdown", "markdown"), mk("DBML", "dbml"), mk("JSON", "json"), mk("CSV", "csv")];
 }
 
 export function mountMenuBar(root: HTMLElement, a: MenuActions) {

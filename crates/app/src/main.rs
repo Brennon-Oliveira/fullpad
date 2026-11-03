@@ -3,7 +3,7 @@
 use fullpad_core::json::{self, Doc, Indent, JsonError};
 use fullpad_core::reader::{FileStatus, PdfScan};
 use fullpad_core::{ClosedTab, Encoding, Eol, Geometry, Session, Store, TabKind, TabState, MAIN_WINDOW};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -46,6 +46,8 @@ struct AppState {
     positions_lock: Mutex<()>,
     /// EPUBs abertos (só metadados e sumário), por aba: `epub_chapter` lê os capítulos sob demanda.
     epubs: Mutex<std::collections::HashMap<Uuid, fullpad_core::epub::Epub>>,
+    /// CSVs indexados, por aba: a tabela pede faixas de linhas sem reenviar o texto a cada rolagem.
+    csvs: Mutex<std::collections::HashMap<Uuid, CsvEntry>>,
     /// Abas fechadas nesta execução: uma gravação atrasada de uma janela não pode ressuscitá-las.
     closed: Mutex<HashSet<Uuid>>,
     /// Arquivos pedidos na linha de comando (duplo clique, "Abrir com") que a janela principal
@@ -265,6 +267,7 @@ fn close_note(state: State<AppState>, id: String) -> Result<(), String> {
     let id = parse_id(&id)?;
     state.closed.lock().unwrap().insert(id);
     state.epubs.lock().unwrap().remove(&id);
+    state.csvs.lock().unwrap().remove(&id);
     let _g = state.session_lock.lock().unwrap();
     let mut session = state.store.load_session().map_err(err)?;
     match session.tabs.iter().find(|t| t.id == id) {
@@ -824,6 +827,237 @@ async fn json_analyze(text: String, lenient: bool) -> Result<JsonAnalysis, Strin
     .map_err(err)
 }
 
+/// Separador de um CSV pela estrutura do texto (`ext`: extensão do arquivo, `tsv` manda no tab).
+/// Devolve o caractere como texto.
+#[tauri::command]
+async fn csv_detect(text: String, ext: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || fullpad_core::csv::detect(&text, ext.as_deref()).to_string())
+        .await
+        .map_err(err)
+}
+
+/// Um CSV indexado e a ordem em que a tabela o mostra (índices de linha do arquivo). Os dois são
+/// compartilhados: um comando longo trabalha numa cópia barata sem segurar o cadeado.
+#[derive(Clone)]
+struct CsvEntry {
+    csv: std::sync::Arc<fullpad_core::csv::Csv>,
+    view: std::sync::Arc<Vec<u32>>,
+}
+
+#[derive(Serialize)]
+struct CsvInfo {
+    /// Linhas na visão (depois do filtro).
+    rows: usize,
+    /// Linhas de dados do arquivo (sem o cabeçalho), antes do filtro.
+    total: usize,
+    cols: usize,
+    delimiter: String,
+    unterminated: bool,
+    types: Vec<fullpad_core::csv::ColType>,
+    /// A primeira linha, quando é o cabeçalho.
+    header: Option<fullpad_core::csv::RowOut>,
+}
+
+fn csv_char(s: &str) -> char {
+    s.chars().next().unwrap_or(',')
+}
+
+fn csv_info(csv: &fullpad_core::csv::Csv, view: &[u32], header: bool, decimal: char) -> CsvInfo {
+    CsvInfo {
+        rows: view.len(),
+        total: csv.row_count().saturating_sub(header as usize),
+        cols: csv.cols(),
+        delimiter: csv.delimiter().to_string(),
+        unterminated: csv.unterminated(),
+        types: csv.column_types(header, decimal),
+        header: if header { csv.rows(0, 1).into_iter().next() } else { None },
+    }
+}
+
+fn csv_entry(state: &AppState, tab: &str) -> Result<CsvEntry, String> {
+    state.csvs.lock().unwrap().get(&parse_id(tab)?).cloned().ok_or_else(|| "o CSV não está carregado".to_string())
+}
+
+/// Indexa o texto do CSV da aba (fora da thread da janela) e monta a visão. Devolve o resumo.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn csv_load(
+    state: State<'_, AppState>,
+    tab: String,
+    text: String,
+    delimiter: String,
+    header: bool,
+    decimal: String,
+    sort: Option<fullpad_core::csv::Sort>,
+    filter: Option<fullpad_core::csv::Filter>,
+) -> Result<CsvInfo, String> {
+    let id = parse_id(&tab)?;
+    let (entry, info) = tauri::async_runtime::spawn_blocking(move || {
+        let csv = fullpad_core::csv::Csv::parse(text, csv_char(&delimiter));
+        let dec = csv_char(&decimal);
+        let view = csv.view(header, dec, sort, filter.as_ref());
+        let info = csv_info(&csv, &view, header, dec);
+        (CsvEntry { csv: std::sync::Arc::new(csv), view: std::sync::Arc::new(view) }, info)
+    })
+    .await
+    .map_err(err)?;
+    state.csvs.lock().unwrap().insert(id, entry);
+    Ok(info)
+}
+
+/// Refaz a visão (ordem, filtro, cabeçalho, decimal) do CSV já carregado, sem reenviar o texto.
+#[tauri::command]
+async fn csv_view(
+    state: State<'_, AppState>,
+    tab: String,
+    header: bool,
+    decimal: String,
+    sort: Option<fullpad_core::csv::Sort>,
+    filter: Option<fullpad_core::csv::Filter>,
+) -> Result<CsvInfo, String> {
+    let id = parse_id(&tab)?;
+    let entry = csv_entry(&state, &tab)?;
+    let (view, info) = tauri::async_runtime::spawn_blocking(move || {
+        let dec = csv_char(&decimal);
+        let view = entry.csv.view(header, dec, sort, filter.as_ref());
+        let info = csv_info(&entry.csv, &view, header, dec);
+        (view, info)
+    })
+    .await
+    .map_err(err)?;
+    if let Some(e) = state.csvs.lock().unwrap().get_mut(&id) {
+        e.view = std::sync::Arc::new(view);
+    }
+    Ok(info)
+}
+
+/// Linhas `[from, from + count)` da visão (no máximo 500 por chamada). `index` é a linha do arquivo.
+#[tauri::command]
+async fn csv_rows(state: State<'_, AppState>, tab: String, from: usize, count: usize) -> Result<Vec<fullpad_core::csv::RowOut>, String> {
+    let e = csv_entry(&state, &tab)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let end = from.saturating_add(count.min(500)).min(e.view.len());
+        e.csv.rows_at(&e.view[from.min(end)..end])
+    })
+    .await
+    .map_err(err)
+}
+
+/// Estatísticas das linhas `[from, to)` da visão (posições na tela) nas colunas `[col_from, col_to)`.
+#[tauri::command]
+async fn csv_stats(
+    state: State<'_, AppState>,
+    tab: String,
+    from: usize,
+    to: usize,
+    col_from: usize,
+    col_to: usize,
+    decimal: String,
+) -> Result<fullpad_core::csv::Stats, String> {
+    let e = csv_entry(&state, &tab)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let end = to.min(e.view.len());
+        let rows = e.view[from.min(end)..end].iter().map(|&i| i as usize);
+        e.csv.stats(rows, col_from..col_to, csv_char(&decimal))
+    })
+    .await
+    .map_err(err)
+}
+
+#[derive(Serialize)]
+struct CsvLocated {
+    /// Linha e coluna no arquivo.
+    row: usize,
+    col: usize,
+    /// Posição da linha na visão atual (`None` se ela está filtrada ou é o cabeçalho).
+    view: Option<usize>,
+}
+
+/// A célula sob uma posição do código (UTF-16) e onde ela está na tabela.
+#[tauri::command]
+fn csv_locate(state: State<AppState>, tab: String, pos: usize) -> Result<Option<CsvLocated>, String> {
+    let e = csv_entry(&state, &tab)?;
+    Ok(e.csv.cell_at(pos).map(|p| CsvLocated { row: p.row, col: p.col, view: e.view.iter().position(|&r| r as usize == p.row) }))
+}
+
+#[derive(Deserialize)]
+struct CsvCellValue {
+    /// Linha do arquivo (`RowOut.index`), não a posição na tabela.
+    row: usize,
+    col: usize,
+    value: String,
+}
+
+/// O que trocar no texto para gravar estes valores (até 20 mil células), em coordenadas UTF-16 do
+/// texto que foi indexado. A UI aplica tudo numa só transação do editor, se o texto ainda for esse.
+#[tauri::command]
+async fn csv_edit(state: State<'_, AppState>, tab: String, edits: Vec<CsvCellValue>) -> Result<Vec<fullpad_core::csv::CellEdit>, String> {
+    if edits.len() > 20_000 {
+        return Err("células demais de uma vez".to_string());
+    }
+    let e = csv_entry(&state, &tab)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let list: Vec<(usize, usize, &str)> = edits.iter().map(|x| (x.row, x.col, x.value.as_str())).collect();
+        e.csv.edit_cells(&list)
+    })
+    .await
+    .map_err(err)
+}
+
+/// Mudança de estrutura da tabela (linhas e colunas inteiras). As posições de linha são **da visão**
+/// (as da tela); as de coluna são do arquivo.
+#[derive(Deserialize)]
+#[serde(tag = "op", rename_all = "camelCase")]
+enum CsvOp {
+    /// Linhas vazias antes (`after: false`) ou depois da linha na posição `pos`; sem `pos`, no fim.
+    InsertRows { pos: Option<usize>, after: bool, count: usize },
+    /// Apaga as linhas das posições `from..=to`.
+    DeleteRows { from: usize, to: usize },
+    InsertCol { at: usize },
+    DeleteCols { cols: Vec<usize> },
+    MoveCol { from: usize, to: usize },
+    /// Ordena de verdade o texto do arquivo (ação explícita).
+    SortFile { col: usize, desc: bool, header: bool, decimal: String },
+}
+
+/// O que trocar no texto para a mudança de estrutura, em coordenadas UTF-16 do texto indexado. A UI
+/// aplica tudo numa transação só, como em `csv_edit`.
+#[tauri::command]
+async fn csv_structure(state: State<'_, AppState>, tab: String, op: CsvOp) -> Result<Vec<fullpad_core::csv::CellEdit>, String> {
+    let e = csv_entry(&state, &tab)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let csv = &e.csv;
+        match op {
+            CsvOp::InsertRows { pos, after, count } => {
+                let before = match pos.and_then(|p| e.view.get(p)) {
+                    Some(&ri) => ri as usize + after as usize,
+                    None => csv.row_count(),
+                };
+                csv.insert_rows(before, count)
+            }
+            CsvOp::DeleteRows { from, to } => {
+                let end = to.saturating_add(1).min(e.view.len());
+                let rows: Vec<usize> = e.view[from.min(end)..end].iter().map(|&r| r as usize).collect();
+                csv.delete_rows(&rows)
+            }
+            CsvOp::InsertCol { at } => csv.insert_col(at),
+            CsvOp::DeleteCols { cols } => csv.delete_cols(&cols),
+            CsvOp::MoveCol { from, to } => csv.move_col(from, to),
+            CsvOp::SortFile { col, desc, header, decimal } => {
+                csv.sort_file(header, decimal.chars().next().unwrap_or('.'), fullpad_core::csv::Sort { col, desc })
+            }
+        }
+    })
+    .await
+    .map_err(err)
+}
+
+/// Uma célula do arquivo (valor inteiro e trecho no texto), para levar o cursor do código até ela.
+#[tauri::command]
+fn csv_cell(state: State<AppState>, tab: String, row: usize, col: usize) -> Result<Option<fullpad_core::csv::Cell>, String> {
+    Ok(csv_entry(&state, &tab)?.csv.cell(row, col))
+}
+
 /// Só valida (para sublinhar o erro com qualquer visão aberta): não monta nada para a UI.
 #[tauri::command]
 async fn json_check(text: String) -> Result<Option<JsonError>, String> {
@@ -882,7 +1116,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
-        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), epubs: Mutex::new(Default::default()), closed: Mutex::new(HashSet::new()),
+        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), epubs: Mutex::new(Default::default()), csvs: Mutex::new(Default::default()), closed: Mutex::new(HashSet::new()),
         open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()),
         update: Mutex::new(None), update_bytes: Mutex::new(None), just_updated: Mutex::new(false) })
         .setup(|app| {
@@ -944,6 +1178,15 @@ fn main() {
             startup_release_notes,
             json_analyze,
             json_check,
+            csv_detect,
+            csv_load,
+            csv_view,
+            csv_rows,
+            csv_stats,
+            csv_locate,
+            csv_cell,
+            csv_edit,
+            csv_structure,
             json_format,
             json_preview_image,
             open_url

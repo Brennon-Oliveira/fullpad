@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Analysis, JsonError } from "./json/tree";
 
 export type ViewMode = "rendered" | "source" | "split";
-export type Language = "auto" | "plain" | "markdown" | "dbml" | "json";
+export type Language = "auto" | "plain" | "markdown" | "dbml" | "json" | "csv";
 export type Eol = "lf" | "crlf";
 /** O que a aba mostra: o editor ("text") ou um leitor só de leitura. "unknown": tipo de uma versão mais nova. */
 export type TabKind = "text" | "pdf" | "epub" | "unknown";
@@ -36,6 +36,71 @@ export interface ReaderMemo {
 export type FileStatus = { status: "ok"; size: number; mtime: number } | { status: "missing" };
 export type Encoding = "utf8" | "utf8-bom" | "utf16le" | "utf16be" | "windows1252";
 
+/** Uma célula do CSV: `from`/`to` são o trecho no texto (UTF-16, aspas incluídas). */
+export interface CsvCellOut {
+  from: number;
+  to: number;
+  value: string;
+  cut?: boolean;
+  quoted: boolean;
+}
+export interface CsvRowOut {
+  /** Linha do arquivo (a posição na tabela pode ser outra, se ordenada ou filtrada). */
+  index: number;
+  from: number;
+  to: number;
+  cells: CsvCellOut[];
+}
+export type CsvColType = "empty" | "number" | "date" | "text";
+export interface CsvInfo {
+  /** Linhas na visão (depois do filtro). */
+  rows: number;
+  /** Linhas de dados do arquivo, antes do filtro. */
+  total: number;
+  cols: number;
+  delimiter: string;
+  unterminated: boolean;
+  types: CsvColType[];
+  header: CsvRowOut | null;
+}
+export interface CsvStats {
+  count: number;
+  numeric: number;
+  skipped: number;
+  sum: number;
+  avg: number | null;
+  min: number | null;
+  max: number | null;
+}
+export interface CsvLocated {
+  row: number;
+  col: number;
+  view: number | null;
+}
+/** Mudança de estrutura da tabela: posições de linha são da visão (as da tela), as de coluna do arquivo. */
+export type CsvOp =
+  | { op: "insertRows"; pos: number | null; after: boolean; count: number }
+  | { op: "deleteRows"; from: number; to: number }
+  | { op: "insertCol"; at: number }
+  | { op: "deleteCols"; cols: number[] }
+  | { op: "moveCol"; from: number; to: number }
+  | { op: "sortFile"; col: number; desc: boolean; header: boolean; decimal: string };
+
+/** Uma troca no texto do CSV (UTF-16, do texto que foi indexado): sai de `csvEdit`. */
+export interface CsvEditOut {
+  from: number;
+  to: number;
+  insert: string;
+}
+export interface CsvSort {
+  col: number;
+  desc: boolean;
+}
+export interface CsvFilter {
+  col: number | null;
+  text: string;
+}
+
 export interface TabState {
   id: string;
   title: string;
@@ -63,6 +128,8 @@ export interface TabState {
   kind?: TabKind;
   /** Posição de leitura (`ReaderPos`, validada em `reader/pos.ts`); o Rust a guarda sem interpretar. */
   reader?: unknown;
+  /** Escolhas da visão de CSV (`CsvSettings`, validadas em `csv/settings.ts`); o Rust as guarda sem interpretar. */
+  csv?: unknown;
 }
 
 export interface Session {
@@ -162,6 +229,26 @@ export const api = {
   /** Formata (`indent`: "2", "4", "tab" ou "min"). Rejeita com o `JsonError` se o texto for inválido. */
   jsonFormat: (text: string, indent: string, sortKeys: boolean) =>
     invoke<{ Ok: string } | { Err: JsonError }>("json_format", { text, indent, sortKeys }),
+  /** Separador do CSV pela estrutura do texto (`ext`: extensão do arquivo; `tsv` manda no tab). */
+  csvDetect: (text: string, ext: string | null) => invoke<string>("csv_detect", { text, ext }),
+  /** Indexa o CSV da aba no Rust e monta a visão (ordem e filtro). */
+  csvLoad: (tab: string, text: string, delimiter: string, header: boolean, decimal: string, sort: CsvSort | null, filter: CsvFilter | null) =>
+    invoke<CsvInfo>("csv_load", { tab, text, delimiter, header, decimal, sort, filter }),
+  /** Refaz a visão do CSV já carregado, sem reenviar o texto. */
+  csvView: (tab: string, header: boolean, decimal: string, sort: CsvSort | null, filter: CsvFilter | null) =>
+    invoke<CsvInfo>("csv_view", { tab, header, decimal, sort, filter }),
+  /** Linhas `[from, from + count)` da visão (até 500 por chamada). */
+  csvRows: (tab: string, from: number, count: number) => invoke<CsvRowOut[]>("csv_rows", { tab, from, count }),
+  /** Estatísticas das linhas `[from, to)` da visão nas colunas `[colFrom, colTo)`. */
+  csvStats: (tab: string, from: number, to: number, colFrom: number, colTo: number, decimal: string) =>
+    invoke<CsvStats>("csv_stats", { tab, from, to, colFrom, colTo, decimal }),
+  /** A célula sob uma posição do código e onde ela está na tabela. */
+  csvLocate: (tab: string, pos: number) => invoke<CsvLocated | null>("csv_locate", { tab, pos }),
+  /** O que trocar no texto para gravar estes valores (`row` é a linha do arquivo, `RowOut.index`). */
+  csvStructure: (tab: string, op: CsvOp) => invoke<CsvEditOut[]>("csv_structure", { tab, op }),
+  csvEdit: (tab: string, edits: { row: number; col: number; value: string }[]) => invoke<CsvEditOut[]>("csv_edit", { tab, edits }),
+  /** Uma célula do arquivo, para levar o cursor do código até ela. */
+  csvCell: (tab: string, row: number, col: number) => invoke<CsvCellOut | null>("csv_cell", { tab, row, col }),
   /** Bytes de uma imagem local citada no JSON (só extensões de imagem, até 8 MB). */
   jsonPreviewImage: (value: string, base: string | null) => invoke<ArrayBuffer>("json_preview_image", { value, base }),
   /** Abre um link (http, https ou mailto) no navegador do sistema. */
