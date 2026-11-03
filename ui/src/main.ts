@@ -6,6 +6,8 @@ import { ask, message, open as openDialog, save as saveDialog } from "@tauri-app
 import { type UnlistenFn, emit, emitTo, listen as listenAll } from "@tauri-apps/api/event";
 import { listenHere as listen } from "./events";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { createFileDrop } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type ClosedTab, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, hintLines, isDark, tabEffects } from "./editor";
@@ -2046,6 +2048,21 @@ window.addEventListener(
   },
   { passive: false, capture: true },
 );
+
+// Arquivos arrastados de fora (o Explorer, por exemplo) para dentro da janela: abrem como no Ctrl+O,
+// com um aviso na tela enquanto o ponteiro está por cima. Arrastar abas é outra coisa (`tabdrag.ts`).
+const fileDrop = createFileDrop();
+void getCurrentWebview().onDragDropEvent((e) => {
+  const p = e.payload;
+  if (p.type === "enter") fileDrop.show(p.paths.length);
+  else if (p.type === "drop") {
+    fileDrop.hide();
+    if (p.paths.length > 0) {
+      void thisWindow.setFocus();
+      void openPaths(p.paths);
+    }
+  } else if (p.type === "leave") fileDrop.hide();
+});
 
 // ---- ciclo de vida ----------------------------------------------------------
 

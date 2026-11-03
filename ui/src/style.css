@@ -409,3 +409,11 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .rd-links { position: absolute; inset: 0; pointer-events: none; }
 .rd-link { position: absolute; pointer-events: auto; cursor: pointer; }
 .rd-link:hover { background: rgba(37, 99, 235, .15); }
+
+/* ---- aviso ao arrastar arquivos de fora para a janela ---- */
+.filedrop { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--bg) 70%, transparent); pointer-events: none; }
+.filedrop[hidden] { display: none; }
+.filedrop::before { content: ""; position: absolute; inset: 10px; border: 2px dashed var(--accent); border-radius: 10px; }
+.filedrop-box { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 36px; background: var(--pop); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.filedrop-icon { font-size: 34px; line-height: 1; color: var(--accent); }
+.filedrop-text { font-size: 16px; font-weight: 600; }
