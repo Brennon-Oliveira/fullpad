@@ -13,6 +13,8 @@ import type { DiagramPanel } from "./dbml/panel";
 import type { JsonPanel } from "./json/panel";
 import { mapCursor } from "./json/format";
 import type { MarkdownPane } from "./mdpreview";
+import type { ReaderPanel } from "./reader/panel";
+import type { ReaderPos } from "./reader/pos";
 import { type Lang, detectLanguage } from "./language";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
@@ -80,6 +82,12 @@ interface Group {
   json?: JsonPanel;
   jsonLoading?: Promise<void>;
   jsonTab: string | null; // aba cuja árvore JSON está na tela
+  /** Leitor de PDF/EPUB (aba só de leitura): carregado sob demanda, cobre o editor. */
+  readerEl: HTMLElement;
+  reader?: ReaderPanel;
+  readerLoading?: Promise<void>;
+  /** Texto da barra de status enquanto o leitor está na tela. */
+  readerInfo?: string | null;
 }
 
 const groups = new Map<number, Group>();
@@ -132,7 +140,11 @@ const baseName = (p: string) => p.split(/[\\/]/).pop() ?? p;
 
 // ---- linguagem / preview ----------------------------------------------------
 
+/** Aba de leitura (PDF/EPUB/tipo desconhecido): não tem texto, o arquivo nunca é gravado. */
+const isReader = (tab: TabState) => tab.kind !== undefined && tab.kind !== "text";
+
 function effectiveLang(tab: TabState): Lang {
+  if (tab.kind === "pdf") return "pdf";
   return tab.language === "auto" ? (detected.get(tab.id) ?? "plain") : tab.language;
 }
 
@@ -390,6 +402,46 @@ function syncJson(textChanged: boolean) {
   void g.jsonLoading.then(run);
 }
 
+// ---- leitor de PDF/EPUB (aba só de leitura; carregado sob demanda) ----------------------
+
+/** Mostra o leitor no lugar do editor se a aba ativa do painel é de leitura; senão o esconde. */
+function syncReader() {
+  const g = cur;
+  const tab = activeTab();
+  const wanted = isReader(tab);
+  g.bodyEl.classList.toggle("reading", wanted);
+  if (!wanted) return void g.reader?.hide();
+  g.readerLoading ??= import("./reader/panel").then((m) => {
+    g.reader = m.createReaderPanel(g.readerEl, {
+      onPosition(id, pos: ReaderPos) {
+        const t = session.tabs.find((x) => x.id === id);
+        if (!t) return;
+        t.reader = pos;
+        sessionDirty = true;
+        scheduleSave();
+      },
+      onRelocated(updated) {
+        const t = session.tabs.find((x) => x.id === updated.id);
+        if (!t) return;
+        t.path = updated.path;
+        t.title = updated.title;
+        renderTabs();
+        sessionDirty = true;
+        scheduleSave();
+      },
+      onInfo(text) {
+        g.readerInfo = text;
+        if (g === cur) refreshStatus(false);
+      },
+    });
+    new ResizeObserver(() => g.reader?.resize()).observe(g.readerEl);
+  });
+  void g.readerLoading.then(() => {
+    const t = tabOf(g);
+    if (g.reader && t && isReader(t)) g.reader.show(t);
+  });
+}
+
 // ---- markdown renderizado ao lado do código (carregado sob demanda) ----------------
 
 const mdWanted = (tab: TabState) => effectiveLang(tab) === "markdown" && viewKind(tab) === "split" && !tab.detached;
@@ -432,6 +484,7 @@ function followScroll(g: Group = cur) {
 /** Mostra/esconde o painel conforme a aba ativa. O módulo só é importado na 1ª vez que um DBML pede. */
 function syncDiagram(textChanged = false) {
   const g = cur;
+  syncReader();
   syncMdPane(textChanged);
   syncJson(textChanged);
   syncDetached(textChanged);
@@ -482,7 +535,7 @@ const ENC_LABEL: Record<Encoding, string> = {
   utf16be: "UTF-16 BE BOM",
   windows1252: "Windows-1252",
 };
-const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON" };
+const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON", pdf: "PDF" };
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
@@ -501,6 +554,11 @@ function computeSize(): number {
 function refreshStatus(recomputeSize = true) {
   if (!session.active || !tabOf(cur)) return; // painel ainda sem aba
   const tab = activeTab();
+  if (isReader(tab)) {
+    menubar?.refresh();
+    status.update({ languageLabel: langLabel(tab), viewLabel: "", viewAvailable: false, size: 0, lines: 0, ln: 0, col: 0, pos: 0, eolLabel: "", encodingLabel: "", overwrite: false, reader: cur.readerInfo ?? "" });
+    return;
+  }
   const st = cur.view.state;
   const head = st.selection.main.head;
   const line = st.doc.lineAt(head);
@@ -600,6 +658,7 @@ function snapshotActive() {
 function snapshotGroup(g: Group) {
   const tab = tabOf(g);
   if (!tab) return; // janela reserva, ainda sem aba
+  if (isReader(tab)) return; // sem texto: a posição de leitura é gravada pelo próprio leitor
   states.set(tab.id, g.view.state);
   tab.cursor = g.view.state.selection.main.head;
   tab.scroll = g.view.scrollDOM.scrollTop;
@@ -900,10 +959,11 @@ function createGroup(id: number): Group {
   const mdEl = div("mdview");
   const diagramEl = div("diagram");
   const jsonEl = div("jsonview");
-  bodyEl.append(editorEl, mdEl, diagramEl, jsonEl);
+  const readerEl = div("reader");
+  bodyEl.append(editorEl, mdEl, diagramEl, jsonEl, readerEl);
   el.append(tabsEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null };
   groups.set(id, g);
   view.scrollDOM.addEventListener("scroll", () => followScroll(g), { passive: true });
   // botão direito num markdown ou JSON: copiar/colar e exportar/formatar (nos outros tipos fica o menu padrão)
@@ -1616,6 +1676,11 @@ async function checkUpdates(manual: boolean) {
 
 // ---- arquivos ---------------------------------------------------------------
 
+const OPEN_FILTERS = [
+  { name: "Texto, Markdown, DBML, JSON e PDF", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "pdf"] },
+  { name: "Todos os arquivos", extensions: ["*"] },
+];
+
 const FILTERS = [
   { name: "Texto, Markdown, DBML e JSON", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc"] },
   { name: "Todos os arquivos", extensions: ["*"] },
@@ -1664,7 +1729,7 @@ async function copyHtml() {
 }
 
 async function openFiles() {
-  const picked = await openDialog({ multiple: true, filters: FILTERS });
+  const picked = await openDialog({ multiple: true, filters: OPEN_FILTERS });
   if (!picked) return;
   await openPaths(Array.isArray(picked) ? picked : [picked]);
 }
@@ -1708,7 +1773,9 @@ async function openPaths(paths: string[]) {
     }
     snapshotActive();
     try {
-      const { tab, text } = await api.openFile(path);
+      // PDF/EPUB abrem como aba de leitura (o arquivo só é lido quando o usuário clicar em "Carregar")
+      const reader = /\.pdf$/i.test(path);
+      const { tab, text } = reader ? { tab: await api.openReader(path), text: "" } : await api.openFile(path);
       session.tabs.push(tab);
       await show(tab, text);
     } catch (e) {
@@ -1728,6 +1795,7 @@ function suggestedName(tab: TabState): string {
 
 /** Salva a aba; sem caminho (ou `forceDialog`) abre "Salvar como". */
 async function save(tab: TabState = activeTab(), forceDialog = false): Promise<boolean> {
+  if (isReader(tab)) return false; // PDF/EPUB são só de leitura: nada a gravar, e o arquivo nunca é tocado
   let path = tab.path;
   if (!path || forceDialog) {
     path = await saveDialog({ defaultPath: tab.path ?? suggestedName(tab), filters: FILTERS });
@@ -1859,6 +1927,8 @@ const menuActions = {
   newWindow: () => void api.newWindow(),
   tabToNewWindow: () => void sendTab(session.active!, "new"),
   openFile: () => void openFiles(),
+  readerLoad: () => cur.reader?.load(),
+  readerLocate: () => cur.reader?.locate(),
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
   closeTab: () => void closeTab(session.active!),
@@ -1938,9 +2008,10 @@ window.addEventListener(
       return focusGroupNumber(Number(key));
     }
     const run = (fn: () => void) => (e.preventDefault(), fn());
-    if (e.code === "Equal" || e.code === "NumpadAdd" || e.key === "+" || e.key === "=") return run(menuActions.zoomIn);
-    if (e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") return run(menuActions.zoomOut);
-    if (e.code === "Digit0" || e.code === "Numpad0") return run(() => setZoom(100));
+    // com um PDF carregado em destaque, o zoom é o do documento; sem ele, o da janela
+    if (e.code === "Equal" || e.code === "NumpadAdd" || e.key === "+" || e.key === "=") return run(() => readerZoom((r) => r.zoomStep(1)) || menuActions.zoomIn());
+    if (e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") return run(() => readerZoom((r) => r.zoomStep(-1)) || menuActions.zoomOut());
+    if (e.code === "Digit0" || e.code === "Numpad0") return run(() => readerZoom((r) => r.zoomFit()) || setZoom(100));
     if (key === "t" && e.shiftKey) run(() => void reopenTab());
     else if (key === "h" && e.shiftKey) run(() => void showHistory());
     else if (key === "n" && e.shiftKey) run(menuActions.newWindow);
@@ -1956,12 +2027,21 @@ window.addEventListener(
 
 onZoomChange((z) => status.setZoom(z));
 
-// Ctrl + roda do mouse: zoom fino (5% por clique)
+/** Aplica `fn` ao leitor do painel em destaque, se a aba dele é de leitura e há documento carregado. */
+function readerZoom(fn: (r: ReaderPanel) => boolean): boolean {
+  const t = session.active ? activeTab() : null;
+  return !!t && isReader(t) && !!cur.reader && fn(cur.reader);
+}
+
+// Ctrl + roda do mouse: zoom fino (5% por clique). Com o mouse sobre um PDF carregado, é o do documento.
 window.addEventListener(
   "wheel",
   (e) => {
     if (!e.ctrlKey) return;
     e.preventDefault();
+    const target = e.target;
+    const over = target instanceof HTMLElement ? [...groups.values()].find((g) => g.readerEl.contains(target)) : undefined;
+    if (over?.reader?.zoomWheel(e.deltaY)) return;
     setZoom(wheelZoom(currentZoom(), e.deltaY));
   },
   { passive: false, capture: true },

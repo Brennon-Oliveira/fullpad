@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use fullpad_core::json::{self, Doc, Indent, JsonError};
-use fullpad_core::{ClosedTab, Encoding, Eol, Geometry, Session, Store, TabState, MAIN_WINDOW};
+use fullpad_core::reader::FileStatus;
+use fullpad_core::{ClosedTab, Encoding, Eol, Geometry, Session, Store, TabKind, TabState, MAIN_WINDOW};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -636,6 +637,70 @@ fn open_file(state: State<AppState>, path: PathBuf) -> Result<OpenedFile, String
     Ok(OpenedFile { tab, text })
 }
 
+// ---- leitor de PDF/EPUB (abas só de leitura) -----------------------------------------
+
+/// Abre um PDF/EPUB como aba de leitura. Não lê o arquivo: a UI mostra o botão "Carregar" e só
+/// então pede os bytes. A aba já entra na sessão para o Rust conhecer o caminho dela (é por ela,
+/// e não por um caminho vindo da UI, que `reader_read` acha o arquivo).
+#[tauri::command]
+fn open_reader(state: State<AppState>, window: WebviewWindow, path: PathBuf) -> Result<TabState, String> {
+    let mut tab = state.store.open_reader(&path).map_err(err)?;
+    tab.window = window.label().to_string();
+    let _g = state.session_lock.lock().unwrap();
+    let mut session = state.store.load_session().map_err(err)?;
+    session.tabs.push(tab.clone());
+    state.store.save_session(&session).map_err(err)?;
+    Ok(tab)
+}
+
+/// Situação do arquivo da aba (existe? tamanho e data), só com metadados.
+#[tauri::command]
+async fn reader_info(state: State<'_, AppState>, id: String) -> Result<FileStatus, String> {
+    let id = parse_id(&id)?;
+    let store = state.store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (_, path) = store.reader_file(id).map_err(err)?;
+        fullpad_core::reader::status(&path).map_err(err)
+    })
+    .await
+    .map_err(err)?
+}
+
+/// Uma faixa de bytes do arquivo da aba, em binário cru (sem JSON). O Rust limita o tamanho.
+#[tauri::command]
+async fn reader_read(state: State<'_, AppState>, id: String, offset: u64, len: u64) -> Result<tauri::ipc::Response, String> {
+    let id = parse_id(&id)?;
+    let store = state.store.clone();
+    let bytes = tauri::async_runtime::spawn_blocking(move || {
+        let (_, path) = store.reader_file(id).map_err(err)?;
+        fullpad_core::reader::read_range(&path, offset, len).map_err(err)
+    })
+    .await
+    .map_err(err)??;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// O arquivo sumiu ou foi movido: o usuário escolheu outro caminho para a mesma aba. Tem de ser
+/// do mesmo tipo (um PDF continua PDF); a posição de leitura é mantida.
+#[tauri::command]
+fn reader_relocate(state: State<AppState>, id: String, path: PathBuf) -> Result<TabState, String> {
+    let id = parse_id(&id)?;
+    let _g = state.session_lock.lock().unwrap();
+    let mut session = state.store.load_session().map_err(err)?;
+    let tab = session.tabs.iter_mut().find(|t| t.id == id).ok_or("aba não encontrada")?;
+    if !matches!(tab.kind, TabKind::Pdf | TabKind::Epub) || TabKind::for_path(&path) != Some(tab.kind) {
+        return Err("escolha um arquivo do mesmo tipo".into());
+    }
+    if fullpad_core::reader::status(&path).map_err(err)? == FileStatus::Missing {
+        return Err(format!("arquivo não encontrado: {}", path.display()));
+    }
+    tab.title = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    tab.path = Some(path);
+    let updated = tab.clone();
+    state.store.save_session(&session).map_err(err)?;
+    Ok(updated)
+}
+
 #[tauri::command]
 fn save_file(
     state: State<AppState>,
@@ -756,6 +821,10 @@ fn main() {
             drag_accept,
             restore_tab,
             open_file,
+            open_reader,
+            reader_info,
+            reader_read,
+            reader_relocate,
             save_file,
             export_file,
             list_windows,

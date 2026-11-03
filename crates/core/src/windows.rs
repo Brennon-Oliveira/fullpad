@@ -104,6 +104,8 @@ impl Session {
                 if stored.window != label {
                     continue;
                 }
+                // o tipo da aba não muda por gravação da UI: uma aba de PDF nunca vira texto editável
+                t.kind = stored.kind;
             }
             t.window = label.to_string();
             accepted.push(t);
@@ -202,6 +204,20 @@ mod tests {
         assert_eq!(s.window_tabs("main")[1].cursor, 7);
         assert_eq!(s.window_tabs("win-2").len(), 1, "outra janela não é tocada");
         assert_eq!(s.active, Some(c.id));
+    }
+
+    #[test]
+    fn save_window_cannot_change_the_kind_of_a_tab() {
+        let mut pdf = tab("main");
+        pdf.kind = crate::model::TabKind::Pdf;
+        let mut s = session(vec![pdf.clone()]);
+        let mut forged = pdf.clone();
+        forged.kind = crate::model::TabKind::Text;
+        forged.reader = Some(serde_json::json!({ "page": 3 }));
+        s.apply_window("main", vec![forged], None, &HashSet::new());
+        let got = &s.window_tabs("main")[0];
+        assert_eq!(got.kind, crate::model::TabKind::Pdf);
+        assert_eq!(got.reader, Some(serde_json::json!({ "page": 3 })), "a posição de leitura é atualizada");
     }
 
     #[test]

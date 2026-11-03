@@ -4,6 +4,10 @@ import type { Analysis, JsonError } from "./json/tree";
 export type ViewMode = "rendered" | "source" | "split";
 export type Language = "auto" | "plain" | "markdown" | "dbml" | "json";
 export type Eol = "lf" | "crlf";
+/** O que a aba mostra: o editor ("text") ou um leitor só de leitura. "unknown": tipo de uma versão mais nova. */
+export type TabKind = "text" | "pdf" | "epub" | "unknown";
+/** Situação do arquivo de uma aba de leitura. `mtime` em milissegundos desde 1970. */
+export type FileStatus = { status: "ok"; size: number; mtime: number } | { status: "missing" };
 export type Encoding = "utf8" | "utf8-bom" | "utf16le" | "utf16be" | "windows1252";
 
 export interface TabState {
@@ -29,6 +33,10 @@ export interface TabState {
   group: number;
   /** Nota de versão: fechar apaga de vez, sem ir para o histórico de abas fechadas. */
   release_notes?: boolean;
+  /** Ausente nas abas de texto. PDF/EPUB são só de leitura: o arquivo nunca é gravado. */
+  kind?: TabKind;
+  /** Posição de leitura (`ReaderPos`, validada em `reader/pos.ts`); o Rust a guarda sem interpretar. */
+  reader?: unknown;
 }
 
 export interface Session {
@@ -100,6 +108,14 @@ export const api = {
   listClosed: (limit?: number) => invoke<ClosedTab[]>("list_closed", { limit }),
   /** Reabre uma aba fechada nesta janela. */
   restoreTab: (id: string) => invoke<{ tab: TabState; text: string }>("restore_tab", { id }),
+  /** Abre um PDF/EPUB como aba de leitura. Não lê o arquivo: isso é `readerRead`, depois do clique em "Carregar". */
+  openReader: (path: string) => invoke<TabState>("open_reader", { path }),
+  /** Existe? Tamanho e data (só metadados). */
+  readerInfo: (id: string) => invoke<FileStatus>("reader_info", { id }),
+  /** Faixa de bytes do arquivo da aba, em binário cru (o Rust limita o tamanho de cada chamada). */
+  readerRead: (id: string, offset: number, len: number) => invoke<ArrayBuffer>("reader_read", { id, offset, len }),
+  /** O arquivo mudou de lugar: aponta a aba para o novo caminho (mesmo tipo). Devolve a aba atualizada. */
+  readerRelocate: (id: string, path: string) => invoke<TabState>("reader_relocate", { id, path }),
   openFile: (path: string) => invoke<{ tab: TabState; text: string }>("open_file", { path }),
   /** Analisa o JSON (nós com posições UTF-16, dicas de valor). Em erro, `doc` é nulo. */
   jsonAnalyze: (text: string, lenient = true) => invoke<Analysis>("json_analyze", { text, lenient }),

@@ -13,6 +13,8 @@ export interface StatusInfo {
   overwrite: boolean;
   /** Caminho do nó sob o cursor (JSON com a árvore aberta). */
   path?: string | null;
+  /** Aba de leitura (PDF/EPUB): só este texto ("Página 3 de 120 · 2,3 MB") e o tipo; o resto some. */
+  reader?: string | null;
 }
 
 export interface StatusHandlers {
@@ -83,9 +85,11 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
       lang.textContent = i.languageLabel;
       view.textContent = `Visão: ${i.viewLabel} ▾`;
       view.disabled = !i.viewAvailable;
-      path.textContent = i.path ?? "";
-      path.hidden = !i.path;
-      path.title = i.path ? "Caminho do nó sob o cursor" : "";
+      const reading = i.reader !== undefined;
+      for (const e of [view, size, cursor, eol, enc, ins]) e.hidden = reading;
+      path.textContent = (reading ? i.reader : i.path) ?? "";
+      path.hidden = !path.textContent;
+      path.title = reading ? "Posição de leitura" : i.path ? "Caminho do nó sob o cursor" : "";
       size.textContent = `tamanho: ${nf.format(i.size)}   linhas: ${nf.format(i.lines)}`;
       cursor.textContent = `Ln: ${nf.format(i.ln)}   Col: ${nf.format(i.col)}   Pos: ${nf.format(i.pos)}`;
       eol.textContent = i.eolLabel;

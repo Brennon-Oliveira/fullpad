@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -32,6 +32,40 @@ pub enum Language {
     #[default]
     #[serde(other)]
     Auto,
+}
+
+/// O que a aba mostra. `Text` é o editor de sempre; `Pdf` e `Epub` são abas só de leitura: o
+/// arquivo é binário, nunca é gravado pelo app e a sessão guarda só o caminho e a posição.
+///
+/// Um tipo que esta versão não conhece (gravado por uma versão mais nova) vira `Unknown`, e **não**
+/// `Text`: uma aba de texto ligada a um arquivo binário deixaria o usuário gravar por cima dele.
+/// `Unknown` é tratada como só leitura e sem conteúdo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TabKind {
+    #[default]
+    Text,
+    Pdf,
+    Epub,
+    #[serde(other)]
+    Unknown,
+}
+
+impl TabKind {
+    /// Tipo de leitor para o arquivo, pela extensão (`None`: abre como texto, como sempre).
+    /// O EPUB entra aqui quando o leitor dele existir.
+    pub fn for_path(path: &Path) -> Option<Self> {
+        let ext = path.extension()?.to_string_lossy().to_ascii_lowercase();
+        match ext.as_str() {
+            "pdf" => Some(Self::Pdf),
+            _ => None,
+        }
+    }
+
+    /// A aba não tem texto editável (e jamais pode ser gravada como arquivo de texto).
+    pub fn is_reader(self) -> bool {
+        self != Self::Text
+    }
 }
 
 /// Fim de linha usado ao gravar o arquivo (o editor trabalha sempre com `\n`).
@@ -106,6 +140,16 @@ pub struct TabState {
     /// O texto vem embutido no app: fechar apaga de vez, sem passar pelo histórico de abas fechadas.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub release_notes: bool,
+    /// O que a aba é: texto (editor) ou um leitor de PDF/EPUB. Sessões antigas não têm o campo.
+    #[serde(default, skip_serializing_if = "is_text")]
+    pub kind: TabKind,
+    /// Posição de leitura (página, rolagem, zoom). Opaca para o core: só o leitor a entende.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reader: Option<serde_json::Value>,
+}
+
+fn is_text(kind: &TabKind) -> bool {
+    *kind == TabKind::Text
 }
 
 impl TabState {
@@ -125,6 +169,8 @@ impl TabState {
             detached: false,
             group: 0,
             release_notes: false,
+            kind: TabKind::Text,
+            reader: None,
         }
     }
 }

@@ -1,7 +1,8 @@
 use crate::atomic::write_atomic;
 use crate::fileio;
 use crate::error::{Error, IoContext, Result};
-use crate::model::{ClosedTab, Encoding, Eol, Language, Session, TabState, ViewMode};
+use crate::model::{ClosedTab, Encoding, Eol, Language, Session, TabKind, TabState, ViewMode};
+use crate::reader;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -145,6 +146,32 @@ impl Store {
         Ok((tab, decoded.text))
     }
 
+    /// Abre um PDF/EPUB como aba só de leitura. Não lê o arquivo (só confere que existe): a nota
+    /// em `notes/` fica vazia, só para a aba seguir o mesmo caminho das outras (sessão, lixeira,
+    /// mover entre janelas). O conteúdo continua sendo do arquivo do usuário, que nunca é gravado.
+    pub fn open_reader(&self, path: &Path) -> Result<TabState> {
+        let kind = TabKind::for_path(path).ok_or_else(|| Error::Invalid(format!("{} não é um PDF nem um EPUB", path.display())))?;
+        if reader::status(path)? == reader::FileStatus::Missing {
+            return Err(Error::Invalid(format!("arquivo não encontrado: {}", path.display())));
+        }
+        let mut tab = self.create_note()?;
+        tab.path = Some(path.to_path_buf());
+        tab.title = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        tab.kind = kind;
+        Ok(tab)
+    }
+
+    /// Caminho do arquivo de uma aba de leitura. É o único jeito de a UI pedir bytes: só se lê o
+    /// arquivo de uma aba que o usuário abriu como PDF/EPUB, nunca um caminho qualquer.
+    pub fn reader_file(&self, id: Uuid) -> Result<(TabKind, PathBuf)> {
+        let session = self.load_session()?;
+        let tab = session.tabs.iter().find(|t| t.id == id).ok_or_else(|| Error::Invalid("aba não encontrada".into()))?;
+        match (tab.kind, &tab.path) {
+            (kind @ (TabKind::Pdf | TabKind::Epub), Some(path)) => Ok((kind, path.clone())),
+            _ => Err(Error::Invalid("a aba não é um leitor de PDF ou EPUB".into())),
+        }
+    }
+
     /// Grava o texto no arquivo real e sincroniza o buffer da nota.
     pub fn save_file(
         &self,
@@ -154,6 +181,10 @@ impl Store {
         encoding: Encoding,
         eol: Eol,
     ) -> Result<()> {
+        // última trava: o texto de uma aba de PDF/EPUB (vazio) jamais pode ir parar no arquivo dele
+        if self.load_session()?.tabs.iter().any(|t| t.id == id && t.kind.is_reader()) {
+            return Err(Error::Invalid("abas de PDF e EPUB são só de leitura".into()));
+        }
         fileio::write_file(path, text, encoding, eol)?;
         self.write_note(id, text)
     }
@@ -441,5 +472,126 @@ mod tests {
         assert_eq!((tab.title.as_str(), text.as_str()), ("Receita", "bolo"));
         assert!(s.list_closed(10).is_empty());
         assert_eq!(s.read_note(t.id).unwrap(), "bolo");
+    }
+
+    // ---- abas de leitura (PDF) ------------------------------------------------
+
+    fn pdf_in(dir: &Path) -> PathBuf {
+        let p = dir.join("livro.pdf");
+        std::fs::write(&p, b"%PDF-1.7 conteudo do usuario").unwrap();
+        p
+    }
+
+    #[test]
+    fn open_reader_does_not_read_or_touch_the_file() {
+        let (d, s) = store();
+        let pdf = pdf_in(d.path());
+        let before = std::fs::read(&pdf).unwrap();
+        let tab = s.open_reader(&pdf).unwrap();
+        assert_eq!((tab.kind, tab.title.as_str()), (TabKind::Pdf, "livro.pdf"));
+        assert_eq!(tab.path.as_deref(), Some(pdf.as_path()));
+        assert_eq!(s.read_note(tab.id).unwrap(), "", "a nota é só um marcador vazio");
+        assert_eq!(std::fs::read(&pdf).unwrap(), before);
+    }
+
+    #[test]
+    fn open_reader_rejects_other_extensions_and_missing_files() {
+        let (d, s) = store();
+        let txt = d.path().join("a.txt");
+        std::fs::write(&txt, "oi").unwrap();
+        assert!(s.open_reader(&txt).is_err());
+        assert!(s.open_reader(&d.path().join("sumiu.pdf")).is_err());
+        assert!(s.open_reader(d.path()).is_err());
+    }
+
+    #[test]
+    fn reader_tab_survives_session_close_and_reopen() {
+        let (d, s) = store();
+        let mut tab = s.open_reader(&pdf_in(d.path())).unwrap();
+        tab.reader = Some(serde_json::json!({ "page": 7, "zoom": 1.25 }));
+        let mut session = Session::empty();
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        assert_eq!(s.load_session().unwrap().tabs[0], tab);
+
+        // fechar e reabrir pelo histórico mantém o tipo e a posição
+        s.close_tab(&tab).unwrap();
+        let closed = s.list_closed(10);
+        assert_eq!((closed.len(), closed[0].tab.kind), (1, TabKind::Pdf));
+        let (back, text) = s.restore_note(tab.id).unwrap();
+        assert_eq!((back, text.as_str()), (tab, ""));
+    }
+
+    #[test]
+    fn text_tabs_do_not_write_the_new_fields() {
+        let json = serde_json::to_string(&TabState::new(Uuid::new_v4())).unwrap();
+        assert!(!json.contains("kind") && !json.contains("reader"), "{json}");
+    }
+
+    #[test]
+    fn session_without_kind_is_a_text_tab() {
+        let (d, s) = store();
+        let tab = s.create_note().unwrap();
+        let mut value = serde_json::to_value(Session { tabs: vec![tab], ..Session::empty() }).unwrap();
+        value["tabs"][0].as_object_mut().unwrap().remove("kind");
+        std::fs::write(d.path().join("session.json"), value.to_string()).unwrap();
+        assert_eq!(s.load_session().unwrap().tabs[0].kind, TabKind::Text);
+    }
+
+    #[test]
+    fn unknown_kind_from_a_newer_version_is_not_text_and_does_not_break_the_session() {
+        let (d, s) = store();
+        let tab = s.create_note().unwrap();
+        let mut value = serde_json::to_value(Session { tabs: vec![tab.clone()], ..Session::empty() }).unwrap();
+        value["tabs"][0]["kind"] = "mobi".into();
+        std::fs::write(d.path().join("session.json"), value.to_string()).unwrap();
+        let loaded = s.load_session().unwrap();
+        assert_eq!(loaded.tabs.len(), 1, "a sessão não foi para session.json.corrupt");
+        assert_eq!(loaded.tabs[0].kind, TabKind::Unknown);
+        assert!(loaded.tabs[0].kind.is_reader(), "nunca vira texto editável por engano");
+        assert!(s.reader_file(tab.id).is_err(), "e não é lida como PDF/EPUB");
+    }
+
+    #[test]
+    fn reader_file_only_serves_reader_tabs() {
+        let (d, s) = store();
+        let pdf = s.open_reader(&pdf_in(d.path())).unwrap();
+        let text = s.create_note().unwrap();
+        let mut file_tab = s.create_note().unwrap();
+        file_tab.path = Some(d.path().join("nota.md"));
+        let mut session = Session::empty();
+        session.tabs = vec![pdf.clone(), text.clone(), file_tab.clone()];
+        s.save_session(&session).unwrap();
+
+        assert_eq!(s.reader_file(pdf.id).unwrap(), (TabKind::Pdf, pdf.path.clone().unwrap()));
+        assert!(s.reader_file(text.id).is_err());
+        assert!(s.reader_file(file_tab.id).is_err(), "um arquivo de texto aberto não é lido como binário");
+        assert!(s.reader_file(Uuid::new_v4()).is_err());
+    }
+
+    #[test]
+    fn save_file_refuses_reader_tabs_and_leaves_the_pdf_intact() {
+        let (d, s) = store();
+        let pdf_path = pdf_in(d.path());
+        let before = std::fs::read(&pdf_path).unwrap();
+        let tab = s.open_reader(&pdf_path).unwrap();
+        let mut session = Session::empty();
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        assert!(s.save_file(tab.id, &pdf_path, "", Encoding::Utf8, Eol::Lf).is_err());
+        assert_eq!(std::fs::read(&pdf_path).unwrap(), before);
+
+        // uma nota de texto comum continua gravando normalmente
+        let note = s.create_note().unwrap();
+        let out = d.path().join("saida.txt");
+        s.save_file(note.id, &out, "oi", Encoding::Utf8, Eol::Lf).unwrap();
+        assert_eq!(std::fs::read_to_string(out).unwrap(), "oi");
+    }
+
+    #[test]
+    fn for_path_maps_extensions() {
+        assert_eq!(TabKind::for_path(Path::new("a/B.PDF")), Some(TabKind::Pdf));
+        assert_eq!(TabKind::for_path(Path::new("a/nota.md")), None);
+        assert_eq!(TabKind::for_path(Path::new("pdf")), None);
     }
 }

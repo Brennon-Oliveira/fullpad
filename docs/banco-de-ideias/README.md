@@ -15,6 +15,8 @@ Ao implementar uma ideia, troque `feita` para `sim`, preencha `versao` e atualiz
 | Ideia | Feita | Versão |
 |---|---|---|
 | [Leitor de PDF e EPUB (aba binária, só leitura)](leitor-pdf-epub.md) | não | — |
+| [Referência com volta (link da nota para o ponto do PDF/EPUB)](referencia-com-volta.md) | não | — |
+| [Nota ao lado do leitor (e "nota do livro")](nota-ao-lado-do-leitor.md) | não | — |
 | [Busca em todas as abas + refação visual da busca](busca-global.md) | não | — |
 | [Paleta de comandos](paleta-de-comandos.md) | não | — |
 | [Sumário lateral](sumario-lateral.md) | não | — |

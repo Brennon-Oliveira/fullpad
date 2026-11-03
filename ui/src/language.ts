@@ -1,4 +1,5 @@
-export type Lang = "plain" | "markdown" | "dbml" | "json";
+/** `pdf`: aba de leitura (sem texto). Só `effectiveLang` o devolve; `detectLanguage` nunca. */
+export type Lang = "plain" | "markdown" | "dbml" | "json" | "pdf";
 
 const MD_EXT = new Set(["md", "markdown", "mdown", "mkd", "mdx"]);
 const DBML_EXT = new Set(["dbml", "dbmlx"]);
