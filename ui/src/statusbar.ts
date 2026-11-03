@@ -3,6 +3,8 @@ export interface StatusInfo {
   /** Rótulo da visão atual ("Código", "Preview", "Lado a lado"...). */
   viewLabel: string;
   viewAvailable: boolean;
+  /** Arquivo de texto sem visão renderizada: o botão "Visão" vira "Lang" (destaque de sintaxe). */
+  codeLang?: string | null;
   size: number;
   lines: number;
   ln: number;
@@ -20,6 +22,7 @@ export interface StatusInfo {
 export interface StatusHandlers {
   onLanguage(anchor: HTMLElement): void;
   onView(anchor: HTMLElement): void;
+  onCodeLang(anchor: HTMLElement): void;
   onEol(anchor: HTMLElement): void;
   onEncoding(anchor: HTMLElement): void;
   onOverwrite(): void;
@@ -70,7 +73,8 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   zVal.addEventListener("click", () => h.onZoom(zVal));
 
   lang.addEventListener("click", () => h.onLanguage(lang));
-  view.addEventListener("click", () => h.onView(view));
+  let langMode = false;
+  view.addEventListener("click", () => (langMode ? h.onCodeLang(view) : h.onView(view)));
   eol.addEventListener("click", () => h.onEol(eol));
   enc.addEventListener("click", () => h.onEncoding(enc));
   ins.addEventListener("click", () => h.onOverwrite());
@@ -83,8 +87,10 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
     },
     update(i: StatusInfo) {
       lang.textContent = i.languageLabel;
-      view.textContent = `Visão: ${i.viewLabel} ▾`;
-      view.disabled = !i.viewAvailable;
+      langMode = i.codeLang !== undefined && !i.viewAvailable;
+      view.textContent = langMode ? `Lang: ${i.codeLang ?? "Texto"} ▾` : `Visão: ${i.viewLabel} ▾`;
+      view.title = langMode ? "Linguagem do destaque de sintaxe (pela extensão, ou escolhida)" : "Como mostrar o arquivo: código, renderizado ou lado a lado (Ctrl+E)";
+      view.disabled = langMode ? false : !i.viewAvailable;
       const reading = i.reader !== undefined;
       for (const e of [view, size, cursor, eol, enc, ins]) e.hidden = reading;
       path.textContent = (reading ? i.reader : i.path) ?? "";

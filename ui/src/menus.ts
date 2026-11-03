@@ -1,5 +1,6 @@
 import type { Language, ViewMode } from "./api";
 import { type CsvSettings, DELIMITERS, delimiterName } from "./csv/settings";
+import { NO_CODE_LANG, pickableLanguages } from "./codelangs";
 import type { Lang } from "./language";
 import { type MenuItem, closeMenu, showMenu } from "./popup";
 import { ZOOM_PRESETS } from "./zoom";
@@ -12,6 +13,8 @@ export interface MenuActions {
   save(): void;
   saveAs(): void;
   saveAll(): void;
+  /** `undefined` volta ao automático (extensão); `NO_CODE_LANG` desliga o destaque. */
+  setCodeLang(v: string | undefined): void;
   closeTab(): void;
   reopenTab(): void;
   history(): void;
@@ -67,6 +70,8 @@ export interface MenuActions {
     csv: CsvSettings;
     csvDetected: string;
     hasSelection: boolean;
+    /** Destaque de sintaxe do texto: o escolhido à mão (`undefined` = automático) e o que vale agora (`null` = nenhum). */
+    codeLang: { chosen: string | undefined; effective: string | null };
     treeOn: boolean;
     zoom: number;
   };
@@ -163,8 +168,22 @@ export function csvItems(a: MenuActions): MenuItem[] {
 }
 
 /** Itens de um texto qualquer (também o fim do menu do CSV). */
+/** Lista de linguagens de destaque (Lang) de um arquivo de texto: automático, texto puro e as demais. */
+export function codeLangItems(a: MenuActions): MenuItem[] {
+  const { chosen, effective } = a.current().codeLang;
+  const names = pickableLanguages.map((l) => l.name).sort((x, y) => x.localeCompare(y, "pt-BR"));
+  return [
+    { label: `Automático${chosen === undefined && effective ? ` (${effective})` : ""}`, checked: chosen === undefined, action: () => a.setCodeLang(undefined) },
+    { label: "Texto puro", checked: chosen === NO_CODE_LANG, action: () => a.setCodeLang(NO_CODE_LANG) },
+    "sep",
+    ...names.map((n): MenuItem => ({ label: n, checked: chosen === n, action: () => a.setCodeLang(n) })),
+  ];
+}
+
 function textItems(a: MenuActions): MenuItem[] {
   return [
+    { label: `Lang: ${a.current().codeLang.effective ?? "Texto"}`, submenu: codeLangItems(a) },
+    "sep",
     { label: "Quebra de linha", checked: a.current().wrap, action: a.toggleWrap },
     { label: "Números de linha", checked: a.current().lineNumbers, action: a.toggleLineNumbers },
     "sep",

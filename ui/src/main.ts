@@ -20,12 +20,13 @@ import type { ReaderPanel } from "./reader/panel";
 import type { ReaderPos } from "./reader/pos";
 import { type CsvSettings, activeDelimiter, readCsvSettings } from "./csv/settings";
 import { type Lang, detectLanguage, extOf } from "./language";
+import { codeLanguageFor } from "./codelangs";
 import { pinnedFirst, toCloseAll, toCloseOthers, toCloseSaved, withUnsavedChanges } from "./tabsets";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
 const MAX_CSV_CHARS = 50_000_000; // mesmo valor de csv/panel.ts
-import { exportItem, languageItems, mountMenuBar, sideOnly, viewItems, zoomItems } from "./menus";
+import { codeLangItems, exportItem, languageItems, mountMenuBar, sideOnly, viewItems, zoomItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { currentZoom, loadZoom, onZoomChange, setZoom, stepZoom, wheelZoom } from "./zoom";
@@ -217,6 +218,7 @@ function applyTabConfig() {
   ensureDbmlSupport();
   ensureJsonSupport();
   ensureCsvSupport();
+  ensureCodeSupport();
   cur.mdPane?.setDark(isDark());
   reconcileDetached();
   syncDiagram();
@@ -281,9 +283,43 @@ function supportFor(tab: TabState): Extension | undefined {
       return jsonSupport;
     case "csv":
       return csvLang?.csvSupport(csvDelimiter(tab));
-    default:
-      return undefined;
+    default: {
+      const d = codeLangOf(tab);
+      return d ? codeSupports.get(d.name) : undefined;
+    }
   }
+}
+
+// ---- destaque de sintaxe dos arquivos de texto (Lang): só colore, o arquivo continua "texto" ----
+
+const codeSupports = new Map<string, Extension>();
+const codeLoading = new Set<string>();
+
+/** Linguagem de destaque da aba (escolhida à mão ou pela extensão); só para texto puro. */
+function codeLangOf(tab: TabState) {
+  return !isReader(tab) && effectiveLang(tab) === "plain" ? codeLanguageFor(tab.path, tab.code_lang) : null;
+}
+
+function ensureCodeSupport() {
+  const d = codeLangOf(activeTab());
+  if (!d || codeSupports.has(d.name) || codeLoading.has(d.name)) return;
+  codeLoading.add(d.name);
+  d.load()
+    .then((sup) => {
+      codeSupports.set(d.name, sup);
+      forEachGroup(() => session.active && codeLangOf(activeTab())?.name === d.name && applyTabConfig());
+    })
+    .catch((e) => console.error(`falha ao carregar o destaque de ${d.name}`, e))
+    .finally(() => codeLoading.delete(d.name));
+}
+
+function setCodeLang(v: string | undefined) {
+  const tab = activeTab();
+  tab.code_lang = v;
+  sessionDirty = true;
+  scheduleSave();
+  applyTabConfig();
+  cur.view.focus();
 }
 
 function ensureCsvSupport() {
@@ -714,6 +750,7 @@ function refreshStatus(recomputeSize = true) {
     languageLabel: langLabel(tab),
     viewLabel: viewLabel(tab),
     viewAvailable: previewAvailable(tab),
+    codeLang: effectiveLang(tab) === "plain" ? (codeLangOf(tab)?.name ?? null) : undefined,
     size: lastSize,
     lines: st.doc.lines,
     ln: line.number,
@@ -751,6 +788,7 @@ const status = mountStatusBar(statusEl, {
   onZoomIn: () => menuActions.zoomIn(),
   onLanguage: (a) => showMenu(a, languageItems(menuActions), "above"),
   onView: (a) => showMenu(a, viewItems(menuActions), "above"),
+  onCodeLang: (a) => showMenu(a, codeLangItems(menuActions), "above"),
   onEol: (a) =>
     showMenu(
       a,
@@ -2174,6 +2212,7 @@ const menuActions = {
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
   saveAll: () => void saveAll(),
+  setCodeLang,
   closeTab: () => void closeTab(session.active!),
   reopenTab: () => void reopenTab(),
   history: () => void showHistory(),
@@ -2229,6 +2268,7 @@ const menuActions = {
       csv: csvSettings(tab),
       csvDetected: csvDetected.get(tab.id) ?? ",",
       hasSelection: !cur.view.state.selection.main.empty,
+      codeLang: { chosen: tab.code_lang, effective: codeLangOf(tab)?.name ?? null },
       treeOn: jsonTreeOn(),
       zoom: currentZoom(),
     };
