@@ -243,8 +243,8 @@ button { font: inherit; color: inherit; }
 .cm-preview .cm-scroller { font-family: var(--sans); font-size: 16px; line-height: 1.7; }
 .cm-preview .cm-content { max-width: 52rem; margin: 0 auto; }
 .cm-md-h { line-height: 1.3; }
-.cm-md-h1 { font-size: 2em; margin-top: .4em; }
-.cm-md-h2 { font-size: 1.6em; margin-top: .3em; }
+.cm-md-h1 { font-size: 2em; padding-top: .4em; }
+.cm-md-h2 { font-size: 1.6em; padding-top: .3em; }
 .cm-md-h3 { font-size: 1.3em; }
 .cm-md-h4 { font-size: 1.15em; }
 .cm-md-h5, .cm-md-h6 { font-size: 1em; color: var(--muted); }
@@ -255,7 +255,8 @@ button { font: inherit; color: inherit; }
 .cm-md-bullet { color: var(--muted); display: inline-block; width: 1em; text-align: center; }
 .cm-md-done { color: var(--muted); text-decoration: line-through; }
 .cm-md-check { margin: 0 6px 0 0; vertical-align: middle; cursor: pointer; accent-color: var(--accent); }
-.cm-md-hr { display: block; border-top: 1px solid var(--border); margin: .7em 0; }
+/* sem margem vertical: o CodeMirror não a conta no mapa de alturas e o clique erra a linha */
+.cm-md-hr { display: inline-block; width: 100%; height: 1.4em; vertical-align: middle; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; }
 .cm-md-codeblock { background: var(--code-bg); font-family: var(--mono); font-size: .92em; padding: 0 12px !important; }
 .cm-md-codefirst { border-radius: 6px 6px 0 0; padding-top: 4px !important; }
 .cm-md-codelast { border-radius: 0 0 6px 6px; padding-bottom: 4px !important; }
