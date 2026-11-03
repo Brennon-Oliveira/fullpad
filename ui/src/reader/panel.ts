@@ -54,11 +54,32 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
   let view: PdfView | null = null;
   let stamp: { size: number; mtime: number } | null = null; // como o arquivo estava ao carregar
   let token = 0; // invalida respostas atrasadas quando a aba muda
+  let memoKey: string | null = null; // identidade do arquivo carregado (chave da posição lembrada)
+  let pending: { key: string; pos: ReaderPos } | null = null;
+  let rememberTimer = 0;
+
+  /** Lembra a posição por arquivo, com um pouco de atraso (rolar não grava a cada pixel). */
+  function remember(pos: ReaderPos) {
+    if (!memoKey) return;
+    pending = { key: memoKey, pos };
+    window.clearTimeout(rememberTimer);
+    rememberTimer = window.setTimeout(flushRemember, 1500);
+  }
+  function flushRemember() {
+    window.clearTimeout(rememberTimer);
+    const p = pending;
+    pending = null;
+    if (p) void api.readerRemember(p.key, p.pos).catch((e) => console.error("não lembrou a posição de leitura", e));
+  }
 
   const kindName = () => KIND_NAME[tab?.kind === "epub" ? "epub" : "pdf"];
   const supported = (t: TabState): t is TabState & { kind: Supported } => t.kind === "pdf";
   const savePos = () => {
-    if (tab && view) host.onPosition(tab.id, view.position());
+    if (!tab || !view) return;
+    const pos = view.position();
+    host.onPosition(tab.id, pos);
+    remember(pos);
+    flushRemember();
   };
 
   async function drop() {
@@ -67,6 +88,7 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     const v = view;
     view = null;
     stamp = null;
+    memoKey = null;
     host.onInfo(null);
     await v?.dispose();
   }
@@ -169,6 +191,16 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
         if (my !== token) return;
         if (scan.verdict === "suspicious") return suspicious(scan, st);
       }
+      // onde o usuário parou: a posição da sessão vale; sem ela, a lembrada para este arquivo
+      let remembered: unknown = null;
+      try {
+        const memo = await api.readerMemo(t.id);
+        if (my !== token) return;
+        memoKey = memo.key;
+        remembered = memo.pos;
+      } catch {
+        memoKey = null; // sem identidade, só não lembra por arquivo
+      }
       const mod = await import("./pdfview");
       if (my !== token) return;
       stamp = { size: st.size, mtime: st.mtime };
@@ -176,8 +208,11 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
       const body = el("div", "rd-body");
       root.replaceChildren(bar, body);
       const ui = buildBar(bar, () => v);
-      const v = await mod.openPdfView(body, t.id, st.size, normalizePos(t.reader), {
-        onPosition: (pos) => host.onPosition(t.id, pos),
+      const v = await mod.openPdfView(body, t.id, st.size, normalizePos(t.reader ?? remembered), {
+        onPosition: (pos) => {
+          host.onPosition(t.id, pos);
+          remember(pos);
+        },
         onFatal: (m) => {
           view = null;
           if (my === token) failed(m);

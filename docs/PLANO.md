@@ -145,7 +145,8 @@ Desenho, decisões e defesas em [banco-de-ideias/leitor-pdf-epub.md](banco-de-id
 | ✅ 10.1 | Aba de leitura (`TabKind`, `reader.rs`, comandos `open_reader`/`reader_info`/`reader_read`/`reader_relocate`, nunca grava, `unknown` seguro) | `cargo test -p fullpad-core`: abrir não lê o arquivo, `save_file` recusa, sessão com `kind` desconhecido não corrompe, fechar e reabrir mantém tipo e posição |
 | ✅ 10.2 | Botão "Carregar", arquivo ausente ("Localizar arquivo…") e alterado (faixa "Recarregar"), posição na sessão | Abrir um PDF não faz nenhuma leitura; reiniciar o app volta ao botão; apagar o arquivo troca o botão por "Localizar arquivo…" |
 | ✅ 10.3 | PDF com pdf.js por faixas (páginas virtualizadas, texto selecionável, links seguros, zoom próprio, página X de Y), endurecido contra bombas | Amostras maliciosas em `scratchpad` abrem sem travar o app; `source.test.ts` roda o pdf.js de verdade |
-| ⬜ 10.4 | Integração com as notas no PDF: copiar seleção como citação em markdown e posição por arquivo | PARADA 2 |
+| ✅ 10.4a | Posição de leitura por arquivo (identidade do conteúdo, sobrevive a mover o arquivo e a fechar a aba) | `cargo test -p fullpad-core`: mesma identidade para cópia/renomeação, outra ao editar, registro corrompido tolerado, só as 2000 mais recentes |
+| ⬜ 10.4b | Copiar a seleção como citação em markdown | PARADA 2 |
 | ⬜ 10.5 | EPUB: leitor em Rust, sanitização, sumário | PARADA 3 |
 
 **PARADA 10.A (PARADA 1 do leitor):** você abre PDFs reais e as amostras maliciosas. Quero saber: abrir ficou imediato, o que falta na leitura, desempenho em PDFs grandes.

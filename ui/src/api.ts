@@ -8,6 +8,11 @@ export type Eol = "lf" | "crlf";
 export type TabKind = "text" | "pdf" | "epub" | "unknown";
 /** Resultado da verificação de um PDF: um trecho comprimido que expande demais é suspeito. */
 export type PdfScan = { verdict: "ok" } | { verdict: "suspicious"; packed: number; unpacked: number; at_least: boolean };
+/** Identidade do arquivo (do conteúdo, não do caminho) e a última posição de leitura lembrada para ele. */
+export interface ReaderMemo {
+  key: string;
+  pos: unknown | null;
+}
 /** Situação do arquivo de uma aba de leitura. `mtime` em milissegundos desde 1970. */
 export type FileStatus = { status: "ok"; size: number; mtime: number } | { status: "missing" };
 export type Encoding = "utf8" | "utf8-bom" | "utf16le" | "utf16be" | "windows1252";
@@ -114,6 +119,10 @@ export const api = {
   openReader: (path: string) => invoke<TabState>("open_reader", { path }),
   /** Existe? Tamanho e data (só metadados). */
   readerInfo: (id: string) => invoke<FileStatus>("reader_info", { id }),
+  /** Identidade do arquivo e a posição de leitura lembrada para ele (lê só o começo e o fim). */
+  readerMemo: (id: string) => invoke<ReaderMemo>("reader_memo", { id }),
+  /** Lembra a posição de leitura do arquivo (`key` vem de `readerMemo`). */
+  readerRemember: (key: string, pos: unknown) => invoke<void>("reader_remember", { key, pos }),
   /** Procura bomba de compressão no PDF (no Rust, antes de o pdf.js tocar nele). */
   readerCheck: (id: string) => invoke<PdfScan>("reader_check", { id }),
   /** Faixa de bytes do arquivo da aba, em binário cru (o Rust limita o tamanho de cada chamada). */

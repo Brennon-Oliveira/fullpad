@@ -6,12 +6,31 @@ use crate::reader;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+/// Quantas posições de leitura (uma por arquivo) o app lembra.
+const MAX_REMEMBERED: usize = 2000;
+
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+struct Positions {
+    #[serde(default)]
+    entries: std::collections::BTreeMap<String, RememberedPosition>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct RememberedPosition {
+    /// Opaca para o core: só o leitor a entende.
+    pos: serde_json::Value,
+    /// Segundos desde 1970 da última gravação.
+    #[serde(default)]
+    at: u64,
+}
+
 /// Persistência em disco:
 ///
 /// ```text
 /// <root>/session.json      ordem das abas, aba ativa, cursor, modo…
 /// <root>/notes/<id>.md     conteúdo de cada nota
 /// <root>/trash/<id>.md     notas fechadas (recuperáveis)
+/// <root>/reader-positions.json   última posição de leitura por arquivo PDF/EPUB
 /// ```
 #[derive(Debug, Clone)]
 pub struct Store {
@@ -170,6 +189,45 @@ impl Store {
             (kind @ (TabKind::Pdf | TabKind::Epub), Some(path)) => Ok((kind, path.clone())),
             _ => Err(Error::Invalid("a aba não é um leitor de PDF ou EPUB".into())),
         }
+    }
+
+    // ---- posição de leitura por arquivo ------------------------------------------
+
+    fn positions_path(&self) -> PathBuf {
+        self.root.join("reader-positions.json")
+    }
+
+    fn load_positions(&self) -> Positions {
+        let path = self.positions_path();
+        let Ok(bytes) = std::fs::read(&path) else { return Positions::default() };
+        serde_json::from_slice(&bytes).unwrap_or_else(|_| {
+            // ilegível: guarda de lado e recomeça (perder posições de leitura não é grave)
+            let _ = std::fs::rename(&path, path.with_extension("json.corrupt"));
+            Positions::default()
+        })
+    }
+
+    /// Última posição de leitura lembrada para o arquivo de identidade `key` (`reader::fingerprint`).
+    pub fn reader_position(&self, key: &str) -> Option<serde_json::Value> {
+        reader::is_fingerprint(key).then(|| self.load_positions().entries.get(key).map(|r| r.pos.clone())).flatten()
+    }
+
+    /// Lembra a posição de leitura do arquivo. Guarda as `MAX_REMEMBERED` mais recentes.
+    pub fn remember_reader_position(&self, key: &str, pos: serde_json::Value) -> Result<()> {
+        if !reader::is_fingerprint(key) {
+            return Err(Error::Invalid("identidade de arquivo inválida".into()));
+        }
+        let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let mut all = self.load_positions();
+        all.entries.insert(key.to_string(), RememberedPosition { pos, at });
+        if all.entries.len() > MAX_REMEMBERED {
+            let mut by_age: Vec<(u64, String)> = all.entries.iter().map(|(k, v)| (v.at, k.clone())).collect();
+            by_age.sort();
+            for (_, k) in by_age.into_iter().take(all.entries.len() - MAX_REMEMBERED) {
+                all.entries.remove(&k);
+            }
+        }
+        write_atomic(&self.positions_path(), &serde_json::to_vec(&all)?)
     }
 
     /// Grava o texto no arquivo real e sincroniza o buffer da nota.
@@ -586,6 +644,52 @@ mod tests {
         let out = d.path().join("saida.txt");
         s.save_file(note.id, &out, "oi", Encoding::Utf8, Eol::Lf).unwrap();
         assert_eq!(std::fs::read_to_string(out).unwrap(), "oi");
+    }
+
+    #[test]
+    fn reader_position_is_remembered_per_file_identity() {
+        let (d, s) = store();
+        let pdf = pdf_in(d.path());
+        let key = reader::fingerprint(&pdf).unwrap();
+        assert_eq!(s.reader_position(&key), None);
+        s.remember_reader_position(&key, serde_json::json!({ "page": 9, "frac": 0.5 })).unwrap();
+        assert_eq!(s.reader_position(&key), Some(serde_json::json!({ "page": 9, "frac": 0.5 })));
+        // o arquivo mudou de lugar: a identidade é a mesma
+        let moved = d.path().join("movido.pdf");
+        std::fs::rename(&pdf, &moved).unwrap();
+        assert_eq!(s.reader_position(&reader::fingerprint(&moved).unwrap()).unwrap()["page"], 9);
+        // gravar de novo substitui
+        s.remember_reader_position(&key, serde_json::json!({ "page": 12 })).unwrap();
+        assert_eq!(s.reader_position(&key).unwrap()["page"], 12);
+    }
+
+    #[test]
+    fn remembering_rejects_arbitrary_keys_and_survives_a_corrupt_file() {
+        let (d, s) = store();
+        for bad in ["../x", "", "nao e hex", "a/b-c"] {
+            assert!(s.remember_reader_position(bad, serde_json::json!({})).is_err(), "{bad}");
+            assert_eq!(s.reader_position(bad), None);
+        }
+        std::fs::write(d.path().join("reader-positions.json"), b"{ lixo").unwrap();
+        assert_eq!(s.reader_position("1-2"), None);
+        assert!(d.path().join("reader-positions.json.corrupt").exists());
+        s.remember_reader_position("1-2", serde_json::json!({ "page": 3 })).unwrap(); // recomeça
+        assert_eq!(s.reader_position("1-2").unwrap()["page"], 3);
+    }
+
+    #[test]
+    fn only_the_most_recent_positions_are_kept() {
+        let (_d, s) = store();
+        let mut all = Positions::default();
+        for i in 0..MAX_REMEMBERED + 5 {
+            all.entries.insert(format!("{i:x}-1"), RememberedPosition { pos: serde_json::json!({ "page": i }), at: i as u64 });
+        }
+        write_atomic(&s.positions_path(), &serde_json::to_vec(&all).unwrap()).unwrap();
+        s.remember_reader_position("ffffff-1", serde_json::json!({ "page": 1 })).unwrap();
+        let kept = s.load_positions().entries;
+        assert_eq!(kept.len(), MAX_REMEMBERED);
+        assert!(kept.contains_key("ffffff-1"), "a nova fica");
+        assert!(!kept.contains_key("0-1"), "as mais antigas saem");
     }
 
     #[test]

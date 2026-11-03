@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TabState } from "../api";
 
-const api = vi.hoisted(() => ({ readerCheck: vi.fn(), readerInfo: vi.fn(), readerRead: vi.fn(), readerRelocate: vi.fn(), openUrl: vi.fn() }));
+const api = vi.hoisted(() => ({ readerMemo: vi.fn(), readerRemember: vi.fn(), readerCheck: vi.fn(), readerInfo: vi.fn(), readerRead: vi.fn(), readerRelocate: vi.fn(), openUrl: vi.fn() }));
 vi.mock("../api", () => ({ api }));
 const dialog = vi.hoisted(() => ({ open: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialog.open }));
@@ -36,9 +36,11 @@ const click = (label: string) => [...root.querySelectorAll("button")].find((b) =
 beforeEach(() => {
   root = document.createElement("div");
   document.body.replaceChildren(root);
-  for (const m of [api.readerCheck, view.zoomBy, view.setZoom, api.readerInfo, api.readerRead, api.readerRelocate, dialog.open, view.open, view.dispose, host.onPosition, host.onRelocated, host.onInfo]) m.mockClear();
+  for (const m of [api.readerMemo, api.readerRemember, api.readerCheck, view.zoomBy, view.setZoom, api.readerInfo, api.readerRead, api.readerRelocate, dialog.open, view.open, view.dispose, host.onPosition, host.onRelocated, host.onInfo]) m.mockClear();
   api.readerInfo.mockResolvedValue({ status: "ok", size: 2_500_000, mtime: 111 });
   api.readerCheck.mockResolvedValue({ verdict: "ok" });
+  api.readerMemo.mockResolvedValue({ key: "9c40-00aa00bb00cc00dd", pos: null });
+  api.readerRemember.mockResolvedValue(undefined);
   view.open.mockImplementation(async () => ({ pages: 10, position: view.position, dispose: view.dispose, zoomBy: view.zoomBy, setZoom: view.setZoom, goTo() {}, resize() {} }));
 });
 
@@ -216,6 +218,63 @@ describe("painel do leitor", () => {
     await settle();
     expect(root.textContent).toContain("não é um PDF válido ou está corrompido");
     expect(root.textContent).not.toContain("Invalid PDF structure");
+  });
+
+  it("abre na posição lembrada para o arquivo quando a aba não tem posição própria", async () => {
+    api.readerMemo.mockResolvedValueOnce({ key: "9c40-00aa00bb00cc00dd", pos: { page: 33, frac: 0.1, zoom: 2 } });
+    const p = createReaderPanel(root, host);
+    p.show(tab("m1"));
+    await settle();
+    click("Carregar PDF");
+    await settle();
+    expect(view.open.mock.calls[0][3]).toEqual({ page: 33, frac: 0.1, zoom: 2 });
+  });
+
+  it("a posição da sessão vale mais que a lembrada por arquivo", async () => {
+    api.readerMemo.mockResolvedValueOnce({ key: "9c40-00aa00bb00cc00dd", pos: { page: 33, frac: 0, zoom: null } });
+    const p = createReaderPanel(root, host);
+    p.show(tab("m2", { reader: { page: 5, frac: 0.5, zoom: null } }));
+    await settle();
+    click("Carregar PDF");
+    await settle();
+    expect(view.open.mock.calls[0][3].page).toBe(5);
+  });
+
+  it("sem identidade do arquivo, abre e só não lembra por arquivo", async () => {
+    api.readerMemo.mockRejectedValueOnce("erro de I/O");
+    const p = createReaderPanel(root, host);
+    p.show(tab("m3"));
+    await settle();
+    click("Carregar PDF");
+    await settle();
+    expect(view.open).toHaveBeenCalledTimes(1);
+    p.show(tab("m4"));
+    await settle();
+    expect(api.readerRemember).not.toHaveBeenCalled();
+  });
+
+  it("lembra a posição por arquivo ao sair da aba (sem esperar) e depois de um tempo parado", async () => {
+    vi.useFakeTimers();
+    try {
+      const p = createReaderPanel(root, host);
+      p.show(tab("r1"));
+      await vi.advanceTimersByTimeAsync(10);
+      click("Carregar PDF");
+      await vi.advanceTimersByTimeAsync(10);
+      const hooks = view.open.mock.calls[0][4];
+      hooks.onPosition({ page: 4, frac: 0.2, zoom: null });
+      expect(api.readerRemember).not.toHaveBeenCalled(); // rolando: ainda não grava
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(api.readerRemember).toHaveBeenCalledWith("9c40-00aa00bb00cc00dd", { page: 4, frac: 0.2, zoom: null });
+
+      api.readerRemember.mockClear();
+      hooks.onPosition({ page: 8, frac: 0, zoom: null });
+      p.show(tab("r2")); // trocou de aba antes do atraso: grava na hora
+      await vi.advanceTimersByTimeAsync(10);
+      expect(api.readerRemember).toHaveBeenCalledWith("9c40-00aa00bb00cc00dd", { page: 7, frac: 0.5, zoom: null });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("hide solta o documento e esvazia o painel", async () => {

@@ -56,6 +56,44 @@ pub fn read_range(path: &Path, offset: u64, len: u64) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
+// ---- identidade do arquivo (para lembrar a posição de leitura) ---------------------------------
+
+/// Quanto do começo e do fim do arquivo entra na identidade.
+const FINGERPRINT_BYTES: u64 = 64 * 1024;
+
+/// Identidade do conteúdo de um arquivo: o tamanho e um hash (FNV-1a, estável entre versões do
+/// Rust, ao contrário do `DefaultHasher`) do começo e do fim. Não depende do caminho, então a
+/// posição de leitura sobrevive a mover ou renomear o arquivo; editar o arquivo (outro tamanho ou
+/// outro conteúdo nas pontas) gera outra identidade, e a posição antiga deixa de valer.
+pub fn fingerprint(path: &Path) -> Result<String> {
+    let mut f = std::fs::File::open(path).at(path)?;
+    let size = f.metadata().at(path)?.len();
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut feed = |bytes: &[u8]| {
+        for b in bytes {
+            hash ^= u64::from(*b);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
+    let head = FINGERPRINT_BYTES.min(size);
+    let mut buf = vec![0u8; head as usize];
+    f.read_exact(&mut buf).at(path)?;
+    feed(&buf);
+    if size > head {
+        let tail = FINGERPRINT_BYTES.min(size - head);
+        f.seek(SeekFrom::Start(size - tail)).at(path)?;
+        let mut buf = vec![0u8; tail as usize];
+        f.read_exact(&mut buf).at(path)?;
+        feed(&buf);
+    }
+    Ok(format!("{size:x}-{hash:016x}"))
+}
+
+/// Uma identidade válida (a UI a devolve ao gravar a posição; nada além disso vira chave).
+pub fn is_fingerprint(key: &str) -> bool {
+    key.len() <= 40 && key.split_once('-').is_some_and(|(a, b)| !a.is_empty() && !b.is_empty() && key.bytes().all(|c| c.is_ascii_hexdigit() || c == b'-'))
+}
+
 // ---- verificação de PDF antes de abrir (bomba de compressão) -----------------------------------
 
 /// Resultado de `scan_pdf`.
@@ -350,6 +388,42 @@ mod tests {
     fn scan_of_missing_file_is_an_error() {
         let d = tempfile::tempdir().unwrap();
         assert!(scan_pdf(&d.path().join("x.pdf")).is_err());
+    }
+
+    #[test]
+    fn fingerprint_follows_the_content_not_the_path() {
+        let (d, p) = file(b"%PDF-1.7 conteudo do livro");
+        let moved = d.path().join("outro-nome.pdf");
+        std::fs::copy(&p, &moved).unwrap();
+        let a = fingerprint(&p).unwrap();
+        assert_eq!(a, fingerprint(&moved).unwrap(), "copiar ou renomear não muda a identidade");
+        assert!(is_fingerprint(&a), "{a}");
+
+        std::fs::write(&p, b"%PDF-1.7 conteudo do livro, editado").unwrap();
+        assert_ne!(a, fingerprint(&p).unwrap(), "outro conteúdo, outra identidade");
+    }
+
+    #[test]
+    fn fingerprint_of_a_big_file_reads_only_the_ends_and_sees_the_tail() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("grande.pdf");
+        let f = std::fs::File::create(&p).unwrap();
+        f.set_len(500 << 20).unwrap(); // esparso
+        let a = fingerprint(&p).unwrap();
+        let mut f = std::fs::OpenOptions::new().write(true).open(&p).unwrap();
+        f.seek(SeekFrom::End(-10)).unwrap();
+        f.write_all(b"mudou").unwrap();
+        assert_ne!(a, fingerprint(&p).unwrap(), "uma mudança no fim aparece");
+        let (_d, tiny) = file(b"");
+        assert!(is_fingerprint(&fingerprint(&tiny).unwrap()));
+    }
+
+    #[test]
+    fn is_fingerprint_accepts_only_our_keys() {
+        assert!(is_fingerprint("1a2b-00ff00ff00ff00ff"));
+        for bad in ["", "-", "abc", "../etc/passwd", "a-b-c/d", "zz-yy", "a-", "-b", &"f".repeat(41)] {
+            assert!(!is_fingerprint(bad), "{bad}");
+        }
     }
 
     #[test]

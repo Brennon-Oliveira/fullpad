@@ -42,6 +42,8 @@ struct AppState {
     previews: Mutex<std::collections::HashMap<String, PreviewInfo>>,
     /// Serializa ler-alterar-gravar do `session.json`: várias janelas gravam ao mesmo tempo.
     session_lock: Mutex<()>,
+    /// Serializa ler-alterar-gravar de `reader-positions.json` (várias janelas lembram posições).
+    positions_lock: Mutex<()>,
     /// Abas fechadas nesta execução: uma gravação atrasada de uma janela não pode ressuscitá-las.
     closed: Mutex<HashSet<Uuid>>,
     /// Arquivos pedidos na linha de comando (duplo clique, "Abrir com") que a janela principal
@@ -680,6 +682,37 @@ async fn reader_check(state: State<'_, AppState>, id: String) -> Result<PdfScan,
     .map_err(err)?
 }
 
+#[derive(Serialize)]
+struct ReaderMemo {
+    /// Identidade do conteúdo do arquivo (não do caminho): a chave da posição lembrada.
+    key: String,
+    /// Posição de leitura lembrada para esse arquivo, se houver.
+    pos: Option<serde_json::Value>,
+}
+
+/// Identidade do arquivo da aba e a última posição de leitura lembrada para ele. Lê só o começo e
+/// o fim do arquivo (128 KB), e só quando o usuário manda carregar.
+#[tauri::command]
+async fn reader_memo(state: State<'_, AppState>, id: String) -> Result<ReaderMemo, String> {
+    let id = parse_id(&id)?;
+    let store = state.store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (_, path) = store.reader_file(id).map_err(err)?;
+        let key = fullpad_core::reader::fingerprint(&path).map_err(err)?;
+        let pos = store.reader_position(&key);
+        Ok(ReaderMemo { key, pos })
+    })
+    .await
+    .map_err(err)?
+}
+
+/// Lembra a posição de leitura do arquivo (pela identidade devolvida por `reader_memo`).
+#[tauri::command]
+fn reader_remember(state: State<AppState>, key: String, pos: serde_json::Value) -> Result<(), String> {
+    let _g = state.positions_lock.lock().unwrap();
+    state.store.remember_reader_position(&key, pos).map_err(err)
+}
+
 /// Uma faixa de bytes do arquivo da aba, em binário cru (sem JSON). O Rust limita o tamanho.
 #[tauri::command]
 async fn reader_read(state: State<'_, AppState>, id: String, offset: u64, len: u64) -> Result<tauri::ipc::Response, String> {
@@ -806,7 +839,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
-        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()),
+        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), closed: Mutex::new(HashSet::new()),
         open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()),
         update: Mutex::new(None), update_bytes: Mutex::new(None), just_updated: Mutex::new(false) })
         .setup(|app| {
@@ -838,6 +871,8 @@ fn main() {
             open_reader,
             reader_info,
             reader_check,
+            reader_memo,
+            reader_remember,
             reader_read,
             reader_relocate,
             save_file,
