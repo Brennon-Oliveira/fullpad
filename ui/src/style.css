@@ -332,4 +332,172 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 
 /* ---- JSON: erro no editor, dobrar blocos e árvore ---- */
 .cm-json-error { text-decoration: underline wavy var(--err) 2px; text-underline-offset: 4px; background: color-mix(in srgb, var(--err) 16%, transparent); }
-.cm-editor 
+.cm-editor .cm-gutters { background: var(--bg); border: 0; color: var(--muted); }
+.cm-editor .cm-foldGutter .cm-gutterElement { cursor: pointer; padding: 0 4px; }
+.cm-editor .cm-matchingBracket { background: color-mix(in srgb, var(--accent) 25%, transparent); outline: none; }
+#jsonview, .jsonview { display: none; flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--border); background: var(--bg); }
+#jsonview.on, .jsonview.on { display: block; }
+.preview-only #jsonview { border-left: 0; }
+.jt-host { overflow: hidden; }
+.jt-scroll { position: absolute; inset: 0; overflow: auto; font: 13px var(--mono); }
+.jt-spacer { position: relative; min-width: 100%; width: max-content; }
+.jt-rows { position: absolute; left: 0; top: 0; min-width: 100%; }
+.jt-row { display: flex; align-items: center; height: 22px; white-space: nowrap; padding-right: 16px; cursor: default; }
+.jt-row:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.jt-row.fc { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.jt-tog { width: 14px; flex: none; color: var(--muted); text-align: center; cursor: pointer; }
+.jt-key { color: var(--syn-prop); }
+.jt-idx { color: var(--muted); }
+.jt-colon { color: var(--muted); margin: 0 6px 0 2px; }
+.jt-sum { color: var(--muted); }
+.jt-val.jt-string { color: var(--syn-string); }
+.jt-val.jt-number { color: var(--syn-number); }
+.jt-val.jt-bool, .jt-val.jt-null { color: var(--syn-keyword); font-weight: bold; }
+.jt-link { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.jt-link:hover { color: var(--accent); }
+.jt-img:not(.jt-link) { text-decoration: underline dotted; text-underline-offset: 2px; }
+.jt-sw { width: 12px; height: 12px; flex: none; margin-right: 6px; border: 1px solid var(--border); border-radius: 2px; }
+.jt-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
+.jt-msg[hidden] { display: none; }
+.jt-error { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 12px; font: 12px var(--mono); background: color-mix(in srgb, var(--err) 22%, var(--bar)); border-top: 1px solid var(--err); cursor: pointer; }
+.jt-error[hidden] { display: none; }
+.jt-tip { position: fixed; z-index: 200; max-width: 260px; padding: 4px; background: var(--pop); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,.3); pointer-events: none; }
+.jt-tip[hidden] { display: none; }
+.jt-tip img { display: block; max-width: 248px; max-height: 180px; }
+.jt-tip-msg { padding: 4px 6px; font: 12px var(--sans); color: var(--muted); max-width: 240px; }
+#status .seg.path { font-family: var(--mono); color: var(--muted); max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#status .seg[hidden] { display: none; }
+.cm-url-hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 2px; }
+#status .zoombox { padding: 0 4px; gap: 0; }
+#status .zoombox button { border: 0; background: none; color: inherit; cursor: pointer; padding: 3px 6px; display: flex; align-items: center; }
+#status .zoombox button:hover { background: var(--tab); }
+#status .zoombox .zval { min-width: 4.2em; justify-content: center; }
+
+/* ---- CSV: tabela ao lado do código (ou sozinha) ---- */
+.group > .note { flex: none; width: 100%; box-sizing: border-box; padding: 3px 10px; font-size: 12px; line-height: 18px; background: var(--code-bg); border-bottom: 1px solid var(--border); color: var(--muted); }
+.group > .note[hidden] { display: none; }
+.csvview { display: none; flex: 1; min-width: 0; min-height: 0; position: relative; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg); }
+.csvview.on { display: flex; }
+.body.tableonly > .editor { display: none !important; }
+.body.tableonly > .csvview { border-left: 0; }
+.preview-only .csvview { border-left: 0; }
+.csv-bar { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: var(--bar); border-bottom: 1px solid var(--border); font: 12px var(--sans); }
+.csv-filter { width: 220px; max-width: 40%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
+.csv-colsel { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; max-width: 160px; }
+.csv-count { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.csv-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; font: 13px var(--mono); outline: none; }
+.csv-head { position: sticky; top: 0; z-index: 3; display: flex; height: 28px; background: var(--bar); border-bottom: 1px solid var(--border); }
+.csv-rgrip { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: row-resize; }
+.csv-hnum, .csv-rnum { position: sticky; left: 0; z-index: 2; flex: none; width: var(--csv-num-w, 56px); box-sizing: border-box; background: var(--bar); color: var(--muted); text-align: right; padding: 0 8px; line-height: var(--csv-row-h, 24px); height: var(--csv-row-h, 24px); border-right: 1px solid var(--border); user-select: none; }
+.csv-hnum { line-height: 28px; height: 28px; z-index: 4; }
+.csv-hcell { position: relative; flex: none; box-sizing: border-box; padding: 0 8px; line-height: 28px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid var(--border); cursor: pointer; user-select: none; }
+.csv-hcell:hover { background: color-mix(in srgb, var(--accent) 10%, var(--bar)); }
+.csv-hcell.num { text-align: right; }
+.csv-sort { color: var(--accent); }
+.csv-grip { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; }
+.csv-spacer { position: relative; }
+.csv-rows { position: absolute; left: 0; }
+.csv-row { display: flex; height: var(--csv-row-h, 24px); }
+.csv-row.odd .csv-cell { background: color-mix(in srgb, var(--fg) 4%, var(--bg)); }
+.csv-cell { flex: none; box-sizing: border-box; height: var(--csv-row-h, 24px); padding: 0 8px; line-height: var(--csv-row-h, 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--bg); border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent); cursor: cell; }
+/* linha alta: o texto quebra em linhas (o que não couber continua com o "…") */
+.csv-row.wrap .csv-cell { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 18px; padding-top: 3px; padding-bottom: 3px; text-overflow: clip; }
+.csv-row.wrap .csv-cell.cut { padding-right: 22px; }
+.csv-row.wrap .csv-more { line-height: 18px; top: 0; bottom: auto; height: 22px; }
+.csv-cell.num { text-align: right; }
+.csv-row .csv-cell.sel, .csv-row.odd .csv-cell.sel { background: color-mix(in srgb, var(--accent) 24%, var(--bg)); }
+.csv-cell { position: relative; }
+.csv-cell.cut { text-overflow: clip; padding-right: 22px; }
+.csv-edit { position: absolute; z-index: 2; box-sizing: border-box; margin: 0; padding: 3px 8px; font: 13px var(--mono); line-height: 18px; color: var(--fg); background: var(--bg); border: 2px solid var(--accent); border-radius: 2px; outline: none; resize: none; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.csv-more { position: absolute; right: 0; top: 0; bottom: 0; width: 22px; text-align: center; line-height: 22px; color: var(--muted); background: inherit; cursor: pointer; border-radius: 3px; }
+.csv-more:hover { color: var(--fg); background: color-mix(in srgb, var(--accent) 25%, var(--bg)); }
+.csv-pop { position: fixed; z-index: 1000; min-width: 220px; max-width: min(520px, 90vw); display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--pop); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); font: 13px var(--mono); }
+.csv-pop-text { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.csv-pop-copy { align-self: flex-end; font: 12px var(--sans); color: var(--fg); background: var(--bar); border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+.csv-pop-copy:hover { border-color: var(--accent); }
+.csv-cell.cur { outline: 2px solid var(--accent); outline-offset: -2px; }
+.csv-msg { padding: 8px 12px; color: var(--err); font: 12px var(--sans); }
+.csv-foot { display: flex; gap: 16px; align-items: center; min-height: 24px; padding: 2px 10px; background: var(--bar); border-top: 1px solid var(--border); font: 12px var(--sans); color: var(--muted); }
+.csv-where { font-weight: 600; color: var(--fg); }
+.csv-toast { position: absolute; right: 12px; bottom: 36px; background: var(--pop); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font: 12px var(--sans); box-shadow: 0 4px 14px rgba(0, 0, 0, .25); }
+
+/* destaque, no código, do texto das células selecionadas na tabela (forte) e da que está sob o mouse (suave) */
+.cm-csv-sel { background: color-mix(in srgb, var(--accent) 34%, transparent); border-radius: 2px; }
+.cm-csv-hover { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 2px; }
+
+/* ---- leitor de PDF/EPUB (aba só de leitura) ---- */
+.reader { display: none; flex: 1; min-width: 0; min-height: 0; flex-direction: column; position: relative; background: var(--bar); }
+.reader.on { display: flex; }
+.body.reading > .editor, .body.reading > .mdview, .body.reading > .diagram, .body.reading > .jsonview, .body.reading > .csvview { display: none !important; }
+.rd-center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.rd-card { max-width: 460px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.rd-card.busy { opacity: .7; }
+.rd-icon { font: 600 12px var(--mono); letter-spacing: .08em; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; }
+.rd-title { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.rd-line { color: var(--muted); overflow-wrap: anywhere; }
+.rd-card.warn .rd-title { color: var(--warn); }
+.rd-card.error .rd-title { color: var(--err); }
+.rd-actions { display: flex; gap: 8px; margin-top: 8px; }
+.rd-btn { border: 1px solid var(--border); background: var(--bg); border-radius: 4px; padding: 4px 12px; cursor: pointer; }
+.rd-btn:hover { background: var(--tab); }
+.rd-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.rd-btn.primary:hover { filter: brightness(1.1); }
+.rd-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 3px 8px; background: var(--bar); border-bottom: 1px solid var(--border); }
+.rd-tool { border: 1px solid transparent; background: none; border-radius: 4px; padding: 1px 8px; cursor: pointer; }
+.rd-tool:hover { background: var(--tab); border-color: var(--border); }
+.rd-zoom { min-width: 5.5em; text-align: center; color: var(--muted); }
+.rd-sep { width: 1px; height: 16px; background: var(--border); margin: 0 6px; }
+.rd-label, .rd-total { color: var(--muted); }
+.rd-page-input { width: 4.5em; padding: 1px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font: inherit; text-align: right; }
+.rd-body { flex: 1; min-height: 0; position: relative; display: flex; }
+.rd-notice { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: var(--code-bg); border-bottom: 1px solid var(--border); color: var(--warn); }
+.rd-notice span { flex: 1; }
+.rd-scroll { flex: 1; min-width: 0; overflow: auto; outline: none; background: var(--tab); position: relative; }
+.rd-pages { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; min-width: max-content; }
+.rd-page { position: relative; flex: none; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); color: #444; }
+.rd-page.failed { display: flex; align-items: center; justify-content: center; }
+.rd-page canvas { display: block; }
+.rd-stage { position: absolute; inset: 0; }
+/* depois de um zoom, o desenho antigo fica esticado até o novo ficar pronto (sem piscar) */
+.rd-stage.stale canvas { width: 100% !important; height: 100% !important; }
+.rd-stage.stale .textLayer, .rd-stage.stale .rd-links { display: none; }
+.rd-page .textLayer { position: absolute; inset: 0; }
+.rd-links { position: absolute; inset: 0; pointer-events: none; }
+.rd-link { position: absolute; pointer-events: auto; cursor: pointer; }
+.rd-link:hover { background: rgba(37, 99, 235, .15); }
+
+/* ---- aviso ao arrastar arquivos de fora para a janela ---- */
+.filedrop { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--bg) 70%, transparent); pointer-events: none; }
+.filedrop[hidden] { display: none; }
+.filedrop::before { content: ""; position: absolute; inset: 10px; border: 2px dashed var(--accent); border-radius: 10px; }
+.filedrop-box { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 36px; background: var(--pop); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.filedrop-icon { font-size: 34px; line-height: 1; color: var(--accent); }
+.filedrop-text { font-size: 16px; font-weight: 600; }
+.rd-toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 6px 14px; background: var(--pop); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.35); pointer-events: none; z-index: 5; }
+
+/* ---- leitor de EPUB ---- */
+.rd-epub { flex: 1; display: flex; min-width: 0; min-height: 0; }
+.rd-toc { width: 270px; flex: none; overflow: auto; border-right: 1px solid var(--border); background: var(--bar); padding: 6px 0; }
+.rd-toc[hidden] { display: none; }
+.rd-toc-item { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 4px 12px; cursor: pointer; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-toc-item:hover:not(:disabled) { background: var(--tab); }
+.rd-toc-item[aria-current="true"] { color: var(--accent); font-weight: 600; }
+.rd-toc-item:disabled { color: var(--muted); cursor: default; }
+.rd-epub-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rd-epub-bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-bottom: 1px solid var(--border); background: var(--bar); }
+.rd-epub-title { margin-left: 8px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-epub-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--bg); }
+
+/* ---- busca no documento (PDF e EPUB) ---- */
+::highlight(fp-find) { background: rgba(255, 224, 102, .55); color: inherit; }
+::highlight(fp-find-current) { background: rgba(255, 150, 50, .8); color: inherit; }
+.rd-find { flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--bar); border-bottom: 1px solid var(--border); }
+.rd-find[hidden] { display: none; }
+.rd-find-input { flex: 0 1 320px; min-width: 120px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font: inherit; }
+.rd-find-input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.rd-find-count { color: var(--muted); min-width: 9em; }
+.csv-pop-copy.kbd { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.csv-hedit { position: absolute; top: 0; z-index: 4; box-sizing: border-box; height: 28px; margin: 0; padding: 0 8px; font: 600 13px var(--sans); color: var(--fg); background: var(--bg); border: 2px solid var(--accent); border-radius: 2px; outline: none; }
+.cm-gutters { background: var(--bar); color: var(--muted); border: 0; border-right: 1px solid var(--border); user-select: none; }
+.cm-lineNumbers .cm-gutterElement { padding: 0 10px 0 12px; min-width: 2.5em; font: 12px var(--mono); }
+.cm-activeLineGutter { background: transparent; color: var(--fg); }

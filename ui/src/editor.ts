@@ -4,7 +4,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState, type Extension, StateEffect, StateField } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, drawSelection, keymap, type ViewUpdate } from "@codemirror/view";
+import { Decoration, type DecorationSet, EditorView, drawSelection, keymap, lineNumbers, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { codeLanguages } from "./codelangs";
 import { dbmlLanguage } from "./dbmllang";
@@ -18,6 +18,7 @@ const supportC = new Compartment(); // recursos extras da linguagem (carregados 
 const bracketsC = new Compartment(); // fecha ( [ { e aspas sozinho (DBML)
 const wrapC = new Compartment();
 const overwriteC = new Compartment();
+const gutterC = new Compartment(); // números de linha
 
 const highlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "bold" },
@@ -183,6 +184,8 @@ export interface TabConfig {
   preview: boolean;
   wrap: boolean;
   overwrite: boolean;
+  /** Números de linha na margem (só onde o código aparece: o markdown renderizado e a tabela não têm). */
+  lineNumbers: boolean;
 }
 
 /** Sobrescrever (tecla Insert): cada caractere digitado substitui o seguinte. */
@@ -209,6 +212,7 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
     themeC.reconfigure(EditorView.darkTheme.of(c.dark)),
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),
+    gutterC.reconfigure(c.lineNumbers ? lineNumbers() : []),
   ];
 }
 
@@ -236,6 +240,7 @@ export function createState(
       themeC.of(EditorView.darkTheme.of(isDark())),
       wrapC.of(EditorView.lineWrapping),
       overwriteC.of([]),
+      gutterC.of([]),
       hintField,
       jsonErrorField,
       cellSelField,

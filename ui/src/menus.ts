@@ -29,6 +29,7 @@ export interface MenuActions {
   setView(m: ViewMode): void;
   toggleDetached(): void;
   toggleWrap(): void;
+  toggleLineNumbers(): void;
   splitRight(): void;
   splitDown(): void;
   setLanguage(l: Language): void;
@@ -59,6 +60,7 @@ export interface MenuActions {
     detached: boolean;
     previewAvailable: boolean;
     wrap: boolean;
+    lineNumbers: boolean;
     jsonIndent: string;
     /** Escolhas do CSV da aba e o separador que a detecção achou (vale quando a escolha é automática). */
     csv: CsvSettings;
@@ -163,6 +165,7 @@ export function csvItems(a: MenuActions): MenuItem[] {
 function textItems(a: MenuActions): MenuItem[] {
   return [
     { label: "Quebra de linha", checked: a.current().wrap, action: a.toggleWrap },
+    { label: "Números de linha", checked: a.current().lineNumbers, action: a.toggleLineNumbers },
     "sep",
     { label: "Localizar…", shortcut: "Ctrl+F", action: a.find },
     { label: "Substituir…", action: a.replace },
@@ -303,6 +306,7 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
           { label: "Dividir abaixo", shortcut: "Ctrl+Shift+\\", action: a.splitDown },
           "sep",
           { label: "Quebra de linha", checked: c.wrap, action: a.toggleWrap },
+          { label: "Números de linha", checked: c.lineNumbers, action: a.toggleLineNumbers },
           "sep",
           zoomItem(a),
         ];

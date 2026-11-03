@@ -53,6 +53,7 @@ let detectTimer: number | undefined;
 let sizeTimer: number | undefined;
 let writeChain: Promise<unknown> = Promise.resolve(); // serializa escritas
 let wrap = readSetting("wrap", true);
+let lineNumbers = readSetting("lineNumbers", true);
 let overwrite = false;
 let lastSize = 0;
 
@@ -209,6 +210,7 @@ function applyTabConfig() {
       preview: viewKind(tab) === "inline" && effectiveLang(tab) === "markdown",
       wrap,
       overwrite,
+      lineNumbers: lineNumbers && viewKind(tab) !== "inline",
     }),
   });
   ensureDbmlSupport();
@@ -2054,6 +2056,13 @@ function toggleWrap() {
   cur.view.focus();
 }
 
+function toggleLineNumbers() {
+  lineNumbers = !lineNumbers;
+  writeSetting("lineNumbers", lineNumbers);
+  applyTabConfig();
+  cur.view.focus();
+}
+
 function toggleOverwrite() {
   overwrite = !overwrite;
   applyTabConfig();
@@ -2103,6 +2112,7 @@ const menuActions = {
   setView,
   toggleDetached,
   toggleWrap,
+  toggleLineNumbers,
   setLanguage,
   formatJson: () => void formatJson(),
   formatJsonSelection: () => void formatJson({ selection: true }),
@@ -2132,6 +2142,7 @@ const menuActions = {
       detached: tab.detached,
       previewAvailable: previewAvailable(tab),
       wrap,
+      lineNumbers,
       jsonIndent,
       csv: csvSettings(tab),
       csvDetected: csvDetected.get(tab.id) ?? ",",
