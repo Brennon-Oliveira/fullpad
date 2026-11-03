@@ -30,6 +30,8 @@ pub enum Language {
     Dbml,
     Json,
     Csv,
+    Yaml,
+    Toml,
     #[default]
     #[serde(other)]
     Auto,

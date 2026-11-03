@@ -1,7 +1,7 @@
 ---
 titulo: Suporte a YAML e TOML (nos moldes da visão JSON)
-feita: não
-versao: —
+feita: sim
+versao: próxima (a definir ao gerar a versão)
 ---
 
 # YAML e TOML
@@ -35,3 +35,7 @@ As mesmas do JSON (`url`, `mail`, `image`, `color`…), decididas no Rust; no TO
 
 - Entra no [sumário lateral](sumario-lateral.md) (chaves e tabelas).
 - Conversões entre JSON ↔ YAML ↔ TOML ficam como ideia futura.
+
+## Entregue
+
+Validação, árvore ao lado do código, dicas de valor e ligação código ↔ árvore (`toml_edit` e `saphyr-parser`). **Ficou de fora:** formatar (recusaria quando perderia comentários; ainda não implementado), árvore em janela separada, entrada no sumário lateral e conversões JSON ↔ YAML ↔ TOML.

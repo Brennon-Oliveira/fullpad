@@ -108,7 +108,7 @@ export const codeLanguages: LanguageDescription[] = [
 ];
 
 /** Tipos de arquivo que têm visão própria (não são "só destaque"): ficam de fora do seletor de Lang. */
-const OWN_TYPE = new Set(["DBML", "JSON"]);
+const OWN_TYPE = new Set(["DBML", "JSON", "YAML", "TOML"]);
 
 /** As linguagens que o usuário pode escolher à mão para colorir um arquivo de texto. */
 export const pickableLanguages: readonly LanguageDescription[] = codeLanguages.filter((l) => !OWN_TYPE.has(l.name));

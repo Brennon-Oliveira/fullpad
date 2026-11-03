@@ -16,6 +16,12 @@ describe("detectLanguage", () => {
     expect(detectLanguage("a\tb", "C:\\x\\DADOS.TSV")).toBe("csv");
     expect(detectLanguage("a,b\n1,2\n3,4", null)).toBe("plain");
   });
+  it("reconhece YAML e TOML só pela extensão", () => {
+    expect(detectLanguage("a: 1", "config.yaml")).toBe("yaml");
+    expect(detectLanguage("a: 1", "C:\\x\\ci.YML")).toBe("yaml");
+    expect(detectLanguage("a = 1", "Cargo.toml")).toBe("toml");
+    expect(detectLanguage("a: 1\nb: 2", null)).toBe("plain");
+  });
   it("detecta markdown em nota avulsa", () => {
     expect(detectLanguage("# Título\ntexto", null)).toBe("markdown");
     expect(detectLanguage("- [ ] a\n- [x] b", null)).toBe("markdown");

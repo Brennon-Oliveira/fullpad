@@ -15,7 +15,7 @@ import { api, type ClosedTab, type Encoding, type Eol, type Language, type Sessi
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import type { DiagramPanel } from "./dbml/panel";
 import type { CsvPanel } from "./csv/panel";
-import type { JsonPanel } from "./json/panel";
+import type { JsonPanel, TreeFormat } from "./json/panel";
 import { mapCursor } from "./json/format";
 import type { MarkdownPane } from "./mdpreview";
 import type { ReaderPanel } from "./reader/panel";
@@ -28,7 +28,7 @@ import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
 const MAX_CSV_CHARS = 50_000_000; // mesmo valor de csv/panel.ts
-import { codeLangItems, exportItem, languageItems, mountMenuBar, sideOnly, viewItems, zoomItems } from "./menus";
+import { codeLangItems, exportItem, isTree, languageItems, mountMenuBar, sideOnly, viewItems, zoomItems } from "./menus";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { currentZoom, loadZoom, onZoomChange, setZoom, stepZoom, wheelZoom } from "./zoom";
@@ -170,7 +170,7 @@ function effectiveLang(tab: TabState): Lang {
 function previewAvailable(tab: TabState): boolean {
   const len = states.get(tab.id)?.doc.length ?? 0;
   const lang = effectiveLang(tab);
-  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (lang === "json" && len <= MAX_JSON_CHARS) || (lang === "csv" && len <= MAX_CSV_CHARS);
+  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (isTree(lang) && len <= MAX_JSON_CHARS) || (lang === "csv" && len <= MAX_CSV_CHARS);
 }
 
 /** Como o arquivo aparece: só código, renderizado no próprio texto (markdown) ou ao lado do código. */
@@ -189,7 +189,7 @@ function viewLabel(tab: TabState): string {
   if (k === "source") return "Código";
   if (tab.detached) return "Janela separada";
   if (effectiveLang(tab) === "dbml") return "Diagrama";
-  if (effectiveLang(tab) === "json") return "Árvore";
+  if (isTree(effectiveLang(tab))) return "Árvore";
   if (effectiveLang(tab) === "csv") return k === "inline" ? "Tabela" : "Tabela e código";
   return k === "inline" ? "Preview" : "Lado a lado";
 }
@@ -208,7 +208,7 @@ function applyTabConfig() {
     effects: tabEffects({
       markdown: effectiveLang(tab) === "markdown",
       dbml: effectiveLang(tab) === "dbml",
-      json: effectiveLang(tab) === "json",
+      json: isTree(effectiveLang(tab)),
       dark: isDark(),
       support: supportFor(tab),
       preview: viewKind(tab) === "inline" && effectiveLang(tab) === "markdown",
@@ -251,20 +251,23 @@ function ensureDbmlSupport() {
 
 // ---- recursos de editor do JSON (linguagem, dobrar blocos, erro de sintaxe; sob demanda) ----
 
-let jsonSupport: Extension | undefined;
-let jsonSupportLoading = false;
+const treeSupport: Partial<Record<TreeFormat, Extension>> = {};
+const treeSupportLoading = new Set<TreeFormat>();
 
 function ensureJsonSupport() {
-  if (jsonSupport || jsonSupportLoading || effectiveLang(activeTab()) !== "json") return;
-  jsonSupportLoading = true;
+  const lang = effectiveLang(activeTab());
+  if (!isTree(lang)) return;
+  const f = lang as TreeFormat;
+  if (treeSupport[f] || treeSupportLoading.has(f)) return;
+  treeSupportLoading.add(f);
   import("./json/editor")
-    .then((m) => m.jsonEditorSupport())
+    .then((m) => (f === "json" ? m.jsonEditorSupport() : m.dataEditorSupport(f)))
     .then((ext) => {
-      jsonSupport = ext;
-      forEachGroup(() => effectiveLang(activeTab()) === "json" && applyTabConfig());
+      treeSupport[f] = ext;
+      forEachGroup(() => effectiveLang(activeTab()) === f && applyTabConfig());
     })
-    .catch((e) => console.error("falha ao carregar o suporte a JSON", e))
-    .finally(() => (jsonSupportLoading = false));
+    .catch((e) => console.error(`falha ao carregar o suporte a ${f}`, e))
+    .finally(() => treeSupportLoading.delete(f));
 }
 
 // ---- recursos de editor do CSV (colunas coloridas; sob demanda) ----
@@ -282,7 +285,9 @@ function supportFor(tab: TabState): Extension | undefined {
     case "dbml":
       return dbmlSupport;
     case "json":
-      return jsonSupport;
+    case "yaml":
+    case "toml":
+      return treeSupport[effectiveLang(tab) as TreeFormat];
     case "csv":
       return csvLang?.csvSupport(csvDelimiter(tab));
     default: {
@@ -456,7 +461,7 @@ function syncDetached(textChanged: boolean) {
 
 function toggleDetached() {
   const tab = activeTab();
-  if (!previewAvailable(tab)) return;
+  if (!previewAvailable(tab) || ["yaml", "toml"].includes(effectiveLang(tab))) return; // a árvore de YAML/TOML não vai para janela própria
   if (tab.detached) tab.detached = false;
   else {
     tab.detached = true;
@@ -475,7 +480,7 @@ const diagramWanted = (tab: TabState) => previewOn(tab) && !tab.detached && effe
 
 // ---- árvore JSON ao lado do código (carregada sob demanda) ----------------------------
 
-const jsonWanted = (tab: TabState) => effectiveLang(tab) === "json" && viewKind(tab) === "split" && !tab.detached;
+const jsonWanted = (tab: TabState) => isTree(effectiveLang(tab)) && viewKind(tab) === "split" && !tab.detached;
 let jsonPath: string | null = null; // caminho do nó sob o cursor, para a barra de status
 
 function syncJson(textChanged: boolean) {
@@ -491,6 +496,7 @@ function syncJson(textChanged: boolean) {
   const run = () => {
     const t = tabOf(g);
     if (!g.json || !t || !jsonWanted(t)) return;
+    g.json.setFormat(effectiveLang(t) as TreeFormat);
     const fresh = g.jsonTab !== tab.id;
     if (fresh) jsonPath = null;
     if (textChanged && !fresh) g.json.update(text, g.rev);
@@ -719,7 +725,7 @@ const ENC_LABEL: Record<Encoding, string> = {
   utf16be: "UTF-16 BE BOM",
   windows1252: "Windows-1252",
 };
-const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON", csv: "CSV", pdf: "PDF", epub: "EPUB" };
+const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON", csv: "CSV", yaml: "YAML", toml: "TOML", pdf: "PDF", epub: "EPUB" };
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
@@ -2023,12 +2029,12 @@ async function checkUpdates(manual: boolean) {
 // ---- arquivos ---------------------------------------------------------------
 
 const OPEN_FILTERS = [
-  { name: "Texto, Markdown, DBML, JSON, CSV, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "csv", "tsv", "pdf", "epub"] },
+  { name: "Texto, Markdown, DBML, JSON, YAML, TOML, CSV, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv", "pdf", "epub"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
 const FILTERS = [
-  { name: "Texto, Markdown, DBML, JSON e CSV", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "csv", "tsv"] },
+  { name: "Texto, Markdown, DBML, JSON, YAML, TOML e CSV", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 

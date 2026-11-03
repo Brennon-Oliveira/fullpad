@@ -19,5 +19,5 @@ Ao implementar uma ideia, troque `feita` para `sim`, preencha `versao` e atualiz
 | [Busca em todas as abas + refação visual da busca](busca-global.md) | sim | próxima (a definir) |
 | [Paleta de comandos](paleta-de-comandos.md) | não | — |
 | [Sumário lateral](sumario-lateral.md) | não | — |
-| [YAML e TOML](yaml-toml.md) | não | — |
+| [YAML e TOML](yaml-toml.md) | sim | próxima (a definir) |
 | [Visão de CSV](csv.md) | sim | próxima (a definir) |

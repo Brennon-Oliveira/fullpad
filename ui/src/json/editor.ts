@@ -1,4 +1,4 @@
-import { bracketMatching, foldGutter, foldKeymap } from "@codemirror/language";
+import { LanguageSupport, StreamLanguage, bracketMatching, foldGutter, foldKeymap } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin, type ViewUpdate, keymap } from "@codemirror/view";
 import { api } from "../api";
@@ -12,7 +12,7 @@ const MAX_CHECK_CHARS = 8_000_000;
  * Verifica o JSON no Rust enquanto se digita e sublinha o primeiro erro, com qualquer visão aberta
  * (a árvore só existe na visão lado a lado).
  */
-const checker = ViewPlugin.fromClass(
+const checkerFor = (format: "json" | "yaml" | "toml") => ViewPlugin.fromClass(
   class {
     timer: number | undefined;
     seq = 0;
@@ -33,7 +33,7 @@ const checker = ViewPlugin.fromClass(
       const text = doc.toString();
       let err = null;
       try {
-        err = await api.jsonCheck(text);
+        err = format === "json" ? await api.jsonCheck(text) : await api.dataCheck(format, text);
       } catch {
         return; // sem o Rust (testes, janela fechando): só não sublinha
       }
@@ -46,6 +46,17 @@ const checker = ViewPlugin.fromClass(
     }
   },
 );
+
+const checker = checkerFor("json");
+
+/** YAML ou TOML: linguagem, dobrar blocos, pares de chaves e verificação de sintaxe (no Rust). */
+export async function dataEditorSupport(format: "yaml" | "toml"): Promise<Extension> {
+  const lang =
+    format === "yaml"
+      ? (await import("@codemirror/lang-yaml")).yaml()
+      : new LanguageSupport(StreamLanguage.define((await import("@codemirror/legacy-modes/mode/toml")).toml));
+  return [lang, foldGutter({ openText: "▾", closedText: "▸" }), keymap.of(foldKeymap), bracketMatching(), checkerFor(format)];
+}
 
 /** Linguagem JSON, dobrar blocos, pares de chaves e verificação de sintaxe. Carregado sob demanda. */
 export async function jsonEditorSupport(): Promise<Extension> {

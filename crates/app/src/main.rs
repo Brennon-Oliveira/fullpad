@@ -827,6 +827,35 @@ async fn json_analyze(text: String, lenient: bool) -> Result<JsonAnalysis, Strin
     .map_err(err)
 }
 
+/// Analisa YAML ou TOML (`format`: "yaml" | "toml") no mesmo formato da análise de JSON, para a
+/// árvore da UI ser a mesma.
+#[tauri::command]
+async fn data_analyze(format: String, text: String) -> Result<JsonAnalysis, String> {
+    let r = tauri::async_runtime::spawn_blocking(move || match format.as_str() {
+        "yaml" => fullpad_core::yaml::analyze(&text),
+        "toml" => fullpad_core::toml::analyze(&text),
+        _ => Err(fullpad_core::json::JsonError { message: "formato desconhecido".into(), line: 1, col: 1, from: 0, to: 1 }),
+    })
+    .await
+    .map_err(err)?;
+    Ok(match r {
+        Ok(doc) => JsonAnalysis { doc: Some(doc), error: None },
+        Err(error) => JsonAnalysis { doc: None, error: Some(error) },
+    })
+}
+
+/// Só valida YAML ou TOML (para sublinhar o erro com qualquer visão aberta).
+#[tauri::command]
+async fn data_check(format: String, text: String) -> Result<Option<JsonError>, String> {
+    tauri::async_runtime::spawn_blocking(move || match format.as_str() {
+        "yaml" => fullpad_core::yaml::validate(&text).err(),
+        "toml" => fullpad_core::toml::validate(&text).err(),
+        _ => None,
+    })
+    .await
+    .map_err(err)
+}
+
 /// Separador de um CSV pela estrutura do texto (`ext`: extensão do arquivo, `tsv` manda no tab).
 /// Devolve o caractere como texto.
 #[tauri::command]
@@ -1215,6 +1244,8 @@ fn main() {
             startup_release_notes,
             json_analyze,
             json_check,
+            data_analyze,
+            data_check,
             search_tabs,
             csv_detect,
             csv_load,

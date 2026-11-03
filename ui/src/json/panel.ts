@@ -56,7 +56,11 @@ export interface JsonPanel {
   collapseAll(): void;
   /** Caminho do nó sob o cursor, se a árvore está pronta. */
   currentPath(): string | null;
+  /** Formato do texto: o JSON é o padrão; YAML e TOML usam a mesma árvore. */
+  setFormat(f: TreeFormat): void;
 }
+
+export type TreeFormat = "json" | "yaml" | "toml";
 
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", bmp: "image/bmp", ico: "image/x-icon" };
 
@@ -104,6 +108,7 @@ export function createJsonPanel(host: HTMLElement, hooks: PanelHooks = {}): Json
   let pendingCursor: number | null = null;
   let hoverId = -1;
   let seq = 0;
+  let format: TreeFormat = "json";
   let timer: number | undefined;
   let want = { text: "", rev: 0, fresh: true };
   let lastError: JsonError | null = null;
@@ -386,7 +391,7 @@ export function createJsonPanel(host: HTMLElement, hooks: PanelHooks = {}): Json
     const job = { ...want };
     let res: Analysis;
     try {
-      res = await api.jsonAnalyze(job.text, true);
+      res = format === "json" ? await api.jsonAnalyze(job.text, true) : await api.dataAnalyze(format, job.text);
     } catch (e) {
       if (mine === seq) showMessage(String(e));
       return;
@@ -470,5 +475,8 @@ export function createJsonPanel(host: HTMLElement, hooks: PanelHooks = {}): Json
     expandAll,
     collapseAll,
     currentPath: () => (focusId >= 0 ? pathOf(nodes, focusId) : null),
+    setFormat(f) {
+      format = f;
+    },
   };
 }

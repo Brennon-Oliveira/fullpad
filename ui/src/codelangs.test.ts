@@ -61,11 +61,9 @@ describe("linguagens dos blocos de código", () => {
     ["/x/example.cs", "C#"],
     ["/x/example.sh", "Shell"],
     ["/x/example.sql", "SQL"],
-    ["/x/example.yaml", "YAML"],
     ["/x/example.css", "CSS"],
     ["/x/example.html", "HTML"],
     ["/x/main.go", "Go"],
-    ["/x/Cargo.toml", "TOML"],
     ["/x/Dockerfile", "Dockerfile"],
     ["/x/app.cpp", "C++"],
   ])("a extensão de %s dá %s", (path, name) => {
@@ -84,8 +82,10 @@ describe("linguagens dos blocos de código", () => {
     expect(codeLanguageFor("/x/example.py", "Inventada")).toBeNull();
   });
 
-  it("DBML e JSON têm tipo próprio e ficam fora do seletor", () => {
+  it("DBML, JSON, YAML e TOML têm tipo próprio e ficam fora do seletor", () => {
     const names = pickableLanguages.map((l) => l.name);
+    expect(names).not.toContain("YAML");
+    expect(names).not.toContain("TOML");
     expect(names).not.toContain("DBML");
     expect(names).not.toContain("JSON");
     expect(names).toContain("Python");

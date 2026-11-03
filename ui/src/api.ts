@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Analysis, JsonError } from "./json/tree";
 
 export type ViewMode = "rendered" | "source" | "split";
-export type Language = "auto" | "plain" | "markdown" | "dbml" | "json" | "csv";
+export type Language = "auto" | "plain" | "markdown" | "dbml" | "json" | "csv" | "yaml" | "toml";
 export type Eol = "lf" | "crlf";
 /** O que a aba mostra: o editor ("text") ou um leitor só de leitura. "unknown": tipo de uma versão mais nova. */
 export type TabKind = "text" | "pdf" | "epub" | "unknown";
@@ -254,6 +254,10 @@ export const api = {
   /** Busca global: resultados nas abas pedidas (só as que têm). Rejeita com a mensagem se a expressão for inválida. */
   searchTabs: (ids: string[], query: string, options: SearchOptions, replace: string | null) =>
     invoke<TabHits[]>("search_tabs", { ids, query, options, replace }),
+  /** YAML ou TOML: a mesma análise do JSON (`format`: "yaml" | "toml"). */
+  dataAnalyze: (format: string, text: string) => invoke<Analysis>("data_analyze", { format, text }),
+  /** YAML ou TOML: só valida. */
+  dataCheck: (format: string, text: string) => invoke<JsonError | null>("data_check", { format, text }),
   /** Só valida: o erro (com posição) ou `null`. */
   jsonCheck: (text: string) => invoke<JsonError | null>("json_check", { text }),
   /** Formata (`indent`: "2", "4", "tab" ou "min"). Rejeita com o `JsonError` se o texto for inválido. */
