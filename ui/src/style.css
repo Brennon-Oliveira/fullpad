@@ -381,8 +381,8 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .rd-card { max-width: 460px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .rd-card.busy { opacity: .7; }
 .rd-icon { font: 600 12px var(--mono); letter-spacing: .08em; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; }
-.rd-title { font-size: 16px; font-weight: 600; word-break: break-all; }
-.rd-line { color: var(--muted); word-break: break-all; }
+.rd-title { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.rd-line { color: var(--muted); overflow-wrap: anywhere; }
 .rd-card.warn .rd-title { color: var(--warn); }
 .rd-card.error .rd-title { color: var(--err); }
 .rd-actions { display: flex; gap: 8px; margin-top: 8px; }
