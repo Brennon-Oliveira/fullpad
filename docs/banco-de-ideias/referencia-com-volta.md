@@ -8,7 +8,7 @@ versao: —
 
 Um link dentro da nota que leva de volta ao ponto exato do PDF ou EPUB. No leitor, "Copiar referência" gera algo como `[Nome do livro, p. 42](fullpad-leitor://...)`. Ao clicar no link (duplo clique ou Ctrl+clique, como nos links de hoje), o Fullpad abre ou ativa a aba do arquivo e vai direto à página (PDF) ou ao capítulo e posição (EPUB). A nota deixa de ser só uma cópia do trecho e vira um índice que volta à fonte.
 
-Depende do [leitor de PDF e EPUB](leitor-pdf-epub.md) (a base binária e a posição de leitura).
+Depende do leitor de PDF e EPUB (Fase 10 do [PLANO](../PLANO.md): a aba de leitura e a posição de leitura por arquivo).
 
 ## Pontos a decidir
 

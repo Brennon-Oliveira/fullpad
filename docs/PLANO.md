@@ -138,7 +138,7 @@ Fica para depois: editar valor na árvore, busca/filtro na árvore (o jsonformat
 
 ## Fase 10 — Leitor de PDF e EPUB (só leitura)
 
-Desenho, decisões e defesas em [banco-de-ideias/leitor-pdf-epub.md](banco-de-ideias/leitor-pdf-epub.md). O app abre e abre arquivos tão rápido quanto antes: nada de PDF/EPUB pesa no boot, e a aba só lê o arquivo depois do clique em "Carregar".
+O desenho e as defesas ficam em `docs/AGENTS.md` (abas de leitura). O app abre e abre arquivos tão rápido quanto antes: nada de PDF/EPUB pesa no boot, e a aba só lê o arquivo depois do clique em "Carregar".
 
 | Milestone | Entrega | Critério de aceite |
 |---|---|---|
@@ -150,15 +150,11 @@ Desenho, decisões e defesas em [banco-de-ideias/leitor-pdf-epub.md](banco-de-id
 | ✅ 10.5 | EPUB: leitor em Rust (`epub.rs`), capítulo limpo pelo `ammonia`, CSS por lista de permissão (`css.rs`), sumário lateral, iframe sem scripts, posição de leitura | PARADA 3: abrir EPUBs reais e as amostras maliciosas; nenhum script roda, o app não trava e nada vai à rede |
 | ✅ 10.6a | Citação no EPUB (menu, botão direito e Ctrl+Shift+C de dentro do livro) | Selecionar um trecho do livro e colar numa nota dá `> trecho` e `> — *Título*, cap. 3 (Nome)` |
 | ✅ 10.6b | Busca no documento (PDF e EPUB): Ctrl+F, sem maiúscula nem acento, resultado anterior/próximo, realce | PARADA 4 |
-| ⬜ 10.7 | Paginação do EPUB e outras melhorias de leitura | a decidir depois da PARADA 4 |
 
-**PARADA 10.D (PARADA 4 do leitor):** você usa a busca e a citação do EPUB. Quero saber: a busca acha o que você espera (acentos, várias páginas), o realce acompanha, e o que falta (lista de resultados, busca com expressão).
 
-**PARADA 10.C (PARADA 3 do leitor, validada):** você abre EPUBs reais e as amostras maliciosas. Quero saber: o texto e o sumário ficam como num leitor de verdade, o que falta no estilo (o CSS do livro é bem filtrado), livros grandes.
+As quatro PARADAs da fase (base e PDF, integração com as notas, EPUB, busca e citação no EPUB) foram validadas.
 
-**PARADA 10.B (PARADA 2 do leitor, validada):** você usa o PDF ao lado de uma nota. Quero saber: a citação sai como você cola, a posição lembrada acerta ao reabrir.
-
-**PARADA 10.A (PARADA 1 do leitor, validada):** você abre PDFs reais e as amostras maliciosas. Quero saber: abrir ficou imediato, o que falta na leitura, desempenho em PDFs grandes.
+Fica para depois: links internos do PDF (sumário clicável, "ver página 12"), tema escuro do documento do PDF, lista de resultados da busca; EPUB com paginação e rolagem contínua entre capítulos, opção "usar o estilo do livro" (hoje o CSS é filtrado: sem fontes nem imagens de fundo) e capas em SVG; testar no Linux (WebKitGTK); associar `.pdf`/`.epub` no instalador; assinatura de código do instalador e do executável (o Smart App Control e o SmartScreen barram o que não é assinado). As ideias [referência com volta](banco-de-ideias/referencia-com-volta.md) e [nota ao lado do leitor](banco-de-ideias/nota-ao-lado-do-leitor.md) estão no banco de ideias.
 
 ## Pendências de ambiente
 

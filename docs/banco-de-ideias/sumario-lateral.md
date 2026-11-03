@@ -14,7 +14,7 @@ Painel lateral (ou algo equivalente) com a estrutura do arquivo ativo; clicar pu
 - **JSON**: caminhos (`$.lista[0].nome`), aproveitando `json_analyze` e a árvore que já existe; pode ser a própria árvore em versão compacta.
 - **DBML**: tabelas, enums e relações, ligando ao diagrama.
 - **YAML/TOML** (quando existirem): chaves e tabelas, ver [yaml-toml](yaml-toml.md).
-- **EPUB**: sumário do livro (`nav`/`toc`), ver [leitor-pdf-epub](leitor-pdf-epub.md). **PDF**: marcadores (outline) do documento.
+- **EPUB**: o leitor de EPUB já tem um sumário lateral próprio (Fase 10 do [PLANO](../PLANO.md)); este painel poderia reaproveitá-lo. **PDF**: marcadores (outline) do documento.
 - Texto simples: sem sumário (ou só marcadores manuais, a pensar).
 
 ## Pontos a definir

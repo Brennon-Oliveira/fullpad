@@ -8,7 +8,7 @@ versao: —
 
 Um atalho dentro do leitor de PDF/EPUB que divide o painel e abre uma nota para escrever enquanto se lê, **sem tirar o leitor do lugar**.
 
-Depende do [leitor de PDF e EPUB](leitor-pdf-epub.md).
+Depende do leitor de PDF e EPUB (Fase 10 do [PLANO](../PLANO.md)).
 
 ## O que já existe
 
