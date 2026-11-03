@@ -709,6 +709,14 @@ async fn epub_open(state: State<'_, AppState>, id: String) -> Result<fullpad_cor
     Ok(info)
 }
 
+/// O texto puro de um capítulo do EPUB aberto (para a busca no livro).
+#[tauri::command]
+async fn epub_text(state: State<'_, AppState>, id: String, index: usize) -> Result<String, String> {
+    let uuid = parse_id(&id)?;
+    let book = state.epubs.lock().unwrap().get(&uuid).cloned().ok_or("o EPUB não está aberto")?;
+    tauri::async_runtime::spawn_blocking(move || book.chapter_text(index).map_err(err)).await.map_err(err)?
+}
+
 /// Um capítulo do EPUB já aberto, com o HTML limpo (sem scripts, só imagens do próprio livro) e o CSS filtrado.
 #[tauri::command]
 async fn epub_chapter(state: State<'_, AppState>, id: String, index: usize) -> Result<fullpad_core::epub::Chapter, String> {
@@ -908,6 +916,7 @@ fn main() {
             reader_check,
             epub_open,
             epub_chapter,
+            epub_text,
             reader_memo,
             reader_remember,
             reader_read,

@@ -463,6 +463,121 @@ describe("painel do leitor", () => {
     });
   });
 
+  describe("busca no documento", () => {
+    const pages = ["Nada aqui.", "O coração bate. Outro CORAÇÃO.", "", "Fim: coração."];
+    const finder = () => ({ units: pages.length, textOf: vi.fn(async (u: number) => pages[u]), reveal: vi.fn(), clear: vi.fn() });
+    const withFind = (f: ReturnType<typeof finder>) =>
+      view.open.mockImplementationOnce(async () => ({ pages: 4, position: view.position, dispose: view.dispose, zoomBy() {}, setZoom() {}, goTo() {}, resize() {}, find: f }));
+    const input = () => root.querySelector<HTMLInputElement>(".rd-find-input")!;
+    const count = () => root.querySelector(".rd-find-count")!.textContent;
+    const type = (q: string) => {
+      input().value = q;
+    };
+    const enter = (shiftKey = false) => input().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey, bubbles: true }));
+    const load = async (id: string) => {
+      const p = createReaderPanel(root, host);
+      p.show(tab(id));
+      await settle();
+      click("Carregar PDF");
+      await settle();
+      return p;
+    };
+
+    it("Ctrl+F abre a barra; Enter procura e vai ao primeiro resultado, sem acento nem maiúscula", async () => {
+      const f = finder();
+      withFind(f);
+      await load("busca-1");
+      root.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF", ctrlKey: true, bubbles: true }));
+      expect(input()).toBeTruthy();
+      expect(document.activeElement).toBe(input());
+      type("coracao");
+      enter();
+      await settle();
+      expect(f.reveal).toHaveBeenLastCalledWith(expect.objectContaining({ unit: 1, nth: 0 }), "coracao");
+      expect(count()).toBe("1 de 3");
+    });
+
+    it("Enter e Shift+Enter andam pelos resultados e voltam ao começo/fim", async () => {
+      const f = finder();
+      withFind(f);
+      await load("busca-2");
+      const p = createReaderPanel; void p;
+      root.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF", ctrlKey: true, bubbles: true }));
+      type("coração");
+      enter();
+      await settle();
+      const at = () => (f.reveal.mock.calls.at(-1)![0] as { unit: number; nth: number });
+      enter();
+      expect([at().unit, at().nth, count()]).toEqual([1, 1, "2 de 3"]);
+      enter();
+      expect([at().unit, at().nth, count()]).toEqual([3, 0, "3 de 3"]);
+      enter();
+      expect([at().unit, at().nth, count()]).toEqual([1, 0, "1 de 3"]); // deu a volta
+      enter(true);
+      expect([at().unit, at().nth, count()]).toEqual([3, 0, "3 de 3"]); // e voltou para trás
+    });
+
+    it("sem resultado avisa; consulta curta pede mais letras e não varre nada", async () => {
+      const f = finder();
+      withFind(f);
+      await load("busca-3");
+      root.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF", ctrlKey: true, bubbles: true }));
+      type("zzzz");
+      enter();
+      await settle();
+      expect(count()).toBe("Nenhum resultado");
+      expect(f.reveal).toHaveBeenLastCalledWith(null, "zzzz");
+      f.textOf.mockClear();
+      type("a");
+      enter();
+      await settle();
+      expect(count()).toContain("ao menos 2 letras");
+      expect(f.textOf).not.toHaveBeenCalled();
+    });
+
+    it("Esc fecha a barra e tira todo o realce", async () => {
+      const f = finder();
+      withFind(f);
+      await load("busca-4");
+      root.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF", ctrlKey: true, bubbles: true }));
+      type("coracao");
+      enter();
+      await settle();
+      input().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      expect(root.querySelector(".rd-find")).toBeNull();
+      expect(f.clear).toHaveBeenCalled();
+    });
+
+    it("trocar de aba fecha a busca; uma nova consulta cancela a varredura anterior", async () => {
+      const f = finder();
+      let release: () => void = () => {};
+      f.textOf.mockImplementation(async (u: number) => {
+        if (u === 0) await new Promise<void>((r) => (release = r));
+        return pages[u];
+      });
+      withFind(f);
+      const p = await load("busca-5");
+      root.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF", ctrlKey: true, bubbles: true }));
+      type("coracao");
+      enter(); // varredura presa na página 0
+      await settle();
+      expect(count()).toContain("Buscando");
+      p.show(tab("busca-6")); // sai da aba no meio da busca
+      await settle();
+      release();
+      await settle();
+      expect(root.querySelector(".rd-find")).toBeNull();
+      expect(f.reveal).not.toHaveBeenCalledWith(expect.anything(), "coracao");
+    });
+
+    it("find() sem documento carregado devolve false", async () => {
+      const p = createReaderPanel(root, host);
+      p.show(tab("busca-7"));
+      await settle();
+      expect(p.find()).toBe(false);
+    });
+  });
+
   it("hide solta o documento e esvazia o painel", async () => {
     const p = createReaderPanel(root, host);
     p.show(tab("h1"));

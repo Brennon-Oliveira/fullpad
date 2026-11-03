@@ -19,6 +19,7 @@ const fake = vi.hoisted(() => {
       return { promise, cancel: () => reject(new RenderingCancelledException("cancelado")) };
     },
     streamTextContent: () => ({}),
+    getTextContent: async () => ({ items: [{ str: "Olá ", hasEOL: false }, { str: "mundo", hasEOL: true }, { str: "Fim" }, { type: "beginMarkedContent" }] }),
     getAnnotations: async () => [],
     cleanup: () => {},
   };
@@ -112,6 +113,22 @@ describe("desenho das páginas", () => {
     expect(stages()[0].querySelector("canvas")!.style.width).toBe("150px");
     expect(stages()[0].querySelector(".textLayer")?.textContent).toBe("texto da página");
     expect(hooks.onFatal).not.toHaveBeenCalled();
+    await view.dispose();
+  });
+
+  it("o texto de uma página para a busca junta os itens do PDF (fim de linha vira espaço)", async () => {
+    const view = await openPdfView(host, "t", 1000, { page: 1, frac: 0, zoom: 1 }, hooks);
+    expect(view.find!.units).toBe(1);
+    expect(await view.find!.textOf(0)).toBe("Olá mundo Fim");
+    await view.dispose();
+  });
+
+  it("reveal e clear da busca não quebram, com ou sem a página desenhada", async () => {
+    const view = await openPdfView(host, "t", 1000, { page: 1, frac: 0, zoom: 1 }, hooks);
+    await wait(60);
+    expect(() => view.find!.reveal({ unit: 0, nth: 0, snippet: "x" }, "mundo")).not.toThrow();
+    expect(() => view.find!.reveal(null, "outra")).not.toThrow();
+    expect(() => view.find!.clear()).not.toThrow();
     await view.dispose();
   });
 

@@ -45,7 +45,9 @@ ${dark}
 .fp-nav{display:flex;justify-content:space-between;gap:16px;margin:48px 0 0;padding-top:16px;border-top:1px solid ${t.border};font:14px system-ui,"Segoe UI",sans-serif}
 .fp-nav a{text-decoration:none;color:${t.accent} !important}
 .fp-error{color:${t.muted};text-align:center;margin-top:20%}
-::selection{background:${t.accent};color:#fff}`;
+::selection{background:${t.accent};color:#fff}
+::highlight(fp-find){background:#ffe066;color:#000}
+::highlight(fp-find-current){background:#ff9632;color:#000}`;
 }
 
 /**

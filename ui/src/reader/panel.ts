@@ -5,6 +5,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { type FileStatus, type PdfScan, type TabState, api } from "../api";
 import { friendlyError } from "./errors";
 import { showMenuAt } from "../popup";
+import { type Hit, MIN_QUERY, normalizeQuery, searchUnits } from "./find";
 import { formatQuote, formatQuoteAt } from "./quote";
 import { type ReaderPos, ZOOM_KEY_FACTOR, formatBytes, normalizePos, wheelFactor } from "./pos";
 import type { ReaderView, ViewHooks } from "./view";
@@ -38,6 +39,8 @@ export interface ReaderPanel {
   zoomWheel(deltaY: number): boolean;
   /** Copia a seleção como citação em markdown. `false` (e um aviso) se não há texto selecionado. */
   quote(): boolean;
+  /** Abre a busca no documento (Ctrl+F). `false` se não há documento carregado. */
+  find(): boolean;
 }
 
 /** Abas que o usuário mandou carregar nesta execução: ao voltar a elas, carregam sozinhas. */
@@ -80,6 +83,128 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
   const supported = (t: TabState): t is TabState & { kind: Supported } => t.kind === "pdf" || t.kind === "epub";
   /** "Página" no PDF, "Capítulo" no EPUB. */
   const unit = () => (tab?.kind === "epub" ? "Capítulo" : "Página");
+  // ---- busca no documento ----
+  let findBar: { el: HTMLElement; input: HTMLInputElement; count: HTMLElement } | null = null;
+  let findHits: Hit[] = [];
+  let findIdx = -1;
+  let findQuery = "";
+  let findToken = 0;
+  let findTimer = 0;
+  let findTruncated = false;
+
+  function setCount(text: string) {
+    if (findBar) findBar.count.textContent = text;
+  }
+
+  /** Mostra o resultado `findIdx`: o leitor vai até ele e o realça. */
+  function showHit() {
+    const hit = findHits[findIdx];
+    if (!hit) return;
+    view?.find?.reveal(hit, findQuery);
+    setCount(`${findIdx + 1} de ${findHits.length}${findTruncated ? "+" : ""}`);
+  }
+
+  function stepHit(delta: number) {
+    if (findHits.length === 0) return;
+    findIdx = (findIdx + delta + findHits.length) % findHits.length;
+    showHit();
+  }
+
+  async function runSearch() {
+    const f = view?.find;
+    if (!f || !findBar) return;
+    const q = findBar.input.value;
+    const my = ++findToken;
+    findQuery = q;
+    findHits = [];
+    findIdx = -1;
+    findTruncated = false;
+    if (normalizeQuery(q).length < MIN_QUERY) {
+      f.clear();
+      setCount(q.trim() ? `Digite ao menos ${MIN_QUERY} letras` : "");
+      return;
+    }
+    setCount("Buscando…");
+    const r = await searchUnits(f, q, () => my !== findToken, (done, total, hits) => {
+      if (my !== findToken) return;
+      if (findIdx < 0 && hits.length > 0) {
+        // o primeiro resultado aparece na hora, sem esperar o resto do documento
+        findHits = hits;
+        findIdx = 0;
+        showHit();
+      }
+      if (done < total) setCount(`Buscando… ${done}/${total} · ${hits.length} resultado${hits.length === 1 ? "" : "s"}`);
+    });
+    if (my !== findToken) return;
+    findHits = r.hits;
+    findTruncated = r.truncated;
+    if (findHits.length === 0) {
+      f.reveal(null, q);
+      setCount("Nenhum resultado");
+    } else if (findIdx < 0) {
+      findIdx = 0;
+      showHit();
+    } else {
+      setCount(`${findIdx + 1} de ${findHits.length}${findTruncated ? "+" : ""}`);
+    }
+  }
+
+  /** Fecha a busca: some a barra e todo o realce. */
+  function closeFind(refocus = false) {
+    findToken++;
+    window.clearTimeout(findTimer);
+    findHits = [];
+    findIdx = -1;
+    view?.find?.clear();
+    findBar?.el.remove();
+    findBar = null;
+    if (refocus) root.querySelector<HTMLElement>(".rd-scroll, .rd-epub-frame")?.focus();
+  }
+
+  function openFind(): boolean {
+    if (!view?.find) return false;
+    if (!findBar) {
+      const el = document.createElement("div");
+      el.className = "rd-find";
+      const input = document.createElement("input");
+      input.className = "rd-find-input";
+      input.type = "search";
+      input.placeholder = "Localizar no documento";
+      input.setAttribute("aria-label", "Localizar no documento");
+      const count = document.createElement("span");
+      count.className = "rd-find-count";
+      const mk = (label: string, title: string, run: () => void) => {
+        const b = document.createElement("button");
+        b.className = "rd-tool";
+        b.textContent = label;
+        b.title = title;
+        b.addEventListener("click", run);
+        return b;
+      };
+      el.append(input, mk("▲", "Resultado anterior (Shift+Enter)", () => stepHit(-1)), mk("▼", "Próximo resultado (Enter)", () => stepHit(1)), count, mk("✕", "Fechar (Esc)", () => closeFind(true)));
+      input.addEventListener("input", () => {
+        window.clearTimeout(findTimer);
+        findTimer = window.setTimeout(() => void runSearch(), 350);
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeFind(true);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          window.clearTimeout(findTimer);
+          if (input.value !== findQuery) void runSearch();
+          else stepHit(e.shiftKey ? -1 : 1);
+        }
+      });
+      root.querySelector(".rd-bar")?.after(el);
+      findBar = { el, input, count };
+    }
+    findBar.input.focus();
+    findBar.input.select();
+    return true;
+  }
+
   const savePos = () => {
     if (!tab || !view) return;
     const pos = view.position();
@@ -92,6 +217,7 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     token++;
     savePos();
     const v = view;
+    closeFind();
     view = null;
     stamp = null;
     memoKey = null;
@@ -218,6 +344,7 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
       const ui = buildBar(bar, () => v, unit(), epub);
       const start = normalizePos(t.reader ?? remembered);
       const hooks: ViewHooks = {
+        onFind: () => void openFind(),
         onQuote: () => void quote(),
         onContextMenu: contextMenu,
         onPosition: (pos) => {
@@ -406,6 +533,7 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     contextMenu(e.clientX, e.clientY);
   });
   root.addEventListener("keydown", (e) => {
+    if (view && e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyF" && openFind()) e.preventDefault();
     if (view && e.ctrlKey && e.shiftKey && !e.altKey && e.code === "KeyC") {
       e.preventDefault();
       quote();
@@ -439,5 +567,6 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     zoomFit: () => !!view && (view.setZoom(null), true),
     zoomWheel: (deltaY) => !!view && (view.zoomBy(wheelFactor(deltaY)), true),
     quote,
+    find: openFind,
   };
 }

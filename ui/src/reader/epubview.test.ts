@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ epubOpen: vi.fn(), epubChapter: vi.fn(), openUrl: vi.fn(async () => {}) }));
+const api = vi.hoisted(() => ({ epubOpen: vi.fn(), epubChapter: vi.fn(), epubText: vi.fn(async () => "texto do capítulo"), openUrl: vi.fn(async () => {}) }));
 vi.mock("../api", () => ({ api }));
 
 import { openEpubView } from "./epubview";
@@ -147,6 +147,36 @@ describe("visão do EPUB", () => {
     expect(onContextMenu).toHaveBeenCalledTimes(1);
     const [x, y] = onContextMenu.mock.calls[0];
     expect([typeof x, typeof y]).toEqual(["number", "number"]);
+    await v.dispose();
+  });
+
+  it("a busca lê o texto puro de cada capítulo pelo Rust e leva ao capítulo do resultado", async () => {
+    const v = await openEpubView(host, "e1", { page: 1, frac: 0, zoom: null }, hooks);
+    await loaded();
+    expect(v.find!.units).toBe(3);
+    expect(await v.find!.textOf(1)).toBe("texto do capítulo");
+    expect(api.epubText).toHaveBeenCalledWith("e1", 1);
+    api.epubChapter.mockClear();
+    v.find!.reveal({ unit: 2, nth: 0, snippet: "x" }, "capitulo"); // resultado em outro capítulo
+    await settle();
+    expect(api.epubChapter).toHaveBeenCalledWith("e1", 2);
+    await loaded();
+    api.epubChapter.mockClear();
+    v.find!.reveal({ unit: 2, nth: 1, snippet: "x" }, "capitulo"); // no mesmo capítulo: não recarrega
+    await settle();
+    expect(api.epubChapter).not.toHaveBeenCalled();
+    expect(() => v.find!.clear()).not.toThrow();
+    await v.dispose();
+  });
+
+  it("Ctrl+F dentro do livro abre a busca do painel", async () => {
+    const onFind = vi.fn();
+    const v = await openEpubView(host, "e1", { page: 1, frac: 0, zoom: null }, { ...hooks, onFind });
+    await loaded();
+    const key = new KeyboardEvent("keydown", { code: "KeyF", key: "f", ctrlKey: true, bubbles: true, cancelable: true });
+    frame().contentDocument!.dispatchEvent(key);
+    expect(onFind).toHaveBeenCalledTimes(1);
+    expect(key.defaultPrevented).toBe(true);
     await v.dispose();
   });
 

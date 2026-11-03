@@ -7,6 +7,8 @@
 
 import { type EpubInfo, api } from "../api";
 import { type EpubLink, type Theme, appCss, attachFrameHandlers, buildDocument, errorDocument, fragmentToText } from "./epubdoc";
+import type { Hit } from "./find";
+import { applyHighlights, clearHighlights, revealRange, textRanges } from "./highlight";
 import { chapterLabel } from "./quote";
 import { type ReaderPos, clamp, wheelFactor } from "./pos";
 import type { ReaderView, ViewHooks } from "./view";
@@ -74,6 +76,8 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
   let token = 0;
   let posTimer = 0;
   let detach: (() => void) | null = null;
+  // busca: a consulta atual e o resultado em foco (capítulo e qual ocorrência dentro dele)
+  let findState: { query: string; current: { unit: number; nth: number } | null; scrollPending: boolean } | null = null;
   const scale = () => zoom ?? 1;
   const doc = () => frame.contentDocument;
 
@@ -115,6 +119,20 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
     }
   }
 
+  /** Realça a consulta no capítulo aberto e, por cima, o resultado em foco (se for deste capítulo). */
+  function applyFind() {
+    const d = doc();
+    const w = frame.contentWindow;
+    if (!findState || !d || !w) return;
+    const ranges = textRanges(d.body, findState.query, d);
+    const here = findState.current && findState.current.unit === cur ? (ranges[findState.current.nth] ?? null) : null;
+    applyHighlights(w, ranges, here);
+    if (here && findState.scrollPending) {
+      findState.scrollPending = false;
+      revealRange(here);
+    }
+  }
+
   function restyle() {
     const style = doc()?.getElementById("fp-app");
     if (style) style.textContent = `@layer app{${appCss(theme(scale()))}}`;
@@ -129,6 +147,11 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
 
   /** Teclas apertadas dentro do documento valem como da janela (atalhos, zoom), e o que o app trata não rola. */
   function forwardKey(e: KeyboardEvent) {
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyF") {
+      e.preventDefault();
+      hooks.onFind?.();
+      return;
+    }
     if (e.ctrlKey && e.shiftKey && !e.altKey && e.code === "KeyC") {
       e.preventDefault();
       hooks.onQuote?.(); // o painel não ouve teclas de dentro do iframe
@@ -173,6 +196,7 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
       const target = fragment ? d.getElementById(fragment) : null;
       if (target) target.scrollIntoView();
       else d.documentElement.scrollTop = frac * Math.max(0, d.documentElement.scrollHeight - d.documentElement.clientHeight);
+      applyFind(); // com uma busca aberta, o capítulo novo já vem realçado (e centralizado, se o resultado é dele)
       report();
     };
     frame.srcdoc = html;
@@ -200,6 +224,19 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
     goTo: (page, frac = 0) => void go(Math.floor(page) - 1, frac),
     position,
     resize() {},
+    find: {
+      units: total,
+      textOf: (i: number) => api.epubText(id, i),
+      reveal(hit: Hit | null, query: string) {
+        findState = { query, current: hit ? { unit: hit.unit, nth: hit.nth } : null, scrollPending: !!hit };
+        if (hit && hit.unit !== cur) void go(hit.unit); // o realce entra quando o capítulo carregar
+        else applyFind();
+      },
+      clear() {
+        findState = null;
+        if (frame.contentWindow) clearHighlights(frame.contentWindow);
+      },
+    },
     selection() {
       const d = doc();
       const sel = d?.getSelection();

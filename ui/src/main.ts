@@ -1947,7 +1947,7 @@ const menuActions = {
   undo: () => (undo(cur.view), cur.view.focus()),
   redo: () => (redo(cur.view), cur.view.focus()),
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
-  find: () => openSearchPanel(cur.view),
+  find: () => void (readerZoom((r) => r.find()) || openSearchPanel(cur.view)),
   replace: () => openSearchPanel(cur.view),
   gotoLine: () => gotoLine(cur.view),
   togglePreview,
@@ -2016,6 +2016,7 @@ window.addEventListener(
     if (e.code === "Equal" || e.code === "NumpadAdd" || e.key === "+" || e.key === "=") return run(() => readerZoom((r) => r.zoomStep(1)) || menuActions.zoomIn());
     if (e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") return run(() => readerZoom((r) => r.zoomStep(-1)) || menuActions.zoomOut());
     if (e.code === "Digit0" || e.code === "Numpad0") return run(() => readerZoom((r) => r.zoomFit()) || setZoom(100));
+    if (key === "f" && !e.shiftKey && readerZoom((r) => r.find())) return e.preventDefault(); // aba de leitura: busca no documento
     if (key === "t" && e.shiftKey) run(() => void reopenTab());
     else if (key === "h" && e.shiftKey) run(() => void showHistory());
     else if (key === "n" && e.shiftKey) run(menuActions.newWindow);

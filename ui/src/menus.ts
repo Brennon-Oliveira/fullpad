@@ -148,6 +148,7 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
         { label: "Carregar EPUB", action: a.readerLoad },
         { label: "Localizar arquivo…", action: a.readerLocate },
         "sep",
+        { label: "Buscar no livro…", shortcut: "Ctrl+F", action: a.find },
         { label: "Copiar seleção como citação", shortcut: "Ctrl+Shift+C", action: a.readerQuote },
       ];
     case "pdf":
@@ -155,6 +156,7 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
         { label: "Carregar PDF", action: a.readerLoad },
         { label: "Localizar arquivo…", action: a.readerLocate },
         "sep",
+        { label: "Buscar no documento…", shortcut: "Ctrl+F", action: a.find },
         { label: "Copiar seleção como citação", shortcut: "Ctrl+Shift+C", action: a.readerQuote },
       ];
     default:

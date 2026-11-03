@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 // o build "legacy" roda em Node; é o mesmo código do pdf.js que o app carrega
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { fileURLToPath } from "node:url";
+import { findOffsets } from "./find";
 import { CHUNK_BYTES, INITIAL_BYTES, PDF_OPTIONS, openPdfTask } from "./source";
 
 // em Node as fontes padrão vêm direto de node_modules (no app, de `/pdfjs/`)
@@ -44,7 +45,9 @@ describe("openPdfTask", () => {
     try {
       expect(doc.numPages).toBe(1);
       const text = await (await doc.getPage(1)).getTextContent();
-      expect(text.items.map((i) => ("str" in i ? i.str : "")).join("")).toContain("Fullpad leitor");
+      const joined = text.items.map((i) => ("str" in i ? i.str + (i.hasEOL ? " " : "") : "")).join("");
+      expect(joined).toContain("Fullpad leitor");
+      expect(findOffsets(joined, "LEITOR")).toEqual([8]); // a busca acha o texto que o pdf.js extraiu, sem maiúscula
     } finally {
       await task.destroy();
     }

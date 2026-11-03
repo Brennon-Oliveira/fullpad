@@ -209,6 +209,58 @@ impl Epub {
     }
 }
 
+impl Epub {
+    /// O texto puro do capítulo (sem marcação, scripts nem estilos), com uma quebra de linha entre
+    /// os blocos. Serve à busca no livro: não lê imagens nem CSS, então é barato.
+    pub fn chapter_text(&self, index: usize) -> Result<String> {
+        let item = self.spine.get(index).ok_or_else(|| invalid("Capítulo inexistente."))?;
+        if !(item.media_type.contains("html") || item.media_type.contains("xml")) {
+            return Ok(String::new());
+        }
+        let mut zip = open_zip(&self.path)?;
+        let raw = read_entry(&mut zip, &item.path, MAX_CHAPTER)?;
+        let text = crate::fileio::decode(&raw).text;
+        let cleaned = ammonia::Builder::empty().clean(&with_block_breaks(extract_body(&text))).to_string();
+        let mut out = unescape_text(&cleaned);
+        if out.len() > MAX_CHAPTER_TEXT {
+            let mut cut = MAX_CHAPTER_TEXT;
+            while !out.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            out.truncate(cut);
+        }
+        Ok(out)
+    }
+}
+
+/// Texto de um capítulo, no máximo (o que passar disso não é pesquisado).
+const MAX_CHAPTER_TEXT: usize = 4 * 1024 * 1024;
+
+/// Põe uma quebra de linha antes de cada tag de bloco (e de `<br>`): sem marcação, "fim.</p><p>Começo"
+/// viraria "fim.Começo".
+fn with_block_breaks(html: &str) -> String {
+    const BLOCKS: &[&str] = &["p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "tr", "table", "section", "article", "figure", "figcaption", "dt", "dd", "br", "hr"];
+    let mut out = String::with_capacity(html.len() + html.len() / 8);
+    let mut rest = html;
+    while let Some(i) = rest.find('<') {
+        out.push_str(&rest[..i]);
+        let tag = &rest[i + 1..];
+        let name: String = tag.trim_start_matches('/').chars().take_while(|c| c.is_ascii_alphanumeric()).collect::<String>().to_ascii_lowercase();
+        if BLOCKS.contains(&name.as_str()) {
+            out.push('\n');
+        }
+        out.push('<');
+        rest = tag;
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Desfaz as entidades que o `ammonia` escreve ao limpar o texto.
+fn unescape_text(s: &str) -> String {
+    s.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
+}
+
 // ---- ZIP ------------------------------------------------------------------------------------
 
 fn open_zip(path: &Path) -> Result<ZipArchive<File>> {
@@ -838,6 +890,44 @@ mod tests {
         let back = epub.chapter(1).unwrap();
         assert!(back.html.contains("href=\"epub:0\""), "{}", back.html);
         assert!(epub.chapter(2).is_err());
+    }
+
+    #[test]
+    fn chapter_text_is_plain_text_with_block_breaks() {
+        let items = r#"<item id="c1" href="a.xhtml" media-type="application/xhtml+xml"/>"#;
+        let ch = xhtml(
+            "<style>p { color: red }</style><script>alert('não deve aparecer')</script>",
+            "<h1>Título &amp; subtítulo</h1><p>Primeiro parágrafo com <b>negrito</b> e acentuação: ação.</p><p>Segundo<br/>com quebra</p><ul><li>um</li><li>dois</li></ul><p>5 &lt; 6 &amp;&amp; 7 &gt; 3</p>",
+        );
+        let (_d, p) = book(&[
+            ("META-INF/container.xml", CONTAINER.as_bytes().to_vec()),
+            ("OEBPS/content.opf", opf(items, r#"<itemref idref="c1"/>"#, "").into_bytes()),
+            ("OEBPS/a.xhtml", ch.into_bytes()),
+        ]);
+        let epub = Epub::open(&p).unwrap();
+        let text = epub.chapter_text(0).unwrap();
+        assert!(!text.contains('<') || text.contains("5 < 6"), "{text}");
+        assert!(!text.contains("alert") && !text.contains("color: red") && !text.contains("Título do capítulo"), "{text}");
+        let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+        assert_eq!(lines, vec!["Título & subtítulo", "Primeiro parágrafo com negrito e acentuação: ação.", "Segundo", "com quebra", "um", "dois", "5 < 6 && 7 > 3"]);
+        assert!(epub.chapter_text(1).is_err());
+    }
+
+    #[test]
+    fn chapter_text_of_non_text_items_is_empty_and_a_bomb_is_refused() {
+        let items = r#"<item id="cover" href="capa.png" media-type="image/png"/><item id="c1" href="a.xhtml" media-type="application/xhtml+xml"/>"#;
+        let mut huge = b"<html><body><p>".to_vec();
+        huge.extend(std::iter::repeat(b' ').take(40 << 20));
+        huge.extend(b"</p></body></html>");
+        let (_d, p) = book(&[
+            ("META-INF/container.xml", CONTAINER.as_bytes().to_vec()),
+            ("OEBPS/content.opf", opf(items, r#"<itemref idref="cover"/><itemref idref="c1"/>"#, "").into_bytes()),
+            ("OEBPS/capa.png", png()),
+            ("OEBPS/a.xhtml", huge),
+        ]);
+        let epub = Epub::open(&p).unwrap();
+        assert_eq!(epub.chapter_text(0).unwrap(), "");
+        assert!(epub.chapter_text(1).unwrap_err().to_string().contains("grande demais"));
     }
 
     #[test]

@@ -435,3 +435,12 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .rd-epub-bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-bottom: 1px solid var(--border); background: var(--bar); }
 .rd-epub-title { margin-left: 8px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rd-epub-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--bg); }
+
+/* ---- busca no documento (PDF e EPUB) ---- */
+::highlight(fp-find) { background: rgba(255, 224, 102, .55); color: inherit; }
+::highlight(fp-find-current) { background: rgba(255, 150, 50, .8); color: inherit; }
+.rd-find { flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--bar); border-bottom: 1px solid var(--border); }
+.rd-find[hidden] { display: none; }
+.rd-find-input { flex: 0 1 320px; min-width: 120px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font: inherit; }
+.rd-find-input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.rd-find-count { color: var(--muted); min-width: 9em; }

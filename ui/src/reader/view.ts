@@ -1,5 +1,6 @@
 // O que o painel espera de um leitor (PDF ou EPUB). Só tipos.
 
+import type { Hit } from "./find";
 import type { ReaderPos } from "./pos";
 
 export interface ViewHooks {
@@ -13,6 +14,18 @@ export interface ViewHooks {
   onQuote?(): void;
   /** Botão direito dentro do documento, em coordenadas da janela. */
   onContextMenu?(x: number, y: number): void;
+  /** Ctrl+F dentro do documento (o EPUB fica num iframe, onde o painel não ouve teclas). */
+  onFind?(): void;
+}
+
+/** O que um leitor oferece à busca: o texto de cada unidade (página ou capítulo) e o realce. */
+export interface Findable {
+  units: number;
+  textOf(unit: number): Promise<string>;
+  /** Vai ao resultado e realça (`null`: só realça a consulta, sem resultado atual). */
+  reveal(hit: Hit | null, query: string): void;
+  /** Tira todo o realce. */
+  clear(): void;
 }
 
 export interface ReaderView {
@@ -28,6 +41,8 @@ export interface ReaderView {
    * própria tela). `source` é o nome da obra e `where` o lugar ("cap. 3 (Fim)").
    */
   selection?(): { text: string; source: string; where: string } | null;
+  /** Busca no documento. */
+  find?: Findable;
   /** Copia a seleção como texto (o EPUB mora num iframe, onde o `copy` do painel não alcança). */
   copySelection?(): void;
   dispose(): Promise<void>;

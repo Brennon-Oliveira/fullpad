@@ -144,6 +144,8 @@ export const api = {
   readerRemember: (key: string, pos: unknown) => invoke<void>("reader_remember", { key, pos }),
   /** Abre o EPUB da aba: título, capítulos e sumário (não lê os capítulos). */
   epubOpen: (id: string) => invoke<EpubInfo>("epub_open", { id }),
+  /** O texto puro de um capítulo do EPUB aberto (para a busca no livro). */
+  epubText: (id: string, index: number) => invoke<string>("epub_text", { id, index }),
   /** Um capítulo do EPUB aberto, limpo pelo Rust (`index` é a posição na ordem de leitura). */
   epubChapter: (id: string, index: number) => invoke<EpubChapter>("epub_chapter", { id, index }),
   /** Procura bomba de compressão no PDF (no Rust, antes de o pdf.js tocar nele). */

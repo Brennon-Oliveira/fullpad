@@ -149,9 +149,12 @@ Desenho, decisões e defesas em [banco-de-ideias/leitor-pdf-epub.md](banco-de-id
 | ✅ 10.4b | Copiar a seleção como citação em markdown (menu de contexto, menu PDF e Ctrl+Shift+C) | Selecionar um trecho e colar numa nota dá `> trecho` e `> — *Livro*, p. 42`; quebras de linha do PDF não viram parágrafos |
 | ✅ 10.5 | EPUB: leitor em Rust (`epub.rs`), capítulo limpo pelo `ammonia`, CSS por lista de permissão (`css.rs`), sumário lateral, iframe sem scripts, posição de leitura | PARADA 3: abrir EPUBs reais e as amostras maliciosas; nenhum script roda, o app não trava e nada vai à rede |
 | ✅ 10.6a | Citação no EPUB (menu, botão direito e Ctrl+Shift+C de dentro do livro) | Selecionar um trecho do livro e colar numa nota dá `> trecho` e `> — *Título*, cap. 3 (Nome)` |
-| ⬜ 10.6b | Busca no documento (PDF e EPUB) | PARADA 4 |
+| ✅ 10.6b | Busca no documento (PDF e EPUB): Ctrl+F, sem maiúscula nem acento, resultado anterior/próximo, realce | PARADA 4 |
+| ⬜ 10.7 | Paginação do EPUB e outras melhorias de leitura | a decidir depois da PARADA 4 |
 
-**PARADA 10.C (PARADA 3 do leitor):** você abre EPUBs reais e as amostras maliciosas. Quero saber: o texto e o sumário ficam como num leitor de verdade, o que falta no estilo (o CSS do livro é bem filtrado), livros grandes.
+**PARADA 10.D (PARADA 4 do leitor):** você usa a busca e a citação do EPUB. Quero saber: a busca acha o que você espera (acentos, várias páginas), o realce acompanha, e o que falta (lista de resultados, busca com expressão).
+
+**PARADA 10.C (PARADA 3 do leitor, validada):** você abre EPUBs reais e as amostras maliciosas. Quero saber: o texto e o sumário ficam como num leitor de verdade, o que falta no estilo (o CSS do livro é bem filtrado), livros grandes.
 
 **PARADA 10.B (PARADA 2 do leitor, validada):** você usa o PDF ao lado de uma nota. Quero saber: a citação sai como você cola, a posição lembrada acerta ao reabrir.
 

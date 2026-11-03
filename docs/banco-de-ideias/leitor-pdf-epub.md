@@ -6,7 +6,7 @@ versao: —
 
 # Leitor de PDF e EPUB
 
-> **Andamento:** a base (aba binária), o PDF e a integração com as notas no PDF (citação e posição por arquivo) estão feitos, na [Fase 10 do PLANO](../PLANO.md). O leitor de EPUB (Rust + iframe sem scripts) também está feito; falta a citação no EPUB e as melhorias de leitura. O comportamento atual está em `docs/AGENTS.md`; esta ideia só vira `feita: sim` quando o EPUB sair.
+> **Andamento:** a base (aba binária), o PDF e a integração com as notas no PDF (citação e posição por arquivo) estão feitos, na [Fase 10 do PLANO](../PLANO.md). O leitor de EPUB (Rust + iframe sem scripts) também está feito; a citação no EPUB e a busca no documento também. Faltam só melhorias de leitura (paginação do EPUB, lista de resultados da busca, tema do PDF). O comportamento atual está em `docs/AGENTS.md`; esta ideia só vira `feita: sim` quando o EPUB sair.
 
 Abrir PDF e EPUB dentro do Fullpad **somente para ler**. Não haverá edição nesta ideia.
 

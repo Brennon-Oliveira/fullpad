@@ -6,6 +6,8 @@ import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import "pdfjs-dist/web/pdf_viewer.css";
 import { api } from "../api";
+import type { Hit } from "./find";
+import { applyHighlights, clearHighlights, revealRange, textRanges } from "./highlight";
 import { MAX_ZOOM, MIN_ZOOM, type ReaderPos, canvasRatio, clamp, fitScale, isSafeLink, pageIndexAt, visibleRange } from "./pos";
 import { ReaderError } from "./errors";
 import { openPdfTask } from "./source";
@@ -88,6 +90,9 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
   let posTimer = 0;
   let raf = 0;
   let zoomTimer = 0;
+  // busca: a consulta atual, o resultado em foco e os trechos realçados de cada página desenhada
+  let findState: { query: string; current: { unit: number; nth: number } | null; scrollPending: boolean } | null = null;
+  const pageRanges = new Map<number, Range[]>();
 
   const v1 = firstPage.getViewport({ scale: 1 });
   const firstBase = { w: v1.width, h: v1.height };
@@ -160,8 +165,27 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
     st.el.remove();
   }
 
+  /** Realça a consulta em todas as páginas desenhadas e, por cima, o resultado em foco. */
+  function refreshHighlights() {
+    if (!findState) return clearHighlights(window);
+    const cur = findState.current ? pageRanges.get(findState.current.unit)?.[findState.current.nth] ?? null : null;
+    applyHighlights(window, [...pageRanges.values()].flat(), cur);
+    if (cur && findState.scrollPending) {
+      findState.scrollPending = false;
+      revealRange(cur);
+    }
+  }
+
+  function highlightSlot(i: number) {
+    const layer = slots[i].stage?.el.querySelector<HTMLElement>(".textLayer");
+    if (!findState || !layer) return;
+    pageRanges.set(i, textRanges(layer, findState.query, document));
+    refreshHighlights();
+  }
+
   /** A página saiu de perto da tela: solta tudo dela. */
   function release(s: Slot) {
+    if (pageRanges.delete(slots.indexOf(s))) refreshHighlights();
     const page = (s.stage ?? s.building)?.page;
     discard(s.building);
     discard(s.stage);
@@ -249,6 +273,7 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
       s.building = undefined;
       el.style.visibility = "";
       discard(old);
+      highlightSlot(i);
     } catch (e) {
       if (disposed || e instanceof pdfjs.RenderingCancelledException) return;
       if (e instanceof Timeout) return fatal("O PDF demorou demais para ser processado. Ele pode ser muito pesado ou malformado.");
@@ -294,6 +319,7 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
     disposed = true;
     window.clearTimeout(posTimer);
     cancelAnimationFrame(raf);
+    find.clear();
     window.clearTimeout(zoomTimer);
     for (const s of slots) release(s);
     await task.destroy().catch(() => {}); // encerra o worker e libera o que ele tinha em memória
@@ -328,8 +354,32 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
     relayout({ ...anchor, zoom });
   }
 
+  const find = {
+    units: slots.length,
+    /** Texto da página, na ordem do PDF (fim de linha vira espaço). */
+    async textOf(i: number) {
+      const page = await withTimeout(doc.getPage(i + 1), PAGE_MS);
+      const content = await withTimeout(page.getTextContent(), PAGE_MS);
+      return content.items.map((it) => ("str" in it ? it.str + (it.hasEOL ? " " : "") : "")).join("");
+    },
+    reveal(hit: Hit | null, query: string) {
+      const sameQuery = findState?.query === query;
+      findState = { query, current: hit ? { unit: hit.unit, nth: hit.nth } : null, scrollPending: !!hit };
+      if (!sameQuery) pageRanges.clear();
+      slots.forEach((s, i) => s.stage && (!sameQuery || !pageRanges.has(i)) && highlightSlot(i));
+      if (hit) goTo(hit.unit + 1, 0);
+      refreshHighlights(); // a página do resultado, se já estava desenhada, é realçada e centralizada agora
+    },
+    clear() {
+      findState = null;
+      pageRanges.clear();
+      clearHighlights(window);
+    },
+  };
+
   return {
     pages: slots.length,
+    find,
     setZoom,
     zoomBy: (factor) => setZoom(clamp(scale() * factor, MIN_ZOOM, MAX_ZOOM)),
     goTo,
