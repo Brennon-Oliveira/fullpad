@@ -6,6 +6,8 @@ export type Language = "auto" | "plain" | "markdown" | "dbml" | "json";
 export type Eol = "lf" | "crlf";
 /** O que a aba mostra: o editor ("text") ou um leitor só de leitura. "unknown": tipo de uma versão mais nova. */
 export type TabKind = "text" | "pdf" | "epub" | "unknown";
+/** Resultado da verificação de um PDF: um trecho comprimido que expande demais é suspeito. */
+export type PdfScan = { verdict: "ok" } | { verdict: "suspicious"; packed: number; unpacked: number; at_least: boolean };
 /** Situação do arquivo de uma aba de leitura. `mtime` em milissegundos desde 1970. */
 export type FileStatus = { status: "ok"; size: number; mtime: number } | { status: "missing" };
 export type Encoding = "utf8" | "utf8-bom" | "utf16le" | "utf16be" | "windows1252";
@@ -112,6 +114,8 @@ export const api = {
   openReader: (path: string) => invoke<TabState>("open_reader", { path }),
   /** Existe? Tamanho e data (só metadados). */
   readerInfo: (id: string) => invoke<FileStatus>("reader_info", { id }),
+  /** Procura bomba de compressão no PDF (no Rust, antes de o pdf.js tocar nele). */
+  readerCheck: (id: string) => invoke<PdfScan>("reader_check", { id }),
   /** Faixa de bytes do arquivo da aba, em binário cru (o Rust limita o tamanho de cada chamada). */
   readerRead: (id: string, offset: number, len: number) => invoke<ArrayBuffer>("reader_read", { id, offset, len }),
   /** O arquivo mudou de lugar: aponta a aba para o novo caminho (mesmo tipo). Devolve a aba atualizada. */

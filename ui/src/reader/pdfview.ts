@@ -7,6 +7,7 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import "pdfjs-dist/web/pdf_viewer.css";
 import { api } from "../api";
 import { MAX_ZOOM, MIN_ZOOM, type ReaderPos, canvasRatio, clamp, fitScale, isSafeLink, pageIndexAt, visibleRange } from "./pos";
+import { ReaderError } from "./errors";
 import { openPdfTask } from "./source";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -66,7 +67,7 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
     doc = await withTimeout(Promise.race([task.promise, failure]), OPEN_MS);
   } catch (e) {
     void task.destroy().catch(() => {});
-    throw e instanceof Timeout ? new Error("O PDF demorou demais para abrir.") : e;
+    throw e instanceof Timeout ? new ReaderError("O PDF demorou demais para abrir.") : e;
   }
 
   // a primeira página dá o tamanho de referência; se nem ela vier, o arquivo é abandonado
@@ -75,7 +76,7 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
     firstPage = await withTimeout(doc.getPage(1), OPEN_MS);
   } catch (e) {
     void task.destroy().catch(() => {});
-    throw e instanceof Timeout ? new Error("O PDF demorou demais para abrir.") : e;
+    throw e instanceof Timeout ? new ReaderError("O PDF demorou demais para abrir.") : e;
   }
 
   const scroller = Object.assign(document.createElement("div"), { className: "rd-scroll", tabIndex: 0 });

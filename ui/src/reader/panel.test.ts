@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TabState } from "../api";
 
-const api = vi.hoisted(() => ({ readerInfo: vi.fn(), readerRead: vi.fn(), readerRelocate: vi.fn(), openUrl: vi.fn() }));
+const api = vi.hoisted(() => ({ readerCheck: vi.fn(), readerInfo: vi.fn(), readerRead: vi.fn(), readerRelocate: vi.fn(), openUrl: vi.fn() }));
 vi.mock("../api", () => ({ api }));
 const dialog = vi.hoisted(() => ({ open: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialog.open }));
@@ -36,8 +36,9 @@ const click = (label: string) => [...root.querySelectorAll("button")].find((b) =
 beforeEach(() => {
   root = document.createElement("div");
   document.body.replaceChildren(root);
-  for (const m of [view.zoomBy, view.setZoom, api.readerInfo, api.readerRead, api.readerRelocate, dialog.open, view.open, view.dispose, host.onPosition, host.onRelocated, host.onInfo]) m.mockClear();
+  for (const m of [api.readerCheck, view.zoomBy, view.setZoom, api.readerInfo, api.readerRead, api.readerRelocate, dialog.open, view.open, view.dispose, host.onPosition, host.onRelocated, host.onInfo]) m.mockClear();
   api.readerInfo.mockResolvedValue({ status: "ok", size: 2_500_000, mtime: 111 });
+  api.readerCheck.mockResolvedValue({ verdict: "ok" });
   view.open.mockImplementation(async () => ({ pages: 10, position: view.position, dispose: view.dispose, zoomBy: view.zoomBy, setZoom: view.setZoom, goTo() {}, resize() {} }));
 });
 
@@ -139,7 +140,7 @@ describe("painel do leitor", () => {
     click("Carregar PDF");
     await settle();
     expect(root.textContent).toContain("Não foi possível abrir o PDF");
-    expect(root.textContent).toContain("Invalid PDF structure.");
+    expect(root.textContent).toContain("está corrompido"); // traduzido
     click("Tentar de novo");
     await settle();
     expect(view.open).toHaveBeenCalledTimes(2);
@@ -171,6 +172,50 @@ describe("painel do leitor", () => {
     expect(view.zoomBy.mock.calls.at(-1)![0]).toBeCloseTo(1.1);
     expect(p.zoomFit()).toBe(true);
     expect(view.setZoom).toHaveBeenCalledWith(null);
+  });
+
+  it("PDF suspeito de bomba de compressão: não carrega, avisa e só abre se o usuário confirmar", async () => {
+    api.readerCheck.mockResolvedValueOnce({ verdict: "suspicious", packed: 260_000, unpacked: 268_435_456, at_least: true });
+    const p = createReaderPanel(root, host);
+    p.show(tab("s1"));
+    await settle();
+    click("Carregar PDF");
+    await settle();
+    expect(api.readerCheck).toHaveBeenCalledWith("s1");
+    expect(root.textContent).toContain("bomba de compressão");
+    expect(root.textContent).toContain("mais de 256 MB");
+    expect(view.open).not.toHaveBeenCalled(); // o pdf.js nem foi importado
+    expect(buttons()).not.toContain("Carregar PDF");
+
+    click("Carregar mesmo assim");
+    await settle();
+    expect(view.open).toHaveBeenCalledTimes(1);
+    expect(api.readerCheck).toHaveBeenCalledTimes(1); // a confirmação não verifica de novo
+  });
+
+  it("verifica uma vez: voltar a uma aba já carregada não repete a verificação", async () => {
+    const p = createReaderPanel(root, host);
+    p.show(tab("v1"));
+    await settle();
+    click("Carregar PDF");
+    await settle();
+    p.show(tab("v2"));
+    await settle();
+    p.show(tab("v1"));
+    await settle();
+    expect(view.open).toHaveBeenCalledTimes(2);
+    expect(api.readerCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("os erros do pdf.js saem em português", async () => {
+    view.open.mockRejectedValueOnce(Object.assign(new Error("Invalid PDF structure."), { name: "InvalidPDFException" }));
+    const p = createReaderPanel(root, host);
+    p.show(tab("t1"));
+    await settle();
+    click("Carregar PDF");
+    await settle();
+    expect(root.textContent).toContain("não é um PDF válido ou está corrompido");
+    expect(root.textContent).not.toContain("Invalid PDF structure");
   });
 
   it("hide solta o documento e esvazia o painel", async () => {

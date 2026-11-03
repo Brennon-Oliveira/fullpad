@@ -6,8 +6,9 @@
 
 use crate::error::{Error, IoContext, Result};
 use serde::Serialize;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 /// Maior faixa devolvida por chamada. Uma UI que peça mais recebe isto: o IPC não deve carregar
 /// um PDF inteiro de uma vez, e um pedido absurdo não pode alocar memória à vontade.
@@ -53,6 +54,154 @@ pub fn read_range(path: &Path, offset: u64, len: u64) -> Result<Vec<u8>> {
     let mut buf = Vec::with_capacity(want as usize);
     f.take(want).read_to_end(&mut buf).at(path)?;
     Ok(buf)
+}
+
+// ---- verificação de PDF antes de abrir (bomba de compressão) -----------------------------------
+
+/// Resultado de `scan_pdf`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "verdict", rename_all = "lowercase")]
+pub enum PdfScan {
+    Ok,
+    /// Um trecho comprimido (`packed` bytes) expande demais ao abrir. `unpacked` é o quanto se
+    /// mediu antes de parar; `at_least` diz que parou no teto e o real é ainda maior.
+    Suspicious { packed: u64, unpacked: u64, at_least: bool },
+}
+
+/// Pedaço lido por vez ao procurar streams.
+const SCAN_CHUNK: usize = 4 * 1024 * 1024;
+/// Um trecho só é suspeito depois de passar de 32 MB descomprimidos...
+const BOMB_MIN_OUT: u64 = 32 * 1024 * 1024;
+/// ...e de expandir mais de 200 vezes.
+const BOMB_RATIO: u64 = 200;
+/// Passou de 64 MB com razão abaixo de 20: dado comum (uma imagem grande), nada a temer.
+const CLEAR_OUT: u64 = 64 * 1024 * 1024;
+const CLEAR_RATIO: u64 = 20;
+/// Teto de leitura por trecho: acima disso para de medir (e é suspeito mesmo com razão baixa).
+const MAX_OUT: u64 = 256 * 1024 * 1024;
+/// Tempo máximo da verificação inteira; esgotado, o arquivo passa (verificação inconclusiva).
+const SCAN_DEADLINE: Duration = Duration::from_secs(15);
+
+/// Conta os bytes que o descompressor consumiu do arquivo.
+struct Counting<R> {
+    inner: R,
+    n: u64,
+}
+impl<R: Read> Read for Counting<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let k = self.inner.read(buf)?;
+        self.n += k as u64;
+        Ok(k)
+    }
+}
+
+/// Procura bombas de compressão num PDF **sem** entregá-lo ao pdf.js: o pdf.js não tem limite para
+/// o tamanho de um stream descomprimido, e um arquivo de 1 MB chegou a pedir 2 GB de memória.
+/// Cada stream `/FlateDecode` é desinflado com teto, só contando bytes; erros de decodificação
+/// (arquivo truncado, `stream` dentro de dado binário) são ignorados, o pdf.js os trata depois.
+pub fn scan_pdf(path: &Path) -> Result<PdfScan> {
+    let started = Instant::now();
+    let mut f = std::fs::File::open(path).at(path)?;
+    let size = f.metadata().at(path)?.len();
+    const KEY: &[u8] = b"stream";
+
+    let mut carry: Vec<u8> = Vec::new();
+    let mut next = 0u64; // onde continua a leitura sequencial
+    let mut chunk = vec![0u8; SCAN_CHUNK];
+    while next < size {
+        if started.elapsed() > SCAN_DEADLINE {
+            return Ok(PdfScan::Ok);
+        }
+        f.seek(SeekFrom::Start(next)).at(path)?;
+        let got = f.read(&mut chunk).at(path)?;
+        if got == 0 {
+            break;
+        }
+        let mut buf = std::mem::take(&mut carry);
+        let carried = buf.len();
+        let base = next - carried as u64; // posição absoluta do início de `buf`
+        buf.extend_from_slice(&chunk[..got]);
+        next += got as u64;
+
+        let mut i = 0;
+        while let Some(at) = find(&buf[i..], KEY).map(|k| k + i) {
+            i = at + 1;
+            // já vista no pedaço anterior (inteira dentro do que veio de lá)
+            if at + KEY.len() <= carried {
+                continue;
+            }
+            if at >= 3 && &buf[at - 3..at] == b"end" {
+                continue; // `endstream`
+            }
+            if let Some(found) = inspect_stream(&mut f, path, base + at as u64, &started)? {
+                return Ok(found);
+            }
+        }
+        // guarda o fim, para achar `stream` e `end` partidos na emenda
+        let keep = buf.len().min(KEY.len() + 3);
+        carry = buf[buf.len() - keep..].to_vec();
+    }
+    Ok(PdfScan::Ok)
+}
+
+fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    hay.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Olha o stream que começa em `at` (posição da palavra `stream`). `Some` se for suspeito.
+fn inspect_stream(f: &mut std::fs::File, path: &Path, at: u64, started: &Instant) -> Result<Option<PdfScan>> {
+    // o dicionário do objeto vem logo antes: só interessa se declara /FlateDecode
+    let from = at.saturating_sub(1024);
+    f.seek(SeekFrom::Start(from)).at(path)?;
+    let mut head = vec![0u8; (at - from) as usize];
+    f.read_exact(&mut head).at(path)?;
+    let dict = match head.windows(3).rposition(|w| w == b"obj") {
+        Some(k) => &head[k..],
+        None => &head[..],
+    };
+    if find(dict, b"FlateDecode").is_none() {
+        return Ok(None);
+    }
+    // o corpo começa depois de `stream` e da quebra de linha
+    f.seek(SeekFrom::Start(at + 6)).at(path)?;
+    let mut eol = [0u8; 2];
+    let k = f.read(&mut eol).at(path)?;
+    let skip = match &eol[..k] {
+        [b'\r', b'\n', ..] => 2,
+        [b'\n', ..] | [b'\r', ..] => 1,
+        _ => 0,
+    };
+    f.seek(SeekFrom::Start(at + 6 + skip)).at(path)?;
+
+    let reader = Counting { inner: BufReader::with_capacity(64 * 1024, &mut *f), n: 0 };
+    let mut dec = flate2::bufread::ZlibDecoder::new(BufReader::with_capacity(64 * 1024, reader));
+    let mut out = 0u64;
+    let mut sink = vec![0u8; 64 * 1024];
+    loop {
+        if started.elapsed() > SCAN_DEADLINE {
+            return Ok(None);
+        }
+        let n = match dec.read(&mut sink) {
+            Ok(0) | Err(_) => return Ok(None), // acabou ou não é zlib válido: nada suspeito
+            Ok(n) => n as u64,
+        };
+        out += n;
+        let packed = dec.total_in().max(1);
+        if out >= CLEAR_OUT && out <= packed * CLEAR_RATIO {
+            return Ok(None);
+        }
+        if out >= BOMB_MIN_OUT && out > packed * BOMB_RATIO || out >= MAX_OUT {
+            // continua medindo até o teto, para dizer quanto o trecho realmente expande
+            let mut total = out;
+            while total < MAX_OUT {
+                match dec.read(&mut sink) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => total += n as u64,
+                }
+            }
+            return Ok(Some(PdfScan::Suspicious { packed: dec.total_in(), unpacked: total, at_least: total >= MAX_OUT }));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -106,6 +255,101 @@ mod tests {
         f.set_len(MAX_READ + 1000).unwrap(); // arquivo esparso: não gasta disco de verdade
         assert_eq!(read_range(&p, 0, u64::MAX).unwrap().len() as u64, MAX_READ);
         assert_eq!(read_range(&p, MAX_READ, u64::MAX).unwrap().len(), 1000);
+    }
+
+    // ---- scan_pdf ----
+
+    use std::io::Write;
+
+    fn zlib(data: &[u8]) -> Vec<u8> {
+        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
+        e.write_all(data).unwrap();
+        e.finish().unwrap()
+    }
+
+    fn zeros(n: usize) -> Vec<u8> {
+        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
+        let block = vec![0u8; 1 << 20];
+        for _ in 0..n / block.len() {
+            e.write_all(&block).unwrap();
+        }
+        e.finish().unwrap()
+    }
+
+    /// PDF de mentira só com streams: o scan não precisa de um documento válido.
+    fn pdf_with(streams: &[(&str, Vec<u8>)], lead: usize) -> (tempfile::TempDir, std::path::PathBuf) {
+        let mut out = b"%PDF-1.7\n".to_vec();
+        out.extend(vec![b'%'; lead]);
+        out.push(b'\n');
+        for (i, (dict, data)) in streams.iter().enumerate() {
+            out.extend(format!("{} 0 obj\n<< {dict} /Length {} >>\nstream\n", i + 1, data.len()).bytes());
+            out.extend(data);
+            out.extend(b"\nendstream\nendobj\n");
+        }
+        out.extend(b"%%EOF\n");
+        file(&out)
+    }
+
+    const FLATE: &str = "/Filter /FlateDecode";
+
+    #[test]
+    fn scan_flags_a_compression_bomb() {
+        let (_d, p) = pdf_with(&[(FLATE, zeros(48 << 20))], 0);
+        match scan_pdf(&p).unwrap() {
+            PdfScan::Suspicious { packed, unpacked, .. } => {
+                assert!(packed < 1 << 20, "o trecho comprimido é pequeno: {packed}");
+                assert!(unpacked >= 32 << 20);
+            }
+            other => panic!("esperava Suspicious, veio {other:?}"),
+        }
+    }
+
+    #[test]
+    fn scan_reports_at_least_when_it_hits_the_cap() {
+        let (_d, p) = pdf_with(&[(FLATE, zeros(300 << 20))], 0);
+        match scan_pdf(&p).unwrap() {
+            PdfScan::Suspicious { unpacked, at_least, .. } => assert!(at_least && unpacked >= MAX_OUT),
+            other => panic!("esperava Suspicious, veio {other:?}"),
+        }
+    }
+
+    #[test]
+    fn scan_lets_normal_pdfs_through() {
+        let text: Vec<u8> = (0..400_000u32).flat_map(|i| format!("BT /F1 12 Tf {} {} Td (linha {i}) Tj ET\n", i % 500, i % 700).into_bytes()).collect();
+        let (_d, p) = pdf_with(&[(FLATE, zlib(&text)), ("", b"nao comprimido".to_vec()), (FLATE, zlib(b"pequeno"))], 0);
+        assert_eq!(scan_pdf(&p).unwrap(), PdfScan::Ok);
+    }
+
+    #[test]
+    fn scan_ignores_big_streams_that_are_not_flate_and_broken_ones() {
+        // sem /FlateDecode no dicionário: nem tenta desinflar, mesmo com bytes de zlib dentro
+        let (_d, p) = pdf_with(&[("/Filter /DCTDecode", zeros(48 << 20))], 0);
+        assert_eq!(scan_pdf(&p).unwrap(), PdfScan::Ok);
+        // flate truncado e flate inválido: erro de decodificação não é bomba
+        let mut cut = zeros(48 << 20);
+        cut.truncate(40);
+        let (_d2, p2) = pdf_with(&[(FLATE, cut), (FLATE, b"isto nao e zlib".to_vec())], 0);
+        assert_eq!(scan_pdf(&p2).unwrap(), PdfScan::Ok);
+        // arquivo que nem é PDF
+        let (_d3, p3) = file(b"texto qualquer");
+        assert_eq!(scan_pdf(&p3).unwrap(), PdfScan::Ok);
+    }
+
+    #[test]
+    fn scan_finds_a_bomb_after_good_streams_and_across_chunk_edges() {
+        let good = zlib(b"conteudo comum");
+        // vários preenchimentos: a palavra `stream` do trecho ruim cai em lugares diferentes em
+        // relação ao limite do pedaço lido (inclusive partida ao meio)
+        for lead in [0usize, SCAN_CHUNK - 200, SCAN_CHUNK - 120, SCAN_CHUNK - 100, SCAN_CHUNK - 90] {
+            let (_d, p) = pdf_with(&[(FLATE, good.clone()), (FLATE, zeros(40 << 20))], lead);
+            assert!(matches!(scan_pdf(&p).unwrap(), PdfScan::Suspicious { .. }), "lead {lead}");
+        }
+    }
+
+    #[test]
+    fn scan_of_missing_file_is_an_error() {
+        let d = tempfile::tempdir().unwrap();
+        assert!(scan_pdf(&d.path().join("x.pdf")).is_err());
     }
 
     #[test]

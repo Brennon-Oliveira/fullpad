@@ -2,7 +2,8 @@
 // O pdf.js (`pdfview.ts`) só é importado ao clicar em "Carregar".
 
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { type FileStatus, type TabState, api } from "../api";
+import { type FileStatus, type PdfScan, type TabState, api } from "../api";
+import { friendlyError } from "./errors";
 import { type ReaderPos, ZOOM_KEY_FACTOR, formatBytes, normalizePos, wheelFactor } from "./pos";
 import type { PdfView } from "./pdfview";
 
@@ -111,6 +112,19 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     host.onInfo(null);
   }
 
+  /** O Rust achou um trecho que expande demais ao abrir: não carrega sem o usuário confirmar. */
+  function suspicious(scan: Extract<PdfScan, { verdict: "suspicious" }>, st: FileStatus) {
+    if (tab) loaded.delete(tab.id);
+    const unpacked = `${scan.at_least ? "mais de " : ""}${formatBytes(scan.unpacked)}`;
+    card(
+      "Este PDF parece uma bomba de compressão",
+      [`Um trecho de ${formatBytes(scan.packed)} vira ${unpacked} ao abrir. Carregar pode travar o app e consumir toda a memória.`, "Se você confia no arquivo, pode carregar mesmo assim."],
+      [{ label: "Carregar mesmo assim", run: () => void loadNow(st, true) }],
+      "warn",
+    );
+    host.onInfo("arquivo suspeito, não carregado");
+  }
+
   function failed(message: string) {
     if (tab) loaded.delete(tab.id);
     card(`Não foi possível abrir o ${kindName()}`, [message], [{ label: "Tentar de novo", primary: true, run: () => void check(true) }], "error");
@@ -137,16 +151,24 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     idle(st.size);
   }
 
-  async function loadNow(known?: FileStatus) {
+  /** `risky`: o usuário já viu o aviso de arquivo suspeito e quer carregar assim mesmo. */
+  async function loadNow(known?: FileStatus, risky = false) {
     const t = tab;
     if (!t) return;
     const my = ++token;
+    const verified = risky || loaded.has(t.id); // quem já carregou nesta execução não é verificado de novo
     loaded.add(t.id);
     card(name(), ["Carregando…"], [], "busy");
     try {
       const st = known ?? (await api.readerInfo(t.id));
       if (my !== token) return;
       if (st.status === "missing") return missing();
+      if (!verified) {
+        card(name(), ["Verificando o arquivo…"], [], "busy");
+        const scan = await api.readerCheck(t.id);
+        if (my !== token) return;
+        if (scan.verdict === "suspicious") return suspicious(scan, st);
+      }
       const mod = await import("./pdfview");
       if (my !== token) return;
       stamp = { size: st.size, mtime: st.mtime };
@@ -168,7 +190,7 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
       if (my !== token) return void (await v.dispose());
       view = v;
     } catch (e) {
-      if (my === token) failed(e instanceof Error ? e.message : String(e));
+      if (my === token) failed(typeof e === "string" ? e : friendlyError(e));
     }
   }
 
@@ -268,6 +290,7 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
   }
 
   async function reload() {
+    if (tab) loaded.delete(tab.id); // o arquivo mudou: verifica de novo
     await drop();
     await check(true);
   }

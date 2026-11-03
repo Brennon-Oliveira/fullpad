@@ -1093,6 +1093,7 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "encoding_rs",
+ "flate2",
  "serde",
  "serde_json",
  "tempfile",

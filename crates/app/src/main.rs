@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use fullpad_core::json::{self, Doc, Indent, JsonError};
-use fullpad_core::reader::FileStatus;
+use fullpad_core::reader::{FileStatus, PdfScan};
 use fullpad_core::{ClosedTab, Encoding, Eol, Geometry, Session, Store, TabKind, TabState, MAIN_WINDOW};
 use serde::Serialize;
 use std::collections::HashSet;
@@ -666,6 +666,20 @@ async fn reader_info(state: State<'_, AppState>, id: String) -> Result<FileStatu
     .map_err(err)?
 }
 
+/// Verifica o PDF antes de entregá-lo ao pdf.js: bomba de compressão (um trecho minúsculo que
+/// expande para gigabytes). Roda no Rust, fora da UI, e só lê o arquivo, sem guardá-lo.
+#[tauri::command]
+async fn reader_check(state: State<'_, AppState>, id: String) -> Result<PdfScan, String> {
+    let id = parse_id(&id)?;
+    let store = state.store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (_, path) = store.reader_file(id).map_err(err)?;
+        fullpad_core::reader::scan_pdf(&path).map_err(err)
+    })
+    .await
+    .map_err(err)?
+}
+
 /// Uma faixa de bytes do arquivo da aba, em binário cru (sem JSON). O Rust limita o tamanho.
 #[tauri::command]
 async fn reader_read(state: State<'_, AppState>, id: String, offset: u64, len: u64) -> Result<tauri::ipc::Response, String> {
@@ -823,6 +837,7 @@ fn main() {
             open_file,
             open_reader,
             reader_info,
+            reader_check,
             reader_read,
             reader_relocate,
             save_file,
