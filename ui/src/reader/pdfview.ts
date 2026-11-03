@@ -20,6 +20,8 @@ const MAX_CANVAS_PIXELS = 16 * 1024 * 1024;
 /** Quantas telas além da visível ficam renderizadas. */
 const MARGIN_SCREENS = 1;
 const PAD = 16;
+/** Depois do último passo de zoom, espera isto antes de redesenhar (enquanto isso a página fica esticada). */
+const ZOOM_SETTLE_MS = 120;
 
 export interface PdfViewHooks {
   /** Página ou escala mudou (a UI grava na sessão, com atraso). */
@@ -51,13 +53,26 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return Promise.race([p, timer]).finally(() => window.clearTimeout(id));
 }
 
+/** O desenho de uma página: canvas, camada de texto e links, todos na mesma escala. */
+interface Stage {
+  el: HTMLElement;
+  canvas: HTMLCanvasElement;
+  page: PDFPageProxy;
+  /** Layout (zoom/tamanho do painel) para o qual foi feito. */
+  gen: number;
+  task?: RenderTask;
+}
+
 interface Slot {
   el: HTMLElement;
   /** Tamanho a 100%; null enquanto só se conhece o da primeira página. */
   base: { w: number; h: number } | null;
-  /** Presente enquanto a página está desenhada. */
-  drawn?: { canvas: HTMLCanvasElement; layers: HTMLElement[]; page: PDFPageProxy; task?: RenderTask; scale: number };
-  busy?: boolean;
+  /** O que está na tela. Depois de um zoom fica esticado (`stale`) até o desenho novo ficar pronto. */
+  stage?: Stage;
+  /** Desenho novo em andamento, escondido: só entra na tela inteiro, para não piscar nem sumir. */
+  building?: Stage;
+  /** Falhou neste layout: não tenta de novo até o próximo zoom ou rolagem para longe. */
+  failed?: boolean;
 }
 
 export async function openPdfView(host: HTMLElement, id: string, size: number, pos: ReaderPos, hooks: PdfViewHooks): Promise<PdfView> {
@@ -89,6 +104,7 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
   let gen = 0; // muda a cada novo layout: desenhos antigos são descartados
   let posTimer = 0;
   let raf = 0;
+  let zoomTimer = 0;
 
   const v1 = firstPage.getViewport({ scale: 1 });
   const firstBase = { w: v1.width, h: v1.height };
@@ -132,26 +148,47 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
     scroller.scrollTop = pagesEl.offsetTop + topOf(i) + frac * heightOf(i);
   }
 
-  function relayout(anchor: ReaderPos) {
+  /**
+   * Novo tamanho (zoom, janela). As páginas já desenhadas ficam na tela, esticadas, até o desenho
+   * novo ficar pronto (`delay`: espera o zoom parar para não redesenhar a cada passo da roda).
+   */
+  function relayout(anchor: ReaderPos, delay = true) {
     gen++;
     for (const s of slots) {
-      release(s);
+      discard(s.building);
+      s.building = undefined;
+      s.failed = false;
+      s.stage?.el.classList.add("stale");
       sizeSlot(s);
     }
     goTo(anchor.page, anchor.frac);
-    schedule();
+    window.clearTimeout(zoomTimer);
+    if (delay) zoomTimer = window.setTimeout(schedule, ZOOM_SETTLE_MS);
+    else schedule();
     report();
   }
 
   // ---- desenho das páginas visíveis --------------------------------------------
 
+  function discard(st: Stage | undefined) {
+    if (!st) return;
+    st.task?.cancel();
+    st.canvas.width = st.canvas.height = 0; // devolve a memória do bitmap
+    st.el.remove();
+  }
+
+  /** A página saiu de perto da tela: solta tudo dela. */
   function release(s: Slot) {
-    if (!s.drawn) return;
-    s.drawn.task?.cancel();
-    s.drawn.canvas.width = s.drawn.canvas.height = 0; // devolve a memória do bitmap
-    s.el.replaceChildren();
-    s.drawn.page.cleanup();
-    s.drawn = undefined;
+    const page = (s.stage ?? s.building)?.page;
+    discard(s.building);
+    discard(s.stage);
+    s.stage = s.building = undefined;
+    s.failed = false;
+    if (page) {
+      s.el.replaceChildren();
+      s.el.classList.remove("failed");
+      page.cleanup();
+    }
   }
 
   function schedule() {
@@ -169,18 +206,20 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
     slots.forEach((s, i) => {
       if (i < a || i > b) release(s);
     });
-    // as mais próximas do topo primeiro
-    for (let i = a; i <= b; i++) void draw(i);
+    for (let i = a; i <= b; i++) {
+      const s = slots[i];
+      if (s.stage?.gen !== gen && s.building?.gen !== gen && !s.failed) void draw(i);
+    }
   }
 
   async function draw(i: number) {
     const s = slots[i];
-    if (s.drawn || s.busy || disposed) return;
-    s.busy = true;
+    if (disposed) return;
     const myGen = gen;
+    let stage: Stage | undefined;
     try {
       const page = await withTimeout(doc.getPage(i + 1), PAGE_MS);
-      if (disposed || myGen !== gen) return void page.cleanup();
+      if (disposed || myGen !== gen || s.building?.gen === myGen) return;
       const vp1 = page.getViewport({ scale: 1 });
       if (!s.base || Math.abs(s.base.w - vp1.width) > 0.5 || Math.abs(s.base.h - vp1.height) > 0.5) {
         const anchor = i < position().page ? position() : null; // página acima da tela muda de tamanho: não deslocar o que se lê
@@ -192,43 +231,65 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
       const vp = page.getViewport({ scale: sc });
       const ratio = canvasRatio(vp.width, vp.height, window.devicePixelRatio, MAX_CANVAS_PIXELS);
 
+      const el = Object.assign(document.createElement("div"), { className: "rd-stage" });
+      el.style.visibility = "hidden"; // só aparece pronto
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.floor(vp.width * ratio));
       canvas.height = Math.max(1, Math.floor(vp.height * ratio));
       canvas.style.width = `${Math.floor(vp.width)}px`;
       canvas.style.height = `${Math.floor(vp.height)}px`;
-      s.el.replaceChildren(canvas);
-      const drawn: NonNullable<Slot["drawn"]> = { canvas, layers: [], page, scale: sc };
-      s.drawn = drawn;
+      el.append(canvas);
+      s.el.classList.remove("failed");
+      if (!s.stage) s.el.replaceChildren(); // limpa o aviso de falha, se havia
+      s.el.append(el);
+      const mine: Stage = { el, canvas, page, gen: myGen };
+      stage = mine;
+      s.building = mine;
 
       const rt = page.render({ canvas, viewport: page.getViewport({ scale: sc * ratio }) });
-      drawn.task = rt;
+      mine.task = rt;
       await withTimeout(rt.promise, PAGE_MS);
-      if (disposed || s.drawn !== drawn) return;
+      if (disposed || s.building !== mine) return;
 
       const text = Object.assign(document.createElement("div"), { className: "textLayer" });
       text.style.setProperty("--total-scale-factor", String(sc));
       text.style.setProperty("--scale-factor", String(sc));
-      s.el.append(text);
-      drawn.layers.push(text);
+      el.append(text);
       await withTimeout(new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container: text, viewport: vp }).render(), PAGE_MS);
-      if (disposed || s.drawn !== drawn) return;
-      await addLinks(s, drawn, vp);
+      if (disposed || s.building !== mine) return;
+      el.append(await linksLayer(page, vp));
+      if (disposed || s.building !== mine) return;
+
+      // pronto: troca de uma vez, sem intervalo em que a página fique em branco
+      const old = s.stage;
+      s.stage = mine;
+      s.building = undefined;
+      el.style.visibility = "";
+      discard(old);
     } catch (e) {
       if (disposed || e instanceof pdfjs.RenderingCancelledException) return;
       if (e instanceof Timeout) return fatal("O PDF demorou demais para ser processado. Ele pode ser muito pesado ou malformado.");
-      s.el.classList.add("failed");
-      s.el.textContent = "Não foi possível mostrar esta página.";
+      if (myGen !== gen) return; // o layout mudou no meio: a página será desenhada de novo
+      if (stage && s.building === stage) {
+        discard(stage);
+        s.building = undefined;
+      }
+      s.failed = true;
+      if (!s.stage) {
+        s.el.classList.add("failed");
+        s.el.textContent = "Não foi possível mostrar esta página.";
+      }
       console.error("falha ao desenhar a página", i + 1, e);
     } finally {
-      s.busy = false;
+      // um zoom no meio do desenho o descartou: desenha de novo no layout atual
+      if (!disposed && myGen !== gen) schedule();
     }
   }
 
   /** Links do PDF: só `http`, `https` e `mailto`, abertos pelo navegador do sistema. */
-  async function addLinks(s: Slot, drawn: NonNullable<Slot["drawn"]>, vp: ReturnType<PDFPageProxy["getViewport"]>) {
+  async function linksLayer(page: PDFPageProxy, vp: ReturnType<PDFPageProxy["getViewport"]>) {
     const layer = Object.assign(document.createElement("div"), { className: "rd-links" });
-    for (const a of await drawn.page.getAnnotations({ intent: "display" })) {
+    for (const a of await page.getAnnotations({ intent: "display" })) {
       const url = a.subtype === "Link" && typeof a.url === "string" ? a.url : null;
       if (!url || !isSafeLink(url) || !a.rect) continue;
       const [ax, ay] = vp.convertToViewportPoint(a.rect[0], a.rect[1]);
@@ -242,9 +303,7 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
       });
       layer.append(link);
     }
-    if (disposed || s.drawn !== drawn) return;
-    s.el.append(layer);
-    drawn.layers.push(layer);
+    return layer;
   }
 
   async function dispose() {
@@ -252,6 +311,7 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
     disposed = true;
     window.clearTimeout(posTimer);
     cancelAnimationFrame(raf);
+    window.clearTimeout(zoomTimer);
     for (const s of slots) release(s);
     await task.destroy().catch(() => {}); // encerra o worker e libera o que ele tinha em memória
     host.replaceChildren();
@@ -276,7 +336,7 @@ export async function openPdfView(host: HTMLElement, id: string, size: number, p
   // a posição só vale depois de a caixa ter largura: espera o layout do painel
   requestAnimationFrame(() => {
     if (disposed) return;
-    relayout(pos);
+    relayout(pos, false);
   });
 
   function setZoom(z: number | null) {

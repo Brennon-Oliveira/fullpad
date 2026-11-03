@@ -405,6 +405,10 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .rd-page { position: relative; flex: none; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); color: #444; }
 .rd-page.failed { display: flex; align-items: center; justify-content: center; }
 .rd-page canvas { display: block; }
+.rd-stage { position: absolute; inset: 0; }
+/* depois de um zoom, o desenho antigo fica esticado até o novo ficar pronto (sem piscar) */
+.rd-stage.stale canvas { width: 100% !important; height: 100% !important; }
+.rd-stage.stale .textLayer, .rd-stage.stale .rd-links { display: none; }
 .rd-page .textLayer { position: absolute; inset: 0; }
 .rd-links { position: absolute; inset: 0; pointer-events: none; }
 .rd-link { position: absolute; pointer-events: auto; cursor: pointer; }
