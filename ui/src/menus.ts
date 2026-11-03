@@ -147,6 +147,8 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
       return [
         { label: "Carregar EPUB", action: a.readerLoad },
         { label: "Localizar arquivo…", action: a.readerLocate },
+        "sep",
+        { label: "Copiar seleção como citação", shortcut: "Ctrl+Shift+C", action: a.readerQuote },
       ];
     case "pdf":
       return [

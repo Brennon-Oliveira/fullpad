@@ -148,7 +148,8 @@ Desenho, decisões e defesas em [banco-de-ideias/leitor-pdf-epub.md](banco-de-id
 | ✅ 10.4a | Posição de leitura por arquivo (identidade do conteúdo, sobrevive a mover o arquivo e a fechar a aba) | `cargo test -p fullpad-core`: mesma identidade para cópia/renomeação, outra ao editar, registro corrompido tolerado, só as 2000 mais recentes |
 | ✅ 10.4b | Copiar a seleção como citação em markdown (menu de contexto, menu PDF e Ctrl+Shift+C) | Selecionar um trecho e colar numa nota dá `> trecho` e `> — *Livro*, p. 42`; quebras de linha do PDF não viram parágrafos |
 | ✅ 10.5 | EPUB: leitor em Rust (`epub.rs`), capítulo limpo pelo `ammonia`, CSS por lista de permissão (`css.rs`), sumário lateral, iframe sem scripts, posição de leitura | PARADA 3: abrir EPUBs reais e as amostras maliciosas; nenhum script roda, o app não trava e nada vai à rede |
-| ⬜ 10.6 | Citação no EPUB e melhorias de leitura (busca, tema, paginação) | PARADA 4 |
+| ✅ 10.6a | Citação no EPUB (menu, botão direito e Ctrl+Shift+C de dentro do livro) | Selecionar um trecho do livro e colar numa nota dá `> trecho` e `> — *Título*, cap. 3 (Nome)` |
+| ⬜ 10.6b | Busca no documento (PDF e EPUB) | PARADA 4 |
 
 **PARADA 10.C (PARADA 3 do leitor):** você abre EPUBs reais e as amostras maliciosas. Quero saber: o texto e o sumário ficam como num leitor de verdade, o que falta no estilo (o CSS do livro é bem filtrado), livros grandes.
 

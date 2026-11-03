@@ -106,6 +106,32 @@ export interface FrameHandlers {
   /** Clicou ou focou dentro do documento (o painel passa a ser o atual). */
   focus(): void;
   scrolled(): void;
+  /** Botão direito (`x`, `y` em coordenadas do documento do iframe). */
+  context(x: number, y: number): void;
+}
+
+const BLOCKS = new Set(["P", "DIV", "LI", "UL", "OL", "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE", "PRE", "TR", "TABLE", "SECTION", "ARTICLE", "FIGURE", "FIGCAPTION", "DT", "DD", "HR"]);
+
+/**
+ * Texto de uma seleção com os parágrafos preservados: o `toString()` da seleção junta blocos com
+ * uma quebra só, e a citação precisa distinguir parágrafo (linha em branco) de quebra de linha.
+ */
+export function fragmentToText(node: Node): string {
+  let out = "";
+  const walk = (n: Node) => {
+    if (n.nodeType === 3) out += n.nodeValue ?? "";
+    else if (n.nodeType === 1) {
+      const el = n as Element;
+      if (el.tagName === "BR") out += "\n";
+      else if (BLOCKS.has(el.tagName)) {
+        out += "\n\n";
+        el.childNodes.forEach(walk);
+        out += "\n\n";
+      } else el.childNodes.forEach(walk);
+    } else n.childNodes.forEach(walk);
+  };
+  walk(node);
+  return out.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /**
@@ -130,6 +156,12 @@ export function attachFrameHandlers(doc: Document, h: FrameHandlers): () => void
   const key = (e: Event) => h.key(e as KeyboardEvent);
   const focus = () => h.focus();
   const scroll = () => h.scrolled();
+  const context = (e: Event) => {
+    e.preventDefault();
+    const m = e as MouseEvent;
+    h.context(m.clientX, m.clientY);
+  };
+  doc.addEventListener("contextmenu", context);
   doc.addEventListener("click", click);
   doc.addEventListener("wheel", wheel, { passive: false });
   doc.addEventListener("keydown", key);
@@ -145,6 +177,7 @@ export function attachFrameHandlers(doc: Document, h: FrameHandlers): () => void
     doc.removeEventListener("keydown", key);
     doc.removeEventListener("pointerdown", focus, true);
     win?.removeEventListener("scroll", scroll);
+    doc.removeEventListener("contextmenu", context);
     doc.removeEventListener("submit", stop);
     doc.removeEventListener("dragstart", stop);
   };

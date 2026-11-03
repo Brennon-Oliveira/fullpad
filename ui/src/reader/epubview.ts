@@ -6,7 +6,8 @@
 // serve só para o app escutar cliques, rolagem e teclas lá dentro.
 
 import { type EpubInfo, api } from "../api";
-import { type EpubLink, type Theme, appCss, attachFrameHandlers, buildDocument, errorDocument } from "./epubdoc";
+import { type EpubLink, type Theme, appCss, attachFrameHandlers, buildDocument, errorDocument, fragmentToText } from "./epubdoc";
+import { chapterLabel } from "./quote";
 import { type ReaderPos, clamp, wheelFactor } from "./pos";
 import type { ReaderView, ViewHooks } from "./view";
 
@@ -128,6 +129,11 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
 
   /** Teclas apertadas dentro do documento valem como da janela (atalhos, zoom), e o que o app trata não rola. */
   function forwardKey(e: KeyboardEvent) {
+    if (e.ctrlKey && e.shiftKey && !e.altKey && e.code === "KeyC") {
+      e.preventDefault();
+      hooks.onQuote?.(); // o painel não ouve teclas de dentro do iframe
+      return;
+    }
     const copy = new KeyboardEvent("keydown", { key: e.key, code: e.code, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey, bubbles: true, cancelable: true });
     window.dispatchEvent(copy);
     if (copy.defaultPrevented) e.preventDefault();
@@ -159,6 +165,10 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
         key: forwardKey,
         focus: () => frame.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })), // o painel vira o atual
         scrolled: report,
+        context: (x, y) => {
+          const r = frame.getBoundingClientRect();
+          hooks.onContextMenu?.(r.left + x, r.top + y);
+        },
       });
       const target = fragment ? d.getElementById(fragment) : null;
       if (target) target.scrollIntoView();
@@ -190,6 +200,16 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
     goTo: (page, frac = 0) => void go(Math.floor(page) - 1, frac),
     position,
     resize() {},
+    selection() {
+      const d = doc();
+      const sel = d?.getSelection();
+      if (!d || !sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+      const text = fragmentToText(sel.getRangeAt(0).cloneContents());
+      return text ? { text, source: info.title, where: chapterLabel(cur, info.chapters[cur] ?? "") } : null;
+    },
+    copySelection() {
+      doc()?.execCommand("copy");
+    },
     async dispose() {
       if (disposed) return;
       disposed = true;

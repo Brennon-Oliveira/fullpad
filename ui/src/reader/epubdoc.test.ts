@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { CSP, type FrameHandlers, type Theme, appCss, attachFrameHandlers, buildDocument, errorDocument, parseEpubLink } from "./epubdoc";
+import { CSP, type FrameHandlers, type Theme, appCss, attachFrameHandlers, buildDocument, errorDocument, fragmentToText, parseEpubLink } from "./epubdoc";
 
 const light: Theme = { dark: false, bg: "#fff", fg: "#111", muted: "#666", accent: "#25c", border: "#ddd", scale: 1 };
 const dark: Theme = { ...light, dark: true, bg: "#1e1f22", fg: "#dcddde" };
@@ -76,7 +76,7 @@ describe("eventos dentro do documento", () => {
     doc.body.innerHTML = html;
     return doc;
   }
-  const handlers = (): FrameHandlers => ({ link: vi.fn(), zoomWheel: vi.fn(), key: vi.fn(), focus: vi.fn(), scrolled: vi.fn() });
+  const handlers = (): FrameHandlers => ({ link: vi.fn(), zoomWheel: vi.fn(), key: vi.fn(), focus: vi.fn(), scrolled: vi.fn(), context: vi.fn() });
 
   it("clicar num link nunca navega o iframe: vira um pedido ao app", () => {
     const doc = frameDoc('<p><a id="a" href="epub:2#x"><b id="b">dois</b></a> <a id="e" href="https://example.com">ext</a> <a id="j" href="javascript:alert(1)">js</a></p>');
@@ -121,11 +121,44 @@ describe("eventos dentro do documento", () => {
     expect((h.key as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
   });
 
+  it("o botão direito não abre o menu do navegador: vira um pedido ao app, com a posição", () => {
+    const doc = frameDoc("<p id='p'>x</p>");
+    const h = handlers();
+    const off = attachFrameHandlers(doc, h);
+    const ev = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 40, clientY: 90 });
+    doc.getElementById("p")!.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    expect(h.context).toHaveBeenCalledWith(40, 90);
+    off();
+    doc.getElementById("p")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect((h.context as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+  });
+
   it("formulário não envia", () => {
     const doc = frameDoc("<form id='f'></form>");
     attachFrameHandlers(doc, handlers());
     const ev = new Event("submit", { bubbles: true, cancelable: true });
     doc.getElementById("f")!.dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(true);
+  });
+});
+
+describe("texto da seleção", () => {
+  const frag = (html: string) => {
+    const d = document.createElement("div");
+    d.innerHTML = html;
+    return d;
+  };
+  it("parágrafos ficam separados por linha em branco, e quebra de linha dentro do parágrafo é uma só", () => {
+    expect(fragmentToText(frag("<p>um parágrafo</p><p>outro<br>com quebra</p>"))).toBe("um parágrafo\n\noutro\ncom quebra");
+  });
+  it("título, citação e item de lista também separam", () => {
+    expect(fragmentToText(frag("<h1>Título</h1><blockquote><p>citado</p></blockquote><ul><li>a</li><li>b</li></ul>"))).toBe("Título\n\ncitado\n\na\n\nb");
+  });
+  it("texto em linha (negrito, link) não quebra", () => {
+    expect(fragmentToText(frag("<p>um <b>forte</b> e <a href='#x'>link</a> juntos</p>"))).toBe("um forte e link juntos");
+  });
+  it("seleção parcial (só texto) sai como veio", () => {
+    expect(fragmentToText(document.createTextNode("  trecho solto  "))).toBe("trecho solto");
   });
 });

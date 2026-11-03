@@ -112,6 +112,44 @@ describe("visão do EPUB", () => {
     await v.dispose();
   });
 
+  /** Seleciona o conteúdo de `html` dentro do documento do iframe. */
+  const selectIn = (html: string) => {
+    const d = frame().contentDocument!;
+    d.body.innerHTML = html;
+    const range = d.createRange();
+    range.selectNodeContents(d.body);
+    const sel = d.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+  };
+
+  it("entrega a seleção para citar: texto com parágrafos, nome da obra e capítulo", async () => {
+    const v = await openEpubView(host, "e1", { page: 3, frac: 0, zoom: null }, hooks);
+    await loaded();
+    expect(v.selection!()).toBeNull(); // nada selecionado
+    selectIn("<p>primeiro parágrafo</p><p>segundo</p>");
+    expect(v.selection!()).toEqual({ text: "primeiro parágrafo\n\nsegundo", source: "Livro de Teste", where: "cap. 3 (Três)" });
+    await v.dispose();
+  });
+
+  it("Ctrl+Shift+C dentro do livro pede a citação ao painel, e o botão direito pede o menu com a posição da janela", async () => {
+    const onQuote = vi.fn();
+    const onContextMenu = vi.fn();
+    const v = await openEpubView(host, "e1", { page: 1, frac: 0, zoom: null }, { ...hooks, onQuote, onContextMenu });
+    await loaded();
+    const d = frame().contentDocument!;
+    const key = new KeyboardEvent("keydown", { code: "KeyC", key: "C", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true });
+    d.dispatchEvent(key);
+    expect(onQuote).toHaveBeenCalledTimes(1);
+    expect(key.defaultPrevented).toBe(true);
+    d.body.innerHTML = "<p id='p'>x</p>";
+    d.getElementById("p")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 30, clientY: 50 }));
+    expect(onContextMenu).toHaveBeenCalledTimes(1);
+    const [x, y] = onContextMenu.mock.calls[0];
+    expect([typeof x, typeof y]).toEqual(["number", "number"]);
+    await v.dispose();
+  });
+
   it("capítulo que falha mostra o erro no próprio documento, sem derrubar o leitor", async () => {
     api.epubChapter.mockRejectedValueOnce("Um arquivo do EPUB é grande demais (40 MB; o limite é 8 MB).");
     const v = await openEpubView(host, "e1", { page: 1, frac: 0, zoom: null }, hooks);

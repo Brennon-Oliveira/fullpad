@@ -409,17 +409,57 @@ describe("painel do leitor", () => {
       expect(root.textContent).toContain("proteção (DRM)");
     });
 
-    it("a citação ainda não existe no EPUB: avisa, não copia", async () => {
+    it("cita a seleção do EPUB com o nome da obra e o capítulo", async () => {
       const writeText = vi.fn(async () => {});
       Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      epub.open.mockImplementationOnce(async () => ({
+        pages: 9, position: view.position, dispose: view.dispose, zoomBy() {}, setZoom() {}, goTo() {}, resize() {},
+        selection: () => ({ text: "um trecho\n\noutro", source: "Dom Casmurro", where: "cap. 2 (Capítulo dois)" }),
+      }));
       const p = createReaderPanel(root, host);
-      p.show(book("x5"));
+      p.show(book("x5", { title: "dom.epub" }));
+      await settle();
+      click("Carregar EPUB");
+      await settle();
+      expect(p.quote()).toBe(true);
+      await settle();
+      expect(writeText).toHaveBeenCalledWith("> um trecho\n>\n> outro\n> — *Dom Casmurro*, cap. 2 (Capítulo dois)");
+      expect(root.querySelector(".rd-toast")!.textContent).toBe("Citação copiada");
+    });
+
+    it("sem seleção no livro, avisa e não copia", async () => {
+      const writeText = vi.fn(async () => {});
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      epub.open.mockImplementationOnce(async () => ({ pages: 9, position: view.position, dispose: view.dispose, zoomBy() {}, setZoom() {}, goTo() {}, resize() {}, selection: () => null }));
+      const p = createReaderPanel(root, host);
+      p.show(book("x6"));
       await settle();
       click("Carregar EPUB");
       await settle();
       expect(p.quote()).toBe(false);
       expect(writeText).not.toHaveBeenCalled();
-      expect(root.querySelector(".rd-toast")!.textContent).toContain("EPUB ainda não");
+      expect(root.querySelector(".rd-toast")!.textContent).toContain("Selecione um trecho");
+    });
+
+    it("o atalho e o botão direito de dentro do livro chegam ao painel", async () => {
+      const writeText = vi.fn(async () => {});
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      epub.open.mockImplementationOnce(async () => ({
+        pages: 9, position: view.position, dispose: view.dispose, zoomBy() {}, setZoom() {}, goTo() {}, resize() {},
+        selection: () => ({ text: "x", source: "L", where: "cap. 1" }),
+      }));
+      const p = createReaderPanel(root, host);
+      p.show(book("x7"));
+      await settle();
+      click("Carregar EPUB");
+      await settle();
+      const hooks = epub.open.mock.calls[0][3];
+      hooks.onQuote();
+      await settle();
+      expect(writeText).toHaveBeenCalledWith("> x\n> — *L*, cap. 1");
+      hooks.onContextMenu(120, 80);
+      const items = [...document.querySelectorAll(".menu .menu-item, .menu [role=menuitem]")].map((n) => n.textContent ?? "");
+      expect(items.join("|")).toContain("Copiar como citação");
     });
   });
 

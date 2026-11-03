@@ -9,6 +9,10 @@ export interface ViewHooks {
   onFatal(message: string): void;
   /** Posição atual (página no PDF, capítulo no EPUB), total e escala em uso. */
   onView(page: number, total: number, scale: number, fit: boolean): void;
+  /** Ctrl+Shift+C dentro do documento (o EPUB fica num iframe, onde o painel não ouve teclas). */
+  onQuote?(): void;
+  /** Botão direito dentro do documento, em coordenadas da janela. */
+  onContextMenu?(x: number, y: number): void;
 }
 
 export interface ReaderView {
@@ -19,5 +23,12 @@ export interface ReaderView {
   position(): ReaderPos;
   /** O painel mudou de tamanho. */
   resize(): void;
+  /**
+   * O trecho selecionado no documento, para citar (só o EPUB: no PDF o painel lê a seleção da
+   * própria tela). `source` é o nome da obra e `where` o lugar ("cap. 3 (Fim)").
+   */
+  selection?(): { text: string; source: string; where: string } | null;
+  /** Copia a seleção como texto (o EPUB mora num iframe, onde o `copy` do painel não alcança). */
+  copySelection?(): void;
   dispose(): Promise<void>;
 }

@@ -20,6 +20,17 @@ const escapeMd = (s: string) => s.replace(/([\\`*_[\]])/g, "\\$1");
  * desfeita). Uma linha em branco separa parágrafos. Devolve `null` se não sobrou texto.
  */
 export function formatQuote(selected: string, source: string, firstPage: number, lastPage = firstPage): string | null {
+  return formatQuoteAt(selected, source, pageLabel(firstPage, lastPage));
+}
+
+/** "cap. 3" ou "cap. 3 (Nome do capítulo)": o capítulo gerado ("Seção 3") não entra como nome. */
+export function chapterLabel(index: number, title: string): string {
+  const name = title.trim();
+  return !name || /^Seção \d+$/.test(name) ? `cap. ${index + 1}` : `cap. ${index + 1} (${name})`;
+}
+
+/** Igual a `formatQuote`, com o lugar já escrito (`p. 42`, `cap. 3 (Fim)`…). */
+export function formatQuoteAt(selected: string, source: string, where: string): string | null {
   const text = selected
     .replace(/\r\n?/g, "\n")
     .replace(/­/g, "") // hífen opcional
@@ -30,5 +41,5 @@ export function formatQuote(selected: string, source: string, firstPage: number,
     .filter(Boolean);
   if (paragraphs.length === 0) return null;
   const body = paragraphs.map((p) => `> ${p}`).join("\n>\n");
-  return `${body}\n> — *${escapeMd(sourceName(source))}*, ${pageLabel(firstPage, lastPage)}`;
+  return `${body}\n> — *${escapeMd(sourceName(source))}*, ${where}`;
 }

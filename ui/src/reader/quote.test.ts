@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatQuote, pageLabel, sourceName } from "./quote";
+import { chapterLabel, formatQuote, formatQuoteAt, pageLabel, sourceName } from "./quote";
 
 describe("citação", () => {
   it("vira um bloco markdown com a origem", () => {
@@ -38,5 +38,21 @@ describe("citação", () => {
     expect(sourceName("Meu Livro.PDF")).toBe("Meu Livro");
     expect(sourceName("sem-extensao")).toBe("sem-extensao");
     expect(sourceName(".pdf")).toBe(".pdf");
+  });
+});
+
+describe("citação com o lugar já escrito (EPUB)", () => {
+  it("usa o nome da obra e o capítulo", () => {
+    expect(formatQuoteAt("um trecho", "Dom Casmurro", "cap. 3 (Fim)")).toBe("> um trecho\n> — *Dom Casmurro*, cap. 3 (Fim)");
+  });
+  it("o nome do capítulo gerado pelo leitor (\"Seção N\") não entra", () => {
+    expect(chapterLabel(2, "Seção 3")).toBe("cap. 3");
+    expect(chapterLabel(0, "")).toBe("cap. 1");
+    expect(chapterLabel(4, "Capítulo cinco")).toBe("cap. 5 (Capítulo cinco)");
+  });
+  it("o resto da formatação é a mesma do PDF", () => {
+    expect(formatQuoteAt("a\n\nb", "L.epub", "cap. 1")).toBe("> a\n>\n> b\n> — *L*, cap. 1");
+    expect(formatQuoteAt("  ", "L", "cap. 1")).toBeNull();
+    expect(formatQuote("x", "L.pdf", 4)).toBe(formatQuoteAt("x", "L.pdf", "p. 4"));
   });
 });

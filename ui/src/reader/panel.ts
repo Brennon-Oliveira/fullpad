@@ -5,7 +5,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { type FileStatus, type PdfScan, type TabState, api } from "../api";
 import { friendlyError } from "./errors";
 import { showMenuAt } from "../popup";
-import { formatQuote } from "./quote";
+import { formatQuote, formatQuoteAt } from "./quote";
 import { type ReaderPos, ZOOM_KEY_FACTOR, formatBytes, normalizePos, wheelFactor } from "./pos";
 import type { ReaderView, ViewHooks } from "./view";
 
@@ -218,6 +218,8 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
       const ui = buildBar(bar, () => v, unit(), epub);
       const start = normalizePos(t.reader ?? remembered);
       const hooks: ViewHooks = {
+        onQuote: () => void quote(),
+        onContextMenu: contextMenu,
         onPosition: (pos) => {
           host.onPosition(t.id, pos);
           remember(pos);
@@ -363,13 +365,19 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     window.setTimeout(() => t.remove(), 1800);
   }
 
-  function quote(): boolean {
-    if (tab?.kind === "epub") {
-      toast("A citação do EPUB ainda não está disponível");
-      return false;
+  /** A citação da seleção atual: no PDF, lida da tela; no EPUB, do documento dentro do iframe. */
+  function quoteMarkdown(): string | null {
+    if (!tab) return null;
+    if (tab.kind === "epub") {
+      const s = view?.selection?.();
+      return s ? formatQuoteAt(s.text, s.source || tab.title, s.where) : null;
     }
     const info = selectionInfo();
-    const md = info && tab ? formatQuote(info.text, tab.title || tab.path || "", info.first, info.last) : null;
+    return info ? formatQuote(info.text, tab.title || tab.path || "", info.first, info.last) : null;
+  }
+
+  function quote(): boolean {
+    const md = quoteMarkdown();
     if (!md) {
       toast("Selecione um trecho do texto primeiro");
       return false;
@@ -381,16 +389,21 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     return true;
   }
 
+  /** Menu do botão direito sobre o documento (no EPUB vem do iframe, com as coordenadas já da janela). */
+  function contextMenu(x: number, y: number) {
+    const epub = tab?.kind === "epub";
+    const has = !!quoteMarkdown();
+    showMenuAt(x, y, [
+      { label: "Copiar", shortcut: "Ctrl+C", disabled: !has, action: () => (epub ? view?.copySelection?.() : void document.execCommand("copy")) },
+      { label: "Copiar como citação", shortcut: "Ctrl+Shift+C", disabled: !has, action: () => void quote() },
+      "sep",
+      epub ? { label: "Tamanho normal do texto", action: () => view?.setZoom(null) } : { label: "Ajustar à largura", action: () => view?.setZoom(null) },
+    ]);
+  }
   root.addEventListener("contextmenu", (e) => {
     if (!view || !(e.target instanceof Element) || !e.target.closest(".rd-body")) return;
     e.preventDefault();
-    const has = !!selectionInfo();
-    showMenuAt(e.clientX, e.clientY, [
-      { label: "Copiar", shortcut: "Ctrl+C", disabled: !has, action: () => void document.execCommand("copy") },
-      { label: "Copiar como citação", shortcut: "Ctrl+Shift+C", disabled: !has, action: () => void quote() },
-      "sep",
-      { label: "Ajustar à largura", action: () => view?.setZoom(null) },
-    ]);
+    contextMenu(e.clientX, e.clientY);
   });
   root.addEventListener("keydown", (e) => {
     if (view && e.ctrlKey && e.shiftKey && !e.altKey && e.code === "KeyC") {
