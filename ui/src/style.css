@@ -417,3 +417,4 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .filedrop-box { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 36px; background: var(--pop); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
 .filedrop-icon { font-size: 34px; line-height: 1; color: var(--accent); }
 .filedrop-text { font-size: 16px; font-weight: 600; }
+.rd-toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 6px 14px; background: var(--pop); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.35); pointer-events: none; z-index: 5; }

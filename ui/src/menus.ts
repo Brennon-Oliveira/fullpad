@@ -43,6 +43,7 @@ export interface MenuActions {
   copyJsonPath(): void;
   readerLoad(): void;
   readerLocate(): void;
+  readerQuote(): void;
   zoomIn(): void;
   zoomOut(): void;
   setZoom(percent: number): void;
@@ -146,6 +147,8 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
       return [
         { label: "Carregar PDF", action: a.readerLoad },
         { label: "Localizar arquivo…", action: a.readerLocate },
+        "sep",
+        { label: "Copiar seleção como citação", shortcut: "Ctrl+Shift+C", action: a.readerQuote },
       ];
     default:
       return [

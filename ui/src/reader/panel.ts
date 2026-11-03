@@ -4,6 +4,8 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { type FileStatus, type PdfScan, type TabState, api } from "../api";
 import { friendlyError } from "./errors";
+import { showMenuAt } from "../popup";
+import { formatQuote } from "./quote";
 import { type ReaderPos, ZOOM_KEY_FACTOR, formatBytes, normalizePos, wheelFactor } from "./pos";
 import type { PdfView } from "./pdfview";
 
@@ -34,6 +36,8 @@ export interface ReaderPanel {
   zoomStep(dir: 1 | -1): boolean;
   zoomFit(): boolean;
   zoomWheel(deltaY: number): boolean;
+  /** Copia a seleção como citação em markdown. `false` (e um aviso) se não há texto selecionado. */
+  quote(): boolean;
 }
 
 /** Abas que o usuário mandou carregar nesta execução: ao voltar a elas, carregam sozinhas. */
@@ -330,6 +334,61 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     await check(true);
   }
 
+  // ---- citação (a integração com as notas) ----
+
+  /** Texto selecionado no documento e as páginas em que o trecho começa e termina. */
+  function selectionInfo(): { text: string; first: number; last: number } | null {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+    const range = sel.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return null;
+    const pageOf = (n: Node) => Number((n instanceof Element ? n : n.parentElement)?.closest<HTMLElement>(".rd-page")?.dataset.page);
+    const first = pageOf(range.startContainer);
+    const last = pageOf(range.endContainer);
+    if (!Number.isFinite(first) || !Number.isFinite(last)) return null;
+    const text = sel.toString();
+    return text.trim() ? { text, first: Math.min(first, last), last: Math.max(first, last) } : null;
+  }
+
+  function toast(message: string) {
+    root.querySelector(".rd-toast")?.remove();
+    const t = el("div", "rd-toast", message);
+    root.append(t);
+    window.setTimeout(() => t.remove(), 1800);
+  }
+
+  function quote(): boolean {
+    const info = selectionInfo();
+    const md = info && tab ? formatQuote(info.text, tab.title || tab.path || "", info.first, info.last) : null;
+    if (!md) {
+      toast("Selecione um trecho do texto primeiro");
+      return false;
+    }
+    navigator.clipboard.writeText(md).then(
+      () => toast("Citação copiada"),
+      () => toast("Não foi possível copiar"),
+    );
+    return true;
+  }
+
+  root.addEventListener("contextmenu", (e) => {
+    if (!view || !(e.target instanceof Element) || !e.target.closest(".rd-body")) return;
+    e.preventDefault();
+    const has = !!selectionInfo();
+    showMenuAt(e.clientX, e.clientY, [
+      { label: "Copiar", shortcut: "Ctrl+C", disabled: !has, action: () => void document.execCommand("copy") },
+      { label: "Copiar como citação", shortcut: "Ctrl+Shift+C", disabled: !has, action: () => void quote() },
+      "sep",
+      { label: "Ajustar à largura", action: () => view?.setZoom(null) },
+    ]);
+  });
+  root.addEventListener("keydown", (e) => {
+    if (view && e.ctrlKey && e.shiftKey && !e.altKey && e.code === "KeyC") {
+      e.preventDefault();
+      quote();
+    }
+  });
+
   window.addEventListener("focus", () => void watch());
 
   return {
@@ -356,5 +415,6 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     zoomStep: (dir) => !!view && (view.zoomBy(dir > 0 ? ZOOM_KEY_FACTOR : 1 / ZOOM_KEY_FACTOR), true),
     zoomFit: () => !!view && (view.setZoom(null), true),
     zoomWheel: (deltaY) => !!view && (view.zoomBy(wheelFactor(deltaY)), true),
+    quote,
   };
 }

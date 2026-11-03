@@ -277,6 +277,83 @@ describe("painel do leitor", () => {
     }
   });
 
+  describe("citação", () => {
+    const writeText = vi.fn(async () => {});
+    /** Põe uma página falsa com texto no painel e seleciona o trecho. */
+    function select(text: string, page = 3) {
+      const pageEl = document.createElement("div");
+      pageEl.className = "rd-page";
+      pageEl.dataset.page = String(page);
+      const span = document.createElement("span");
+      span.textContent = text;
+      pageEl.append(span);
+      root.append(pageEl);
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      const sel = window.getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    beforeEach(() => {
+      writeText.mockClear();
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      window.getSelection()?.removeAllRanges();
+    });
+
+    it("copia a seleção como citação markdown com título e página", async () => {
+      const p = createReaderPanel(root, host);
+      p.show(tab("q1", { title: "Meu Livro.pdf" }));
+      await settle();
+      click("Carregar PDF");
+      await settle();
+      select("Um trecho\nimportante.", 42);
+      expect(p.quote()).toBe(true);
+      await settle();
+      expect(writeText).toHaveBeenCalledWith("> Um trecho importante.\n> — *Meu Livro*, p. 42");
+      expect(root.querySelector(".rd-toast")!.textContent).toBe("Citação copiada");
+    });
+
+    it("sem seleção, avisa e não copia nada", async () => {
+      const p = createReaderPanel(root, host);
+      p.show(tab("q2"));
+      await settle();
+      click("Carregar PDF");
+      await settle();
+      expect(p.quote()).toBe(false);
+      expect(writeText).not.toHaveBeenCalled();
+      expect(root.querySelector(".rd-toast")!.textContent).toContain("Selecione um trecho");
+    });
+
+    it("o atalho Ctrl+Shift+C copia a citação", async () => {
+      const p = createReaderPanel(root, host);
+      p.show(tab("q3", { title: "L.pdf" }));
+      await settle();
+      click("Carregar PDF");
+      await settle();
+      select("texto", 7);
+      root.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyC", ctrlKey: true, shiftKey: true, bubbles: true }));
+      await settle();
+      expect(writeText).toHaveBeenCalledWith("> texto\n> — *L*, p. 7");
+    });
+
+    it("seleção fora do documento não vira citação", async () => {
+      const p = createReaderPanel(root, host);
+      p.show(tab("q4"));
+      await settle();
+      click("Carregar PDF");
+      await settle();
+      const outside = document.createElement("p");
+      outside.textContent = "texto de fora";
+      document.body.append(outside);
+      const range = document.createRange();
+      range.selectNodeContents(outside);
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      expect(p.quote()).toBe(false);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+  });
+
   it("hide solta o documento e esvazia o painel", async () => {
     const p = createReaderPanel(root, host);
     p.show(tab("h1"));

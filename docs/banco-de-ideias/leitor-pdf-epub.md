@@ -6,7 +6,7 @@ versao: —
 
 # Leitor de PDF e EPUB
 
-> **Andamento:** a base (aba binária) e o PDF básico estão feitos, na [Fase 10 do PLANO](../PLANO.md) (aguardando a PARADA do usuário). Falta a integração com as notas no PDF e o EPUB. O comportamento atual está em `docs/AGENTS.md`; esta ideia só vira `feita: sim` quando o EPUB sair.
+> **Andamento:** a base (aba binária), o PDF e a integração com as notas no PDF (citação e posição por arquivo) estão feitos, na [Fase 10 do PLANO](../PLANO.md). Falta o EPUB. O comportamento atual está em `docs/AGENTS.md`; esta ideia só vira `feita: sim` quando o EPUB sair.
 
 Abrir PDF e EPUB dentro do Fullpad **somente para ler**. Não haverá edição nesta ideia.
 

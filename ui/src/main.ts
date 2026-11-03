@@ -1931,6 +1931,7 @@ const menuActions = {
   openFile: () => void openFiles(),
   readerLoad: () => cur.reader?.load(),
   readerLocate: () => cur.reader?.locate(),
+  readerQuote: () => void cur.reader?.quote(),
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
   closeTab: () => void closeTab(session.active!),
