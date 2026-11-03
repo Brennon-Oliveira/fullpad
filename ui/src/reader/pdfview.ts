@@ -23,25 +23,8 @@ const PAD = 16;
 /** Depois do último passo de zoom, espera isto antes de redesenhar (enquanto isso a página fica esticada). */
 const ZOOM_SETTLE_MS = 120;
 
-export interface PdfViewHooks {
-  /** Página ou escala mudou (a UI grava na sessão, com atraso). */
-  onPosition(pos: ReaderPos): void;
-  /** O arquivo não pôde ser processado (ou demorou demais): a visão já foi desfeita. */
-  onFatal(message: string): void;
-  /** Página atual, total e escala em uso. */
-  onView(page: number, total: number, scale: number, fit: boolean): void;
-}
-
-export interface PdfView {
-  readonly pages: number;
-  setZoom(zoom: number | null): void;
-  zoomBy(factor: number): void;
-  goTo(page: number, frac?: number): void;
-  position(): ReaderPos;
-  /** O painel mudou de tamanho. */
-  resize(): void;
-  dispose(): Promise<void>;
-}
+export type { ReaderView as PdfView, ViewHooks as PdfViewHooks } from "./view";
+import type { ReaderView as PdfView, ViewHooks as PdfViewHooks } from "./view";
 
 class Timeout extends Error {}
 

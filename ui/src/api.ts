@@ -8,6 +8,25 @@ export type Eol = "lf" | "crlf";
 export type TabKind = "text" | "pdf" | "epub" | "unknown";
 /** Resultado da verificação de um PDF: um trecho comprimido que expande demais é suspeito. */
 export type PdfScan = { verdict: "ok" } | { verdict: "suspicious"; packed: number; unpacked: number; at_least: boolean };
+/** Entrada do sumário de um EPUB: `spine` é o capítulo (posição na ordem de leitura) para onde aponta. */
+export interface TocEntry {
+  label: string;
+  spine: number | null;
+  fragment: string | null;
+  depth: number;
+}
+export interface EpubInfo {
+  title: string;
+  author: string | null;
+  /** Título de cada capítulo, na ordem de leitura. */
+  chapters: string[];
+  toc: TocEntry[];
+}
+/** Um capítulo já limpo pelo Rust: HTML sem scripts (imagens como `data:`) e CSS filtrado. */
+export interface EpubChapter {
+  html: string;
+  css: string;
+}
 /** Identidade do arquivo (do conteúdo, não do caminho) e a última posição de leitura lembrada para ele. */
 export interface ReaderMemo {
   key: string;
@@ -123,6 +142,10 @@ export const api = {
   readerMemo: (id: string) => invoke<ReaderMemo>("reader_memo", { id }),
   /** Lembra a posição de leitura do arquivo (`key` vem de `readerMemo`). */
   readerRemember: (key: string, pos: unknown) => invoke<void>("reader_remember", { key, pos }),
+  /** Abre o EPUB da aba: título, capítulos e sumário (não lê os capítulos). */
+  epubOpen: (id: string) => invoke<EpubInfo>("epub_open", { id }),
+  /** Um capítulo do EPUB aberto, limpo pelo Rust (`index` é a posição na ordem de leitura). */
+  epubChapter: (id: string, index: number) => invoke<EpubChapter>("epub_chapter", { id, index }),
   /** Procura bomba de compressão no PDF (no Rust, antes de o pdf.js tocar nele). */
   readerCheck: (id: string) => invoke<PdfScan>("reader_check", { id }),
   /** Faixa de bytes do arquivo da aba, em binário cru (o Rust limita o tamanho de cada chamada). */

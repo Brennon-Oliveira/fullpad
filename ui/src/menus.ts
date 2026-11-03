@@ -124,7 +124,7 @@ export function jsonItems(a: MenuActions): MenuItem[] {
 }
 
 /** Nome do menu de ações do tipo de arquivo da aba ativa (muda com a linguagem). */
-export const LANG_MENU: Record<Lang, string> = { plain: "Texto", markdown: "Markdown", dbml: "DBML", json: "JSON", pdf: "PDF" };
+export const LANG_MENU: Record<Lang, string> = { plain: "Texto", markdown: "Markdown", dbml: "DBML", json: "JSON", pdf: "PDF", epub: "EPUB" };
 
 /** Itens do menu do tipo de arquivo: só o que faz sentido para ele. */
 export function langMenuItems(a: MenuActions): MenuItem[] {
@@ -143,6 +143,11 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
       ];
     case "dbml":
       return viewItems(a);
+    case "epub":
+      return [
+        { label: "Carregar EPUB", action: a.readerLoad },
+        { label: "Localizar arquivo…", action: a.readerLocate },
+      ];
     case "pdf":
       return [
         { label: "Carregar PDF", action: a.readerLoad },

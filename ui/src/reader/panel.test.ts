@@ -17,6 +17,8 @@ const view = vi.hoisted(() => ({
 vi.mock("./pdfview", () => ({
   openPdfView: view.open,
 }));
+const epub = vi.hoisted(() => ({ open: vi.fn() }));
+vi.mock("./epubview", () => ({ openEpubView: epub.open }));
 
 import { createReaderPanel } from "./panel";
 
@@ -36,11 +38,12 @@ const click = (label: string) => [...root.querySelectorAll("button")].find((b) =
 beforeEach(() => {
   root = document.createElement("div");
   document.body.replaceChildren(root);
-  for (const m of [api.readerMemo, api.readerRemember, api.readerCheck, view.zoomBy, view.setZoom, api.readerInfo, api.readerRead, api.readerRelocate, dialog.open, view.open, view.dispose, host.onPosition, host.onRelocated, host.onInfo]) m.mockClear();
+  for (const m of [epub.open, api.readerMemo, api.readerRemember, api.readerCheck, view.zoomBy, view.setZoom, api.readerInfo, api.readerRead, api.readerRelocate, dialog.open, view.open, view.dispose, host.onPosition, host.onRelocated, host.onInfo]) m.mockClear();
   api.readerInfo.mockResolvedValue({ status: "ok", size: 2_500_000, mtime: 111 });
   api.readerCheck.mockResolvedValue({ verdict: "ok" });
   api.readerMemo.mockResolvedValue({ key: "9c40-00aa00bb00cc00dd", pos: null });
   api.readerRemember.mockResolvedValue(undefined);
+  epub.open.mockImplementation(async () => ({ pages: 9, position: view.position, dispose: view.dispose, zoomBy: view.zoomBy, setZoom: view.setZoom, goTo() {}, resize() {} }));
   view.open.mockImplementation(async () => ({ pages: 10, position: view.position, dispose: view.dispose, zoomBy: view.zoomBy, setZoom: view.setZoom, goTo() {}, resize() {} }));
 });
 
@@ -351,6 +354,72 @@ describe("painel do leitor", () => {
       window.getSelection()!.addRange(range);
       expect(p.quote()).toBe(false);
       expect(writeText).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("EPUB", () => {
+    const book = (id: string, extra: Partial<TabState> = {}) => tab(id, { kind: "epub", title: "romance.epub", path: "C:/livros/romance.epub", ...extra });
+
+    it("abre com o botão do EPUB e usa o leitor de EPUB, não o do PDF", async () => {
+      const p = createReaderPanel(root, host);
+      p.show(book("x1", { reader: { page: 4, frac: 0.3, zoom: 1.5 } }));
+      await settle();
+      expect(buttons()).toContain("Carregar EPUB");
+      expect(root.textContent).toContain("EPUB · 2,4 MB");
+      expect(api.readerRead).not.toHaveBeenCalled();
+      click("Carregar EPUB");
+      await settle();
+      expect(epub.open).toHaveBeenCalledTimes(1);
+      expect(view.open).not.toHaveBeenCalled(); // o pdf.js nem foi importado
+      const [, id, pos] = epub.open.mock.calls[0];
+      expect([id, pos]).toEqual(["x1", { page: 4, frac: 0.3, zoom: 1.5 }]);
+    });
+
+    it("a barra e o status falam em capítulos", async () => {
+      const p = createReaderPanel(root, host);
+      p.show(book("x2"));
+      await settle();
+      click("Carregar EPUB");
+      await settle();
+      expect(root.querySelector(".rd-label")!.textContent).toBe("Capítulo");
+      expect(buttons()).toContain("Padrão");
+      expect(buttons()).not.toContain("Largura");
+      epub.open.mock.calls[0][3].onView(2, 9, 1, false);
+      expect(host.onInfo).toHaveBeenLastCalledWith("Capítulo 2 de 9 · 2,4 MB");
+    });
+
+    it("lembra a posição por arquivo como no PDF", async () => {
+      api.readerMemo.mockResolvedValueOnce({ key: "9c40-00aa00bb00cc00dd", pos: { page: 6, frac: 0, zoom: null } });
+      const p = createReaderPanel(root, host);
+      p.show(book("x3"));
+      await settle();
+      click("Carregar EPUB");
+      await settle();
+      expect(epub.open.mock.calls[0][2].page).toBe(6);
+    });
+
+    it("erro do Rust ao abrir aparece como veio, em português", async () => {
+      epub.open.mockRejectedValueOnce("Este EPUB tem proteção (DRM) e não pode ser aberto.");
+      const p = createReaderPanel(root, host);
+      p.show(book("x4"));
+      await settle();
+      click("Carregar EPUB");
+      await settle();
+      expect(root.textContent).toContain("Não foi possível abrir o EPUB");
+      expect(root.textContent).toContain("proteção (DRM)");
+    });
+
+    it("a citação ainda não existe no EPUB: avisa, não copia", async () => {
+      const writeText = vi.fn(async () => {});
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      const p = createReaderPanel(root, host);
+      p.show(book("x5"));
+      await settle();
+      click("Carregar EPUB");
+      await settle();
+      expect(p.quote()).toBe(false);
+      expect(writeText).not.toHaveBeenCalled();
+      expect(root.querySelector(".rd-toast")!.textContent).toContain("EPUB ainda não");
     });
   });
 

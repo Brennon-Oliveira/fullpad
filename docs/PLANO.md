@@ -147,9 +147,12 @@ Desenho, decisões e defesas em [banco-de-ideias/leitor-pdf-epub.md](banco-de-id
 | ✅ 10.3 | PDF com pdf.js por faixas (páginas virtualizadas, texto selecionável, links seguros, zoom próprio, página X de Y), endurecido contra bombas | Amostras maliciosas em `scratchpad` abrem sem travar o app; `source.test.ts` roda o pdf.js de verdade |
 | ✅ 10.4a | Posição de leitura por arquivo (identidade do conteúdo, sobrevive a mover o arquivo e a fechar a aba) | `cargo test -p fullpad-core`: mesma identidade para cópia/renomeação, outra ao editar, registro corrompido tolerado, só as 2000 mais recentes |
 | ✅ 10.4b | Copiar a seleção como citação em markdown (menu de contexto, menu PDF e Ctrl+Shift+C) | Selecionar um trecho e colar numa nota dá `> trecho` e `> — *Livro*, p. 42`; quebras de linha do PDF não viram parágrafos |
-| ⬜ 10.5 | EPUB: leitor em Rust, sanitização, sumário | PARADA 3 |
+| ✅ 10.5 | EPUB: leitor em Rust (`epub.rs`), capítulo limpo pelo `ammonia`, CSS por lista de permissão (`css.rs`), sumário lateral, iframe sem scripts, posição de leitura | PARADA 3: abrir EPUBs reais e as amostras maliciosas; nenhum script roda, o app não trava e nada vai à rede |
+| ⬜ 10.6 | Citação no EPUB e melhorias de leitura (busca, tema, paginação) | PARADA 4 |
 
-**PARADA 10.B (PARADA 2 do leitor):** você usa o PDF ao lado de uma nota. Quero saber: a citação sai como você cola, a posição lembrada acerta ao reabrir.
+**PARADA 10.C (PARADA 3 do leitor):** você abre EPUBs reais e as amostras maliciosas. Quero saber: o texto e o sumário ficam como num leitor de verdade, o que falta no estilo (o CSS do livro é bem filtrado), livros grandes.
+
+**PARADA 10.B (PARADA 2 do leitor, validada):** você usa o PDF ao lado de uma nota. Quero saber: a citação sai como você cola, a posição lembrada acerta ao reabrir.
 
 **PARADA 10.A (PARADA 1 do leitor, validada):** você abre PDFs reais e as amostras maliciosas. Quero saber: abrir ficou imediato, o que falta na leitura, desempenho em PDFs grandes.
 

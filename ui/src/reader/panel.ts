@@ -1,5 +1,5 @@
 // Painel do leitor de uma aba de PDF/EPUB: o cartão "Carregar", os avisos e a barra do leitor.
-// O pdf.js (`pdfview.ts`) só é importado ao clicar em "Carregar".
+// O leitor do formato (`pdfview.ts` com o pdf.js, ou `epubview.ts`) só é importado ao clicar em "Carregar".
 
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { type FileStatus, type PdfScan, type TabState, api } from "../api";
@@ -7,7 +7,7 @@ import { friendlyError } from "./errors";
 import { showMenuAt } from "../popup";
 import { formatQuote } from "./quote";
 import { type ReaderPos, ZOOM_KEY_FACTOR, formatBytes, normalizePos, wheelFactor } from "./pos";
-import type { PdfView } from "./pdfview";
+import type { ReaderView, ViewHooks } from "./view";
 
 export interface ReaderHost {
   /** A posição de leitura da aba mudou (a sessão a grava). */
@@ -55,7 +55,7 @@ type Supported = keyof typeof KIND_NAME;
 
 export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPanel {
   let tab: TabState | null = null;
-  let view: PdfView | null = null;
+  let view: ReaderView | null = null;
   let stamp: { size: number; mtime: number } | null = null; // como o arquivo estava ao carregar
   let token = 0; // invalida respostas atrasadas quando a aba muda
   let memoKey: string | null = null; // identidade do arquivo carregado (chave da posição lembrada)
@@ -77,7 +77,9 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
   }
 
   const kindName = () => KIND_NAME[tab?.kind === "epub" ? "epub" : "pdf"];
-  const supported = (t: TabState): t is TabState & { kind: Supported } => t.kind === "pdf";
+  const supported = (t: TabState): t is TabState & { kind: Supported } => t.kind === "pdf" || t.kind === "epub";
+  /** "Página" no PDF, "Capítulo" no EPUB. */
+  const unit = () => (tab?.kind === "epub" ? "Capítulo" : "Página");
   const savePos = () => {
     if (!tab || !view) return;
     const pos = view.position();
@@ -205,14 +207,17 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
       } catch {
         memoKey = null; // sem identidade, só não lembra por arquivo
       }
-      const mod = await import("./pdfview");
+      // o leitor do formato (e o pdf.js ou o resto dele) só é importado agora
+      const epub = t.kind === "epub";
+      const mod = epub ? await import("./epubview") : await import("./pdfview");
       if (my !== token) return;
       stamp = { size: st.size, mtime: st.mtime };
       const bar = el("div", "rd-bar");
       const body = el("div", "rd-body");
       root.replaceChildren(bar, body);
-      const ui = buildBar(bar, () => v);
-      const v = await mod.openPdfView(body, t.id, st.size, normalizePos(t.reader ?? remembered), {
+      const ui = buildBar(bar, () => v, unit(), epub);
+      const start = normalizePos(t.reader ?? remembered);
+      const hooks: ViewHooks = {
         onPosition: (pos) => {
           host.onPosition(t.id, pos);
           remember(pos);
@@ -223,9 +228,10 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
         },
         onView: (page, total, scale, fit) => {
           ui.update(page, total, scale, fit);
-          host.onInfo(`Página ${page} de ${total} · ${formatBytes(st.size)}`);
+          host.onInfo(`${unit()} ${page} de ${total} · ${formatBytes(st.size)}`);
         },
-      });
+      };
+      const v = await ("openEpubView" in mod ? mod.openEpubView(body, t.id, start, hooks) : mod.openPdfView(body, t.id, st.size, start, hooks));
       if (my !== token) return void (await v.dispose());
       view = v;
     } catch (e) {
@@ -233,7 +239,7 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
     }
   }
 
-  function buildBar(bar: HTMLElement, current: () => PdfView | null) {
+  function buildBar(bar: HTMLElement, current: () => ReaderView | null, noun: string, epub: boolean) {
     const btn = (label: string, title: string, run: () => void) => {
       const b = el("button", "rd-tool", label);
       b.title = title;
@@ -256,9 +262,9 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
       btn("−", "Diminuir o zoom do documento", () => current()?.zoomBy(1 / ZOOM_KEY_FACTOR)),
       zoomLabel,
       btn("+", "Aumentar o zoom do documento", () => current()?.zoomBy(ZOOM_KEY_FACTOR)),
-      btn("Largura", "Ajustar à largura do painel", () => current()?.setZoom(null)),
+      epub ? btn("Padrão", "Voltar ao tamanho normal do texto", () => current()?.setZoom(null)) : btn("Largura", "Ajustar à largura do painel", () => current()?.setZoom(null)),
       el("span", "rd-sep"),
-      el("span", "rd-label", "Página"),
+      el("span", "rd-label", noun),
       page,
       total,
     );
@@ -358,6 +364,10 @@ export function createReaderPanel(root: HTMLElement, host: ReaderHost): ReaderPa
   }
 
   function quote(): boolean {
+    if (tab?.kind === "epub") {
+      toast("A citação do EPUB ainda não está disponível");
+      return false;
+    }
     const info = selectionInfo();
     const md = info && tab ? formatQuote(info.text, tab.title || tab.path || "", info.first, info.last) : null;
     if (!md) {

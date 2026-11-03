@@ -147,6 +147,7 @@ const isReader = (tab: TabState) => tab.kind !== undefined && tab.kind !== "text
 
 function effectiveLang(tab: TabState): Lang {
   if (tab.kind === "pdf") return "pdf";
+  if (tab.kind === "epub") return "epub";
   return tab.language === "auto" ? (detected.get(tab.id) ?? "plain") : tab.language;
 }
 
@@ -537,7 +538,7 @@ const ENC_LABEL: Record<Encoding, string> = {
   utf16be: "UTF-16 BE BOM",
   windows1252: "Windows-1252",
 };
-const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON", pdf: "PDF" };
+const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON", pdf: "PDF", epub: "EPUB" };
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
@@ -1679,7 +1680,7 @@ async function checkUpdates(manual: boolean) {
 // ---- arquivos ---------------------------------------------------------------
 
 const OPEN_FILTERS = [
-  { name: "Texto, Markdown, DBML, JSON e PDF", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "pdf"] },
+  { name: "Texto, Markdown, DBML, JSON, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "pdf", "epub"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
@@ -1776,7 +1777,7 @@ async function openPaths(paths: string[]) {
     snapshotActive();
     try {
       // PDF/EPUB abrem como aba de leitura (o arquivo só é lido quando o usuário clicar em "Carregar")
-      const reader = /\.pdf$/i.test(path);
+      const reader = /\.(pdf|epub)$/i.test(path);
       const { tab, text } = reader ? { tab: await api.openReader(path), text: "" } : await api.openFile(path);
       session.tabs.push(tab);
       await show(tab, text);
