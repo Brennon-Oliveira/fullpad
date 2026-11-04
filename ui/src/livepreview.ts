@@ -1,5 +1,5 @@
 import { syntaxTree } from "@codemirror/language";
-import { type EditorState, type Extension, type Range } from "@codemirror/state";
+import { type EditorState, type Extension, type Range, StateField } from "@codemirror/state";
 import {
   Decoration,
   type DecorationSet,
@@ -8,6 +8,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
+import { cachedMermaid, isMermaidInfo, renderMermaid } from "./mermaid/render";
 
 /** Acima disso o preview desliga para não pesar. */
 export const MAX_PREVIEW_CHARS = 2_000_000;
@@ -61,6 +62,111 @@ class CheckWidget extends WidgetType {
     return true;
   }
 }
+
+type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
+
+/** Um bloco ```mermaid fechado: as linhas inteiras dele e o código do diagrama. */
+export interface MermaidBlock {
+  from: number;
+  to: number;
+  code: string;
+}
+
+/** O bloco de código `node` é um diagrama Mermaid (fechado e com texto)? Bloco ainda aberto fica como código. */
+export function mermaidAt(state: EditorState, node: SyntaxNode): MermaidBlock | null {
+  if (node.name !== "FencedCode") return null;
+  const info = node.getChild("CodeInfo");
+  if (!info || !isMermaidInfo(state.sliceDoc(info.from, info.to))) return null;
+  if (node.getChildren("CodeMark").length < 2) return null; // sem a cerca de fechar
+  const text = node.getChild("CodeText");
+  const code = text ? state.sliceDoc(text.from, text.to) : "";
+  if (!code.trim()) return null;
+  return { from: state.doc.lineAt(node.from).from, to: state.doc.lineAt(node.to).to, code };
+}
+
+class MermaidWidget extends WidgetType {
+  constructor(
+    readonly code: string,
+    readonly dark: boolean,
+  ) {
+    super();
+  }
+  eq(other: WidgetType) {
+    return other instanceof MermaidWidget && other.code === this.code && other.dark === this.dark;
+  }
+  get estimatedHeight() {
+    return 160;
+  }
+  toDOM(view: EditorView) {
+    const el = document.createElement("div");
+    el.className = "cm-md-mermaid";
+    const paint = (r: ReturnType<typeof cachedMermaid>) => {
+      if (!r) return;
+      el.classList.remove("loading");
+      if (r.ok) {
+        el.classList.remove("err");
+        el.innerHTML = r.svg; // já passou pelo modo estrito do Mermaid (sem scripts nem HTML solto)
+      } else {
+        el.classList.add("err");
+        el.textContent = `Erro no diagrama: ${r.error}`;
+        el.title = "Clique para editar o código";
+      }
+    };
+    const hit = cachedMermaid(this.code, this.dark);
+    if (hit) paint(hit);
+    else {
+      el.classList.add("loading");
+      el.textContent = "Desenhando o diagrama…";
+      void renderMermaid(this.code, this.dark).then((r) => {
+        paint(r);
+        view.requestMeasure(); // a altura mudou: o CodeMirror precisa medir de novo
+      });
+    }
+    return el;
+  }
+  ignoreEvent() {
+    return false; // clicar no diagrama põe o cursor ali e mostra o código para editar
+  }
+}
+
+/**
+ * Blocos ```mermaid viram o diagrama (widget de bloco). Com o cursor tocando o bloco, aparece o código,
+ * como o resto do live preview. Precisa ser um campo de estado: decoração que troca linhas inteiras não
+ * pode vir de um plugin de visão. O documento nunca é alterado.
+ */
+function makeMermaidField(fixed: boolean) {
+  const build = (state: EditorState): DecorationSet => {
+    if (state.doc.length > MAX_PREVIEW_CHARS) return Decoration.none;
+    const sel = fixed ? [] : state.selection.ranges;
+    const dark = state.facet(EditorView.darkTheme);
+    const out: Range<Decoration>[] = [];
+    syntaxTree(state).iterate({
+      enter(node) {
+        if (node.name !== "FencedCode") return;
+        const b = mermaidAt(state, node.node);
+        if (b && !sel.some((r) => r.from <= b.to && r.to >= b.from)) {
+          out.push(Decoration.replace({ widget: new MermaidWidget(b.code, dark), block: true }).range(b.from, b.to));
+        }
+        return false;
+      },
+    });
+    return Decoration.set(out, true);
+  };
+  const field = StateField.define<DecorationSet>({
+    create: build,
+    update(value, tr) {
+      if (tr.docChanged || (!fixed && tr.selection) || tr.reconfigured || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
+        return build(tr.state);
+      }
+      return value;
+    },
+    provide: (f) => [EditorView.decorations.from(f), EditorView.atomicRanges.of((v) => v.state.field(f))],
+  });
+  return field;
+}
+
+const mermaidField = makeMermaidField(false);
+const fixedMermaidField = makeMermaidField(true);
 
 export interface Built {
   all: DecorationSet;
@@ -179,6 +285,8 @@ export function buildPreview(
             return;
           case "FencedCode":
           case "CodeBlock": {
+            const mb = mermaidAt(state, node.node);
+            if (mb && !touches(mb.from, mb.to)) return false; // o campo de estado troca o bloco pelo diagrama
             const first = doc.lineAt(node.from).number;
             const last = doc.lineAt(node.to).number;
             for (let n = first; n <= last; n++) {
@@ -244,5 +352,9 @@ const previewPlugin = makePlugin(false);
 const fixedPlugin = makePlugin(true);
 
 export function livePreview(opts: { fixed?: boolean } = {}): Extension {
-  return [opts.fixed ? fixedPlugin : previewPlugin, EditorView.editorAttributes.of({ class: "cm-preview" })];
+  return [
+    opts.fixed ? fixedPlugin : previewPlugin,
+    opts.fixed ? fixedMermaidField : mermaidField,
+    EditorView.editorAttributes.of({ class: "cm-preview" }),
+  ];
 }

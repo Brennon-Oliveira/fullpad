@@ -3,6 +3,8 @@
  * O `marked` só carrega quando o usuário exporta: não pesa na abertura do app.
  */
 
+import { isMermaidInfo } from "./mermaid/render";
+
 const STYLE = `
 :root { color-scheme: light; }
 body { font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2328; max-width: 46rem; margin: 2rem auto; padding: 0 1.25rem; }
@@ -18,9 +20,11 @@ table { border-collapse: collapse; }
 th, td { border: 1px solid #d1d9e0; padding: .4em .8em; }
 th { background: #f6f8fa; }
 img { max-width: 100%; }
+figure.mermaid { margin: 1em 0; text-align: center; }
+figure.mermaid svg { max-width: 100%; height: auto; }
 hr { border: 0; border-top: 1px solid #d8dee4; margin: 2em 0; }
 li.task, li:has(> input[type=checkbox]) { list-style: none; margin-left: -1.2em; }
-@media print { body { margin: 0; max-width: none; } pre, blockquote, table, img { break-inside: avoid; } }
+@media print { body { margin: 0; max-width: none; } pre, blockquote, table, img, figure.mermaid { break-inside: avoid; } }
 `;
 
 export function escapeHtml(s: string): string {
@@ -48,10 +52,26 @@ ${body}
 <div class="pg-foot">Fullpad</div>`;
 }
 
-/** Só o corpo: o markdown convertido em HTML. */
+/**
+ * Só o corpo: o markdown convertido em HTML. Blocos ```mermaid saem como diagrama (SVG embutido, tema
+ * claro, que é o do papel e do HTML autônomo); se um deles tem erro, fica como bloco de código.
+ */
 export async function markdownToBody(text: string): Promise<string> {
   const { marked } = await import("marked");
-  return marked.parse(text, { gfm: true, async: false }) as string;
+  const tokens = marked.lexer(text, { gfm: true });
+  const diagrams: { lang?: string; text: string; type: string; raw: string }[] = [];
+  marked.walkTokens(tokens, (t) => {
+    if (t.type === "code" && isMermaidInfo(String((t as { lang?: string }).lang ?? ""))) diagrams.push(t as never);
+  });
+  if (diagrams.length > 0) {
+    const { renderMermaid } = await import("./mermaid/render");
+    for (const d of diagrams) {
+      const r = await renderMermaid(d.text, false);
+      if (!r.ok) continue;
+      Object.assign(d, { type: "html", text: `<figure class="mermaid">${r.svg}</figure>\n`, block: true });
+    }
+  }
+  return marked.parser(tokens, { gfm: true, async: false }) as string;
 }
 
 /** Documento HTML completo e autônomo (estilo embutido, sem dependências externas). */

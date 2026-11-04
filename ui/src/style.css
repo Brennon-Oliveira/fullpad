@@ -606,3 +606,8 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .outline.pinned .ol-hot { position: static; transform: none; padding: 0; height: 100%; }
 .outline.pinned .ol-rail { display: none; }
 .outline.pinned .ol-card { display: flex; position: static; transform: none; width: auto; max-height: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+/* diagrama Mermaid no live preview (só padding: margem vertical bagunça o mapa de alturas do CodeMirror) */
+.cm-md-mermaid { padding: 12px; text-align: center; background: var(--code-bg); border-radius: 6px; overflow-x: auto; cursor: pointer; }
+.cm-md-mermaid svg { max-width: 100%; height: auto; }
+.cm-md-mermaid.loading { color: var(--muted); font-size: 13px; }
+.cm-md-mermaid.err { color: #d9534f; font-size: 13px; text-align: left; white-space: pre-wrap; }
