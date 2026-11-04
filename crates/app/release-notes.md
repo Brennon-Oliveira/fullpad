@@ -1,13 +1,12 @@
 ## Novidades
 
-- **Ctrl+P**: busca arquivos pelo nome entre as abas abertas, as fechadas e as abertas recentemente. Digite `:42` (ou Ctrl+G) para ir a uma linha, `arquivo:42` para abrir já na linha, `@` para pular para um título e `>` (Ctrl+Shift+P) para os comandos.
-- **Barra de formatação** no markdown: ao selecionar um texto aparece uma barra com tipo de bloco, negrito, itálico, tachado, código, link e limpar formatação (Ctrl+B, Ctrl+I, Ctrl+K).
-- **Sumário lateral**: barrinhas na borda que mostram os títulos ao passar o mouse, ou fixo ao lado do arquivo (Visualizar > Sumário, à esquerda ou à direita).
-- **Buscar em todas as abas** (Ctrl+Shift+F), com substituir em todas, e um localizar e substituir novo, com contador de resultados.
-- **YAML e TOML** abrem com árvore ao lado do código, como o JSON, e mostram o erro de sintaxe.
-- **Mais linguagens coloridas** nos arquivos de texto (C, Java, Go, Ruby, Lua, XML, Dockerfile e outras), com o seletor "Lang" na barra de status.
-- **Abas**: fixar, fechar outras, todas ou só as salvas, salvar todos, fechar com o botão do meio e rolar a barra com a roda do mouse.
+- **Equações (LaTeX)** no markdown: `$...$` e `$$...$$` aparecem desenhadas, e com o cursor dentro vê-se o código. Valem também no painel renderizado e na exportação (HTML, PDF e copiar como HTML). Na barra de formatação há o botão **√x** (Ctrl+Shift+M).
+- **Arquivos `.tex`**: abrem com destaque de sintaxe e, ao lado do código, as equações soltas do arquivo, uma por cartão (passe o mouse para ver o trecho, clique para ir até ele).
+- **Diagramas Mermaid**: um bloco ` ```mermaid ` vira o diagrama no markdown e na exportação. Arquivos `.mmd` e `.mermaid` abrem com o diagrama ao lado do código, com zoom, arrastar, exportar em SVG e o erro de sintaxe numa faixa.
+- **Histórico de versões** (Ajuda): o changelog completo do app. Depois de atualizar pulando versões, a nota mostra tudo o que entrou desde a sua.
+- **Busca no sumário lateral**: a lupa do sumário fixa a lista e filtra só os títulos dela.
 
 ## Correções
 
-- No markdown renderizado, o clique agora cai na linha certa.
+- **Arquivo alterado fora do Fullpad**: o app percebe a mudança. Sem edições suas, a aba recarrega sozinha (Ctrl+Z volta); com edições, uma faixa pergunta se recarrega ou mantém o seu. Salvar não grava mais por cima de uma mudança externa sem perguntar. Novo: Arquivo > "Recarregar do disco" (F5 ou Ctrl+R).
+- A nota de versão não aceita mais edição.
