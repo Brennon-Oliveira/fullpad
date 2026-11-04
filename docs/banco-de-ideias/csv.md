@@ -1,7 +1,7 @@
 ---
 titulo: Visão de CSV (tabela editável com funções básicas)
 feita: sim
-versao: próxima (a definir ao gerar a versão)
+versao: 1.1.0
 ---
 
 # CSV
