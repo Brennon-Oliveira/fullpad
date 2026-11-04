@@ -8,6 +8,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
+import { makeMathField } from "./mathpreview";
 import { cachedMermaid, isMermaidInfo, renderMermaid } from "./mermaid/render";
 
 /** Acima disso o preview desliga para não pesar. */
@@ -167,6 +168,8 @@ function makeMermaidField(fixed: boolean) {
 
 const mermaidField = makeMermaidField(false);
 const fixedMermaidField = makeMermaidField(true);
+const mathField = makeMathField(false, MAX_PREVIEW_CHARS);
+const fixedMathField = makeMathField(true, MAX_PREVIEW_CHARS);
 
 export interface Built {
   all: DecorationSet;
@@ -355,6 +358,7 @@ export function livePreview(opts: { fixed?: boolean } = {}): Extension {
   return [
     opts.fixed ? fixedPlugin : previewPlugin,
     opts.fixed ? fixedMermaidField : mermaidField,
+    opts.fixed ? fixedMathField : mathField,
     EditorView.editorAttributes.of({ class: "cm-preview" }),
   ];
 }

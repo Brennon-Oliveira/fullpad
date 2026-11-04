@@ -611,3 +611,12 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .cm-md-mermaid svg { max-width: 100%; height: auto; }
 .cm-md-mermaid.loading { color: var(--muted); font-size: 13px; }
 .cm-md-mermaid.err { color: #d9534f; font-size: 13px; text-align: left; white-space: pre-wrap; }
+/* equações (KaTeX) no live preview; só padding, pelo mesmo motivo do Mermaid */
+.cm-md-math { cursor: pointer; }
+.cm-md-math-block { padding: 8px 0; text-align: center; overflow-x: auto; overflow-y: hidden; }
+.cm-md-math-display { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; }
+/* o KaTeX põe 1em de margem em cima e embaixo da equação em bloco */
+.cm-md-math .katex-display { margin-block:0; }
+.cm-md-math.loading { color: var(--muted); font-family: var(--mono); font-size: 0.9em; }
+.cm-md-math.err { color: #d9534f; font-family: var(--mono); font-size: 0.9em; text-align: left; background: color-mix(in srgb, #d33 12%, transparent); border-radius: 3px; padding: 0 3px; }
+.cm-md-math-block.err { display: block; padding: 8px 12px; white-space: pre-wrap; }

@@ -453,7 +453,7 @@ O Fullpad guarda tudo em disco a cada pausa[^auto]. Fechar a janela nunca descar
 
 ### Fórmulas e diagramas em texto
 
-Equação em texto simples: `E = m · c²` e `∑ᵢ xᵢ / n`.
+Equação em texto simples: `E = m · c²` e `∑ᵢ xᵢ / n` (as equações de verdade estão em "Equações (LaTeX)", mais abaixo).
 
 ```text
 ┌──────────┐     ┌──────────┐
@@ -465,6 +465,47 @@ Equação em texto simples: `E = m · c²` e `∑ᵢ xᵢ / n`.
                  │    ui    │
                  └──────────┘
 ```
+
+### Equações (LaTeX)
+
+Equação em linha com `$...$`: a energia de repouso é $E = mc^2$, a raiz de $x^2 - 5x + 6 = 0$ são $x = \frac{5 \pm \sqrt{25 - 24}}{2}$, e a soma $\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$ vale para todo $n \in \mathbb{N}$. Com o cursor dentro de uma equação, aparece o código.
+
+Equação em bloco com `$$...$$`, centralizada:
+
+$$
+\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}
+$$
+
+Matriz, sistema e alinhamento:
+
+$$
+A = \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}, \qquad
+f(x) = \begin{cases} x^2 & \text{se } x \ge 0 \\ -x & \text{se } x < 0 \end{cases}
+$$
+
+$$
+\begin{aligned}
+(a + b)^2 &= a^2 + 2ab + b^2 \\
+\binom{n}{k} &= \frac{n!}{k!\,(n-k)!}
+\end{aligned}
+$$
+
+Letras gregas e operadores: $\alpha, \beta, \gamma, \Delta, \Omega$; $\lim_{x \to 0} \frac{\sin x}{x} = 1$; $\vec{v} \cdot \vec{w} = \lVert v \rVert \lVert w \rVert \cos\theta$.
+
+O que **não** vira equação:
+
+- Dinheiro: custa R$ 5 e depois R$ 10 (um cifrão seguido de espaço não abre equação).
+- Cifrão escapado: o preço é \$5 e o desconto \$2.
+- Código: `$x^2$` em linha e o bloco abaixo ficam como estão.
+
+```latex
+\documentclass{article}
+\begin{document}
+Em $\LaTeX$, a equação é $a^2 + b^2 = c^2$.
+\end{document}
+```
+
+Uma equação com erro de sintaxe mostra só o trecho dela, marcado em vermelho, sem estragar o resto da linha (passe o mouse para ver o motivo): $\frac{1}{$ aqui e depois $x + y$ normal.
 
 ### Diagramas Mermaid
 

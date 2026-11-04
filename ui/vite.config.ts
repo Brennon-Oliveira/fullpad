@@ -1,7 +1,8 @@
-import { cpSync, mkdirSync } from "node:fs";
+import { cpSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Plugin, defineConfig } from "vite";
+import { type Plugin } from "vite";
+import { defineConfig } from "vitest/config";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -22,9 +23,27 @@ function pdfjsAssets(): Plugin {
   };
 }
 
+/**
+ * As equações (KaTeX) usam fontes próprias. Só as `.woff2` são copiadas para `public/katex/fonts/`
+ * (ignorado pelo git) e viajam dentro do app; `latex/render.ts` aponta o CSS do KaTeX para essa pasta.
+ */
+function katexFonts(): Plugin {
+  return {
+    name: "fullpad-katex-fonts",
+    config() {
+      const from = join(here, "node_modules", "katex", "dist", "fonts");
+      const to = join(here, "public", "katex", "fonts");
+      mkdirSync(to, { recursive: true });
+      for (const f of readdirSync(from)) if (f.endsWith(".woff2")) cpSync(join(from, f), join(to, f));
+    },
+  };
+}
+
 export default defineConfig({
   clearScreen: false,
-  plugins: [pdfjsAssets()],
+  plugins: [pdfjsAssets(), katexFonts()],
   server: { port: 1420, strictPort: true },
   build: { target: "es2022" },
+  // o CSS do KaTeX é lido como texto (`?raw`) e os testes precisam do conteúdo, não de uma string vazia
+  test: { css: { include: /katex\.min\.css/ } },
 });
