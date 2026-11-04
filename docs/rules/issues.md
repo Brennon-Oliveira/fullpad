@@ -19,11 +19,12 @@ Na dúvida entre `feature` e `improvement`: se a pessoa precisaria aprender uma 
 - **Prioridade** (no máximo uma; sem ela, a issue está por triar): `prio: alta` (as "melhores", fazer primeiro; num bug, urgente), `prio: boa`, `prio: media`, `prio: futura`.
 - **Estado**: `refinar` = ideia crua, que precisa de conversa antes de planejar (é o que a flag `--draft` da skill põe). Sai quando a issue ganha forma.
 - **Área** (opcional, uma ou mais): `area: editor`, `area: abas`, `area: markdown`, `area: leitor`, `area: dados`, `area: busca`, `area: sistema`.
+- `meta`: organização do próprio backlog (só a issue de ranking).
 - `duplicate` e `wontfix` ao fechar sem fazer.
 
 ## Ordem
 
-- O ranking dentro de uma prioridade fica numa issue fixada, **"Ranking de prioridades"** (criada junto com a migração das ideias antigas; a skill `criar-issue` a mantém): uma lista de tarefas com `- [ ] #12` na ordem sugerida (o GitHub mostra o título e o estado de cada uma). Mudou a ordem: edite a lista, não os títulos.
+- O ranking dentro de uma prioridade fica numa issue fixada, **"Ranking de prioridades"** (#35; a skill `criar-issue` a mantém): uma lista de tarefas com `- [ ] #12` na ordem sugerida (o GitHub mostra o título e o estado de cada uma). Mudou a ordem: edite a lista, não os títulos.
 
 ## Escrita
 
