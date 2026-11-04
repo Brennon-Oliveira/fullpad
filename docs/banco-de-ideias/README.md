@@ -19,6 +19,11 @@ Ao implementar uma ideia, troque `feita` para `sim`, preencha `versao` e atualiz
 | [Comparar (diff) entre abas e com o arquivo em disco](comparar-diff.md) | não | — |
 | [Tabelas de markdown renderizadas e editáveis](tabelas-markdown.md) | não | — |
 | [Links entre notas (`[[nome]]`) e backlinks](links-entre-notas.md) | não | — |
+| [Colar imagem no markdown](colar-imagem.md) | não | — |
+| [Edição avançada de texto (vários cursores, coluna, dobrar)](edicao-avancada.md) | não | — |
+| [Espaços de trabalho nomeados](espacos-de-trabalho.md) (a refinar) | não | — |
+| [Painel de tarefas](painel-de-tarefas.md) (a refinar) | não | — |
+| [Backup e sincronização](backup-e-sincronizacao.md) (muito futura) | não | — |
 | [Suporte a LaTeX](latex.md) | não | — |
 | [Suporte a Mermaid](mermaid.md) | não | — |
 | [Mapas mentais em arquivo próprio](mapas-mentais.md) | não | — |
