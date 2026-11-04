@@ -83,6 +83,7 @@ Não há pipeline de CI por enquanto (nenhum workflow do GitHub); testes e build
 - Mudou comportamento, arquitetura, comando ou convenção: atualize `docs/` no mesmo commit (veja [rules/harness.md](rules/harness.md)).
 - Commits: [rules/commits.md](rules/commits.md).
 - Persistência (`crates/core`): [rules/persistencia.md](rules/persistencia.md).
+- Arquivos de exemplo (`examples/`): [rules/exemplos.md](rules/exemplos.md).
 - Publicar uma versão (tag, notas, instalador, release): skill [gerar-versao](skills/gerar-versao/SKILL.md).
 - Bugs, melhorias e novidades: issues do GitHub, no padrão de [rules/issues.md](rules/issues.md); skills [criar-issue](skills/criar-issue/SKILL.md) (`--bug`, `--improvement`, `--feature`, `--draft`, `--milestone=`), [editar-issue](skills/editar-issue/SKILL.md) (`--milestone=`, `--label=+x,-y`, `--priority=`, `--refinar`) e [implementar-issue](skills/implementar-issue/SKILL.md) (`--approve`, `--commit`; os commits levam `Refs #n` e a `gerar-versao` fecha a issue).
 - Ao terminar qualquer ajuste, gere o build de Windows e reporte o resultado: [rules/build-windows.md](rules/build-windows.md).

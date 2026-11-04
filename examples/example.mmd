@@ -1,0 +1,65 @@
+%% Fluxo de uma nota no Fullpad, da digitação à lixeira.
+%% Um arquivo .mmd tem um único diagrama; comentários começam com %%.
+---
+title: Ciclo de vida de uma nota
+---
+flowchart TD
+    %% ---------- Entrada ----------
+    subgraph entrada["Entrada"]
+        digita(["Pessoa digita"])
+        abre["Abre arquivo<br/>(Ctrl+O, arrastar, Abrir com)"]
+        nova["Nova nota<br/>(Ctrl+N)"]
+    end
+
+    %% ---------- Editor ----------
+    subgraph editor["Editor (CodeMirror)"]
+        texto["Texto da aba"]
+        preview{"Visão?"}
+        codigo["Só código"]
+        renderizado["Renderizado no próprio texto"]
+        lado["Código + painel lado a lado"]
+    end
+
+    %% ---------- Persistência ----------
+    subgraph core["Core (Rust)"]
+        tipo{"Tem arquivo<br/>no disco?"}
+        nota[("notas/&lt;id&gt;.md")]
+        arquivo[("Arquivo do usuário")]
+        sessao[("session.json")]
+        atomica["write_atomic<br/>(temporário + renomear)"]
+        lixeira[("trash/")]
+    end
+
+    digita --> texto
+    abre --> texto
+    nova --> texto
+    texto --> preview
+    preview -->|Ctrl+E| codigo
+    preview -->|padrão| renderizado
+    preview -->|Ctrl+Shift+E| lado
+
+    texto -->|"500 ms depois de parar"| tipo
+    tipo -->|não| nota
+    tipo -->|"sim, ao salvar"| arquivo
+    nota --> atomica
+    arquivo --> atomica
+    atomica --> sessao
+
+    sessao -->|fechar a aba| lixeira
+    lixeira -.->|"Ctrl+Shift+T"| texto
+    lixeira -->|"Histórico de abas fechadas"| texto
+
+    %% ---------- Casos especiais ----------
+    versao["Nota de versão<br/>somente leitura"]
+    versao -. "fechar apaga de vez" .-x lixeira
+    leitura["PDF e EPUB<br/>aba de leitura"]
+    leitura -. "nunca grava" .-> arquivo
+
+    %% ---------- Estilo ----------
+    classDef disco fill:#e8f1ff,stroke:#2f6fdb,color:#10264d
+    classDef especial fill:#fff4e0,stroke:#d98a00,color:#4d3000
+    classDef pessoa fill:#e9f7ec,stroke:#2d8a4a,color:#0f3a1c
+    class nota,arquivo,sessao,lixeira disco
+    class versao,leitura especial
+    class digita,abre,nova pessoa
+    linkStyle 17 stroke:#d98a00,stroke-width:2px
