@@ -1,7 +1,7 @@
 ---
 titulo: Sumário lateral (outline)
 feita: sim
-versao: próxima (a definir ao gerar a versão)
+versao: 2.0.0
 ---
 
 # Sumário lateral

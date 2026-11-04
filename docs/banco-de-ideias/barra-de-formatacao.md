@@ -1,7 +1,7 @@
 ---
 titulo: Barra de formatação ao selecionar (estilo Notion)
 feita: sim
-versao: próxima (a definir ao gerar a versão)
+versao: 2.0.0
 ---
 
 # Barra de formatação ao selecionar

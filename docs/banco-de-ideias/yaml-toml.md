@@ -1,7 +1,7 @@
 ---
 titulo: Suporte a YAML e TOML (nos moldes da visão JSON)
 feita: sim
-versao: próxima (a definir ao gerar a versão)
+versao: 2.0.0
 ---
 
 # YAML e TOML

@@ -7,6 +7,7 @@ Esta pasta guarda features pensadas para o Fullpad que ainda não entraram no [P
 ```
 banco-de-ideias/
   README.md    índice (tabela com título, feita e versão de cada ideia)
+  prioridades.md  as ideias ordenadas por importância (melhores, boas, médias, a refinar, futuras)
   AGENTS.md    este arquivo
   <ideia>.md   uma ideia (nome em kebab-case, sem acento: busca-global.md)
 ```
@@ -40,7 +41,7 @@ Texto em português, com acentuação correta.
 
 ## Rotinas
 
-- **Nova ideia**: crie o arquivo com o cabeçalho (`feita: não`, `versao: —`) e acrescente uma linha na tabela do `README.md`.
+- **Nova ideia**: crie o arquivo com o cabeçalho (`feita: não`, `versao: —`), acrescente uma linha na tabela do `README.md` e encaixe-a em [prioridades.md](prioridades.md) (pergunte ao usuário o nível se ele não disse).
 - **Ao implementar**: trabalhe a ideia pelo PLANO (ou direto, se o usuário pedir). Ao entregar, ajuste o cabeçalho para `feita: sim` com a versão, atualize a tabela do `README.md` e remova do corpo o que mudou de natureza (o comportamento final passa a ser documentado em `docs/AGENTS.md`, na seção de arquitetura).
 - **Ideia descartada**: não apague; troque o `titulo` para começar com "[Descartada]" e explique o motivo no topo do corpo.
 - Não implemente uma ideia só porque ela está aqui: o usuário escolhe quando começar.

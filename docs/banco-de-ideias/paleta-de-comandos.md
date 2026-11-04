@@ -1,7 +1,7 @@
 ---
 titulo: Paleta de comandos (Ctrl+Shift+P)
 feita: sim
-versao: próxima (a definir ao gerar a versão)
+versao: 2.0.0
 ---
 
 # Paleta de comandos

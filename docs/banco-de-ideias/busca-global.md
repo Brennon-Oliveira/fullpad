@@ -1,7 +1,7 @@
 ---
 titulo: Busca em todas as abas + refação visual completa da busca
 feita: sim
-versao: próxima (a definir ao gerar a versão)
+versao: 2.0.0
 ---
 
 # Busca em todas as abas (Ctrl+Shift+F)
