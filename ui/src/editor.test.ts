@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { createState, createView, tabEffects, type TabConfig } from "./editor";
+import { runFormat } from "./mdtoolbar";
 
 const cfg = (over: Partial<TabConfig> = {}): TabConfig => ({
   markdown: false,
@@ -48,5 +49,22 @@ describe("barra de formatação do markdown", () => {
     view.dispatch({ selection: { anchor: 0 } });
     await new Promise((r) => setTimeout(r, 50));
     expect(document.querySelector(".fp-fmt")).toBeNull();
+  });
+});
+
+describe("somente leitura (nota de versão)", () => {
+  it("recusa digitar, colar e formatar, mas deixa selecionar", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = createView(parent, createState("texto da nota", 0, () => {}));
+    view.dispatch({ effects: tabEffects(cfg({ markdown: true, mdFormat: true, readOnly: true })) });
+    expect(view.state.readOnly).toBe(true);
+    view.dispatch({ selection: { anchor: 0, head: 5 } });
+    expect(view.state.selection.main.to).toBe(5);
+    expect(runFormat(view, "bold")).toBe(true);
+    expect(view.state.doc.toString()).toBe("texto da nota");
+    view.dispatch({ effects: tabEffects(cfg({ markdown: true, mdFormat: true })) });
+    expect(view.state.readOnly).toBe(false);
+    view.destroy();
   });
 });

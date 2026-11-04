@@ -172,6 +172,8 @@ const baseName = (p: string) => p.split(/[\\/]/).pop() ?? p;
 
 /** Aba de leitura (PDF/EPUB/tipo desconhecido): não tem texto, o arquivo nunca é gravado. */
 const isReader = (tab: TabState) => tab.kind !== undefined && tab.kind !== "text";
+/** Aba de texto que não aceita alteração: a nota de versão (o texto vem embutido no app). */
+const isReadOnlyText = (tab: TabState) => !!tab.release_notes;
 
 function effectiveLang(tab: TabState): Lang {
   if (tab.kind === "pdf") return "pdf";
@@ -229,6 +231,7 @@ function applyTabConfig() {
       overwrite,
       lineNumbers: lineNumbers && viewKind(tab) !== "inline",
       mdFormat: effectiveLang(tab) === "markdown",
+      readOnly: isReadOnlyText(tab),
     }),
   });
   ensureDbmlSupport();
@@ -1354,7 +1357,7 @@ async function applyGlobalReplace(all: import("./api").TabHits[]): Promise<numbe
   let skipped = 0;
   for (const h of all) {
     const tab = session.tabs.find((t) => t.id === h.id);
-    if (!tab || isReader(tab)) continue;
+    if (!tab || isReader(tab) || tab.release_notes) continue; // nota de versão é só de leitura
     if (h.hits.total > h.hits.matches.length) {
       skipped++; // mais resultados do que o Rust devolve: trocar só uma parte enganaria
       continue;
@@ -2367,6 +2370,7 @@ function suggestedName(tab: TabState): string {
 
 /** Salva a aba; sem caminho (ou `forceDialog`) abre "Salvar como". */
 async function save(tab: TabState = activeTab(), forceDialog = false): Promise<boolean> {
+  if (isReadOnlyText(tab)) return false; // nota de versão: o texto é do app e é refeito em Ajuda; não vira arquivo do usuário
   if (isReader(tab)) return false; // PDF/EPUB são só de leitura: nada a gravar, e o arquivo nunca é tocado
   let path = tab.path;
   if (!path || forceDialog) {
@@ -2572,6 +2576,7 @@ const menuActions = {
       view: tab.mode,
       detached: tab.detached,
       previewAvailable: previewAvailable(tab),
+      canSave: !isReadOnlyText(tab) && !isReader(tab),
       wrap,
       lineNumbers,
       outline: { on: outlineOn, pinned: outlinePinned, side: outlineSide },

@@ -22,6 +22,7 @@ const wrapC = new Compartment();
 const overwriteC = new Compartment();
 const gutterC = new Compartment(); // números de linha
 const mdFormatC = new Compartment(); // barra de formatação e atalhos do markdown
+const readOnlyC = new Compartment(); // aba só de leitura (nota de versão): seleciona e copia, mas não altera o texto
 
 const highlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "bold" },
@@ -191,6 +192,8 @@ export interface TabConfig {
   lineNumbers: boolean;
   /** Barra de formatação ao selecionar e Ctrl+B/I/K (markdown, onde o texto é editável). */
   mdFormat: boolean;
+  /** Texto que não aceita alteração (digitar, colar, recortar, substituir, formatar); seleção e cópia seguem. */
+  readOnly?: boolean;
 }
 
 /** Sobrescrever (tecla Insert): cada caractere digitado substitui o seguinte. */
@@ -218,7 +221,8 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),
     gutterC.reconfigure(c.lineNumbers ? lineNumbers() : []),
-    mdFormatC.reconfigure(c.mdFormat ? mdFormatExtension : []),
+    mdFormatC.reconfigure(c.mdFormat && !c.readOnly ? mdFormatExtension : []),
+    readOnlyC.reconfigure(EditorState.readOnly.of(!!c.readOnly)),
   ];
 }
 
@@ -248,6 +252,7 @@ export function createState(
       overwriteC.of([]),
       gutterC.of([]),
       mdFormatC.of([]),
+      readOnlyC.of(EditorState.readOnly.of(false)),
       hintField,
       jsonErrorField,
       cellSelField,

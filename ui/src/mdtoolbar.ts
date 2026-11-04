@@ -20,6 +20,7 @@ function apply(view: EditorView, o: Outcome | null): boolean {
 
 /** Roda uma ação de formatação sobre a seleção do editor (uma transação: um passo no Ctrl+Z). */
 export function runFormat(view: EditorView, id: FormatId): boolean {
+  if (view.state.readOnly) return true; // aba só de leitura: nada a formatar
   const { from, to } = view.state.selection.main;
   const doc = view.state.doc.toString();
   switch (id) {

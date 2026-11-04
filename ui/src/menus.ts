@@ -73,6 +73,8 @@ export interface MenuActions {
     view: ViewMode;
     detached: boolean;
     previewAvailable: boolean;
+    /** Falso na nota de versão e nas abas de leitura: Salvar e Salvar como ficam desabilitados. */
+    canSave: boolean;
     wrap: boolean;
     lineNumbers: boolean;
     outline: { on: boolean; pinned: boolean; side: "left" | "right" };
@@ -356,8 +358,8 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
         { label: "Mover aba para uma nova janela", action: a.tabToNewWindow },
         { label: "Abrir…", shortcut: "Ctrl+O", action: a.openFile },
         "sep",
-        { label: "Salvar", shortcut: "Ctrl+S", action: a.save },
-        { label: "Salvar como…", shortcut: "Ctrl+Shift+S", action: a.saveAs },
+        { label: "Salvar", shortcut: "Ctrl+S", action: a.save, disabled: !a.current().canSave },
+        { label: "Salvar como…", shortcut: "Ctrl+Shift+S", action: a.saveAs, disabled: !a.current().canSave },
         { label: "Salvar todos", shortcut: "Ctrl+Alt+S", action: a.saveAll },
         "sep",
         { label: "Fechar", shortcut: "Ctrl+W", action: a.closeTab },

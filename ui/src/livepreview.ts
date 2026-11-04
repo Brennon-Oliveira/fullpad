@@ -50,6 +50,7 @@ class CheckWidget extends WidgetType {
     box.addEventListener("mousedown", (e) => e.preventDefault());
     box.addEventListener("click", (e) => {
       e.preventDefault();
+      if (view.state.readOnly) return; // aba só de leitura: a caixa não troca o texto
       const pos = view.posAtDOM(box); // início de `[ ]`
       const inner = view.state.sliceDoc(pos + 1, pos + 2);
       view.dispatch({ changes: { from: pos + 1, to: pos + 2, insert: inner === " " ? "x" : " " } });
