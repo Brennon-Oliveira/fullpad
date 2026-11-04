@@ -147,4 +147,15 @@ curl -sL "https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest/d
 
 Precisa mostrar a versão nova (o GitHub pode levar alguns segundos). Se a publicação falhar depois da tag, não apague a tag: corrija e rode o passo 8 de novo.
 
-Relate ao usuário a versão, o link do release, a tag e as notas, e lembre que os apps instalados oferecem a atualização ao abrir (ou em Ajuda > "Verificar atualizações…").
+## 10. Fechar as issues entregues
+
+Issues citadas por `Refs #n` nos commits desde a última tag (`git log "$LAST"..HEAD --format=%B | grep -oE 'Refs #[0-9]+'`) saíram nesta versão. Para cada uma ainda aberta: garanta o milestone `<nova>` (crie se faltar, método em [../../rules/issues.md](../../rules/issues.md)) e feche com comentário:
+
+```sh
+gh issue edit <n> -R Brennon-Oliveira/fullpad --milestone "<nova>"
+gh issue close <n> -R Brennon-Oliveira/fullpad --reason completed --comment "Entregue na <nova>."
+```
+
+Feche também o milestone `<nova>` quando todas as issues dele estiverem fechadas. Não feche issue que o usuário não citou nos commits; na dúvida, liste e pergunte.
+
+Relate ao usuário a versão, o link do release, a tag, as notas e as issues fechadas, e lembre que os apps instalados oferecem a atualização ao abrir (ou em Ajuda > "Verificar atualizações…").

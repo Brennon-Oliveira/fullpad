@@ -1,6 +1,6 @@
 # Issues: bugs, melhorias e novidades
 
-As ideias, melhorias e bugs do Fullpad vivem nas **Issues** do repositório (`Brennon-Oliveira/fullpad`), não em arquivos do projeto. Criar uma issue: skill [criar-issue](../skills/criar-issue/SKILL.md).
+As ideias, melhorias e bugs do Fullpad vivem nas **Issues** do repositório (`Brennon-Oliveira/fullpad`), não em arquivos do projeto. Skills: criar [criar-issue](../skills/criar-issue/SKILL.md), editar [editar-issue](../skills/editar-issue/SKILL.md) (labels, prioridade, milestone, refinar rascunhos) e implementar [implementar-issue](../skills/implementar-issue/SKILL.md).
 
 > Enquanto a migração não termina, as ideias antigas ainda estão em [../banco-de-ideias/](../banco-de-ideias/README.md). Ideia nova vai direto para uma issue.
 
@@ -116,9 +116,14 @@ Para ideias cruas: o mínimo, com a label `refinar`.
 - <o que falta definir antes de planejar>
 ```
 
+## Milestones
+
+Um milestone é uma **versão** (`2.1.0`, sem `v`). Serve para planejar ("vai na 2.1.0") e, fechado, para registrar em que versão a issue saiu. `criar-issue --milestone=2.1.0` e `editar-issue --milestone=2.1.0` criam o milestone se ele não existir.
+
 ## Ciclo de vida
 
-- **Entregou**: feche a issue com o **milestone da versão** (`2.0.0`), citando o commit/versão. Um commit pode fechá-la sozinho com `Closes #12` no corpo. Comente o que mudou de natureza em relação à ideia original, se mudou.
+- **Implementou**: `implementar-issue` liga os commits à issue com `Refs #12` (nunca `Closes`: fechar antes da versão sair esconderia o que ainda não foi entregue) e comenta nela.
+- **Entregou**: ao gerar a versão, a `gerar-versao` fecha as issues citadas por `Refs #n` nos commits, com o **milestone da versão** (`2.0.0`). Comente o que mudou de natureza em relação à ideia original, se mudou.
 - **Mudou de ideia**: feche com `wontfix` e um comentário com o motivo; não apague.
 - **Refinar**: a conversa vai em comentários da própria issue; quando a ideia ganha forma, reescreva o corpo no formato do tipo e tire a label `refinar`.
 - O comportamento final de uma feature entregue passa a ser documentado em `docs/AGENTS.md` (arquitetura), como sempre.

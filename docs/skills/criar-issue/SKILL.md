@@ -1,7 +1,7 @@
 ---
 name: criar-issue
 description: "Cria uma issue do Fullpad (bug, improvement ou feature) no padrão do projeto. Sem --draft, refina a ideia conversando com o usuário (perguntas curtas, olhando o código) e só cria a issue pronta, depois do ok; com --draft, pula a conversa e cria um rascunho com a label refinar. Use quando pedirem para criar, registrar ou anotar uma issue, bug, melhoria, novidade ou ideia."
-argument-hint: "[--bug | --improvement | --feature] [--draft] [texto da ideia]"
+argument-hint: "[--bug | --improvement | --feature] [--draft] [--milestone=nome] [texto da ideia]"
 ---
 
 # Criar issue
@@ -11,11 +11,12 @@ Registra um bug, uma melhoria ou uma novidade como issue de `Brennon-Oliveira/fu
 ## Argumentos
 
 ```
-/criar-issue [--bug | --improvement | --feature] [--draft] [texto da ideia]
+/criar-issue [--bug | --improvement | --feature] [--draft] [--milestone=nome] [texto da ideia]
 ```
 
 - `--bug` (algo errado), `--improvement` (aprimora o que existe), `--feature` (novidade). Sem flag de tipo: deduza do texto e **diga qual escolheu** ao mostrar a issue; só pergunte se for realmente ambíguo. Mais de uma flag de tipo: pare e pergunte.
 - `--draft`: **pula o refinamento**. Cria na hora um rascunho (label `refinar`), no formato "Rascunho" da regra. É para ideias cruas, que o usuário vai refinar depois.
+- `--milestone=nome`: põe a issue nesse milestone (a versão em que se pretende entregar, como `2.1.0`); **cria o milestone se não existir** (veja o passo 4). Aceita o nome com ou sem `v` (`v2.1.0` vira `2.1.0`).
 - O resto do texto é a ideia. Sem texto: pergunte "o que é?" (uma pergunta só) e siga.
 
 ## 1. Entender e conferir duplicata
@@ -63,7 +64,15 @@ EOF
 
 - Sempre uma label de tipo (`bug`, `improvement` ou `feature`). Prioridade só se o usuário disse (em `--draft`, não invente). Rascunho: label `refinar`.
 - Use `--body-file -` com heredoc de aspas simples (não `--body`), para o markdown não ser alterado pelo shell.
-- Não use `--assignee` nem `--milestone` (milestone é da versão que entregar).
+- Não use `--assignee`.
+- **Milestone** (só se veio `--milestone=nome`): confira se existe e crie se faltar, **antes** de criar a issue:
+
+```sh
+gh api "repos/Brennon-Oliveira/fullpad/milestones?state=all&per_page=100" -q '.[].title' | grep -Fx "<nome>" \
+  || gh api -X POST repos/Brennon-Oliveira/fullpad/milestones -f title="<nome>" -f description="Versão <nome>"
+```
+
+  e acrescente `--milestone "<nome>"` ao `gh issue create`. Sem a flag, a issue fica sem milestone (ele é da versão que entregar, e a `gerar-versao` o define ao fechar).
 
 Se existir a issue fixada **"Ranking de prioridades"** (`gh issue list --search "Ranking de prioridades in:title"`) e a nova tem prioridade, acrescente `- [ ] #<n>` à lista, na posição que o usuário disser (sem resposta, no fim do grupo da prioridade), editando o corpo dessa issue.
 
