@@ -25,6 +25,10 @@ Tipos: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`
 
 Obrigatório quando a mudança não é trivial: explique **o que mudou e por quê** (contexto, decisão, o que foi descartado). Linha em branco entre o resumo e o corpo.
 
+## Issues não são pré-requisito
+
+Nem toda mudança nasce de uma issue: um bug achado na hora, um ajuste pedido na conversa ou uma correção pequena **não precisam de issue** nem de `Refs`. O `Refs #n` é só para quando o commit entrega uma issue existente (skill `implementar-issue`), e serve apenas para a `gerar-versao` fechá-la. **A nota de versão sai dos commits, não das issues**: todo `feat`, `fix`, `perf` ou `refactor` com efeito visível entra nela, tenha issue ou não. Por isso o resumo do commit tem de descrever o efeito para quem usa (veja acima).
+
 ## Mudança incompatível
 
 Coloque `!` depois do tipo (e do escopo) e acrescente o rodapé:

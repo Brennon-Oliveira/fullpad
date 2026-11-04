@@ -94,9 +94,10 @@ Escreva em `crates/app/release-notes.md` (substituindo o conteúdo da versão an
 - <mais rápido, mais estável...>
 ```
 
-- Fonte: o resumo e o corpo dos commits. Reescreva para o efeito visível ("Abas arrastadas entre janelas caem no lugar exato"), sem jargão (nada de "refatora", nomes de função ou arquivo).
+- Fonte: o resumo e o corpo dos commits. **Entra tudo o que muda algo para quem usa, tenha ou não issue**: uma correção feita na conversa, sem `Refs`, entra como qualquer outra. Issue não é critério para a nota. Reescreva para o efeito visível ("Abas arrastadas entre janelas caem no lugar exato"), sem jargão (nada de "refatora", nomes de função ou arquivo).
 - Junte commits que tratam da mesma coisa. Omita seções vazias.
 - `docs`, `test`, `build`, `ci`, `chore` ficam de fora, a não ser que mudem algo para o usuário (ex.: o instalador).
+- **Não cite números de issue** (`#12`) nem links do repositório de código nas notas: elas aparecem no diálogo de atualização e na página do release público, e o repositório de código é privado.
 - Mudança incompatível: diga o que muda e o que a pessoa precisa fazer.
 
 **Histórico (`crates/app/CHANGELOG.md`)**: depois de escrever a nota, acrescente a mesma nota **no topo** do `crates/app/CHANGELOG.md`, logo abaixo do texto de abertura e acima da versão anterior, com o cabeçalho `## <nova> · <aaaa-mm-dd>` (data de hoje) e as seções rebaixadas para `###` (`### Novidades`, `### Correções`, `### Melhorias`). O app separa as versões pelo cabeçalho `## x.y.z`, então **nenhum outro `##` pode começar por um número de versão**, e as versões ficam da mais nova para a mais antiga, sem repetir. O arquivo vai embutido no app (Ajuda > "Histórico de versões…") e a nota que abre depois de atualizar mostra tudo o que entrou desde a versão que a pessoa tinha.
@@ -151,7 +152,7 @@ Precisa mostrar a versão nova (o GitHub pode levar alguns segundos). Se a publi
 
 ## 10. Fechar as issues entregues
 
-Issues citadas por `Refs #n` nos commits desde a última tag (`git log "$LAST"..HEAD --format=%B | grep -oE 'Refs #[0-9]+'`) saíram nesta versão. Para cada uma ainda aberta: garanta o milestone `<nova>` (crie se faltar, método em [../../rules/issues.md](../../rules/issues.md)) e feche com comentário:
+Esta etapa só trata das issues; **não decide o que entra nas notas** (isso vem de todos os commits, passo 4). Issues citadas por `Refs #n` nos commits desde a última tag (`git log "$LAST"..HEAD --format=%B | grep -oE 'Refs #[0-9]+'`) saíram nesta versão. Para cada uma ainda aberta: garanta o milestone `<nova>` (crie se faltar, método em [../../rules/issues.md](../../rules/issues.md)) e feche com comentário:
 
 ```sh
 gh issue edit <n> -R Brennon-Oliveira/fullpad --milestone "<nova>"
