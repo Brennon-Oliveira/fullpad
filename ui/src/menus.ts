@@ -3,6 +3,7 @@ import { type CsvSettings, DELIMITERS, delimiterName } from "./csv/settings";
 import { NO_CODE_LANG, pickableLanguages } from "./codelangs";
 import type { Lang } from "./language";
 import { type MenuItem, closeMenu, showMenu } from "./popup";
+import { BLOCK_LABELS } from "./mdformat";
 import { ZOOM_PRESETS } from "./zoom";
 
 export interface MenuActions {
@@ -29,6 +30,8 @@ export interface MenuActions {
   find(): void;
   replace(): void;
   gotoLine(): void;
+  /** Formata o markdown pela seleção (`bold`, `italic`, `strike`, `code`, `link`, `clear` ou um tipo de bloco). */
+  formatMd(id: string): void;
   openPalette(): void;
   gotoSymbol(): void;
   commandPalette(): void;
@@ -216,6 +219,23 @@ export function treeItems(a: MenuActions): MenuItem[] {
   ];
 }
 
+/** Submenu "Formatar" do markdown (os mesmos comandos da barra ao selecionar). */
+export function formatItem(a: Pick<MenuActions, "formatMd">): MenuItem {
+  return {
+    label: "Formatar",
+    submenu: [
+      { label: "Negrito", shortcut: "Ctrl+B", action: () => a.formatMd("bold") },
+      { label: "Itálico", shortcut: "Ctrl+I", action: () => a.formatMd("italic") },
+      { label: "Tachado", shortcut: "Ctrl+Shift+X", action: () => a.formatMd("strike") },
+      { label: "Código", action: () => a.formatMd("code") },
+      { label: "Link", shortcut: "Ctrl+K", action: () => a.formatMd("link") },
+      { label: "Limpar formatação", action: () => a.formatMd("clear") },
+      "sep",
+      ...BLOCK_LABELS.map(([id, label]): MenuItem => ({ label, action: () => a.formatMd(id) })),
+    ],
+  };
+}
+
 /** Itens do menu do tipo de arquivo: só o que faz sentido para ele. */
 export function langMenuItems(a: MenuActions): MenuItem[] {
   const c = a.current();
@@ -229,6 +249,8 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
       return treeItems(a);
     case "markdown":
       return [
+        formatItem(a),
+        "sep",
         { label: "Exportar como HTML…", action: a.exportHtml },
         { label: "Exportar como PDF…", action: a.exportPdf },
         "sep",

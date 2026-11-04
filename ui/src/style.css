@@ -552,3 +552,17 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .modal-row .modal-meta { display: flex; gap: 10px; max-width: 65%; }
 .modal-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .modal-badge { flex: none; padding: 0 6px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--fg); font-size: 11px; line-height: 18px; }
+
+/* barra de formatação ao selecionar (markdown) */
+.cm-tooltip:has(.fp-fmt) { border: 0; background: transparent; }
+.fp-fmt { display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 22px rgba(0,0,0,.35); font: 13px system-ui, sans-serif; white-space: nowrap; }
+.fp-selecting .fp-fmt, .cm-editor:not(.cm-focused) .fp-fmt { visibility: hidden; }
+.fp-fmt-btn { min-width: 28px; height: 28px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.fp-fmt-btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.fp-fmt-btn.on { background: color-mix(in srgb, var(--accent) 32%, transparent); color: var(--accent); }
+.fp-fmt-btn.b { font-weight: 700; }
+.fp-fmt-btn.i { font-style: italic; font-family: serif; }
+.fp-fmt-btn.s { text-decoration: line-through; }
+.fp-fmt-btn.c { font-family: ui-monospace, monospace; font-size: 12px; }
+.fp-fmt-btn.type .caret { opacity: .6; font-size: 10px; }
+.fp-fmt-sep { width: 1px; height: 18px; margin: 0 3px; background: var(--border); }

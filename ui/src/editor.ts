@@ -3,6 +3,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
+import { mdFormatExtension } from "./mdtoolbar";
 import { fullpadSearch } from "./searchpanel";
 import { Compartment, EditorState, type Extension, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, drawSelection, keymap, lineNumbers, type ViewUpdate } from "@codemirror/view";
@@ -20,6 +21,7 @@ const bracketsC = new Compartment(); // fecha ( [ { e aspas sozinho (DBML)
 const wrapC = new Compartment();
 const overwriteC = new Compartment();
 const gutterC = new Compartment(); // números de linha
+const mdFormatC = new Compartment(); // barra de formatação e atalhos do markdown
 
 const highlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "bold" },
@@ -187,6 +189,8 @@ export interface TabConfig {
   overwrite: boolean;
   /** Números de linha na margem (só onde o código aparece: o markdown renderizado e a tabela não têm). */
   lineNumbers: boolean;
+  /** Barra de formatação ao selecionar e Ctrl+B/I/K (markdown, onde o texto é editável). */
+  mdFormat: boolean;
 }
 
 /** Sobrescrever (tecla Insert): cada caractere digitado substitui o seguinte. */
@@ -214,6 +218,7 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),
     gutterC.reconfigure(c.lineNumbers ? lineNumbers() : []),
+    mdFormatC.reconfigure(c.mdFormat ? mdFormatExtension : []),
   ];
 }
 
@@ -242,6 +247,7 @@ export function createState(
       wrapC.of(EditorView.lineWrapping),
       overwriteC.of([]),
       gutterC.of([]),
+      mdFormatC.of([]),
       hintField,
       jsonErrorField,
       cellSelField,

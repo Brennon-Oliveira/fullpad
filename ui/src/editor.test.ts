@@ -10,6 +10,7 @@ const cfg = (over: Partial<TabConfig> = {}): TabConfig => ({
   preview: false,
   wrap: true,
   overwrite: false,
+  mdFormat: false,
   lineNumbers: true,
   ...over,
 });
@@ -27,5 +28,25 @@ describe("números de linha", () => {
     view.dispatch({ effects: tabEffects(cfg({ lineNumbers: false })) });
     expect(parent.querySelector(".cm-lineNumbers")).toBeNull();
     view.destroy();
+  });
+});
+
+describe("barra de formatação do markdown", () => {
+  it("aparece ao selecionar e traz os botões; sem seleção não aparece", async () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = createView(parent, createState("uma palavra aqui", 0, () => {}));
+    view.dispatch({ effects: tabEffects(cfg({ markdown: true, mdFormat: true })) });
+    view.dispatch({ selection: { anchor: 4, head: 11 } });
+    view.requestMeasure();
+    await new Promise((r) => setTimeout(r, 50));
+    const bar = document.querySelector(".fp-fmt");
+    expect(bar).not.toBeNull();
+    expect(bar!.querySelectorAll("button").length).toBe(7);
+    (bar!.querySelector(".fp-fmt-btn.b") as HTMLButtonElement).click();
+    expect(view.state.doc.toString()).toBe("uma **palavra** aqui");
+    view.dispatch({ selection: { anchor: 0 } });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(document.querySelector(".fp-fmt")).toBeNull();
   });
 });

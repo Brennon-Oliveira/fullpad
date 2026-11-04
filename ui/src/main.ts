@@ -28,6 +28,7 @@ const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importa
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
 const MAX_CSV_CHARS = 50_000_000; // mesmo valor de csv/panel.ts
 import { codeLangItems, exportItem, isTree, languageItems, mountMenuBar, sideOnly, topMenus, viewItems, zoomItems } from "./menus";
+import { type FormatId, runFormat } from "./mdtoolbar";
 import { dbmlSymbols, markdownSymbols, pushRecent, treeSymbols, type Symbol as PaletteSymbol } from "./palettecore";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
@@ -215,6 +216,7 @@ function applyTabConfig() {
       wrap,
       overwrite,
       lineNumbers: lineNumbers && viewKind(tab) !== "inline",
+      mdFormat: effectiveLang(tab) === "markdown",
     }),
   });
   ensureDbmlSupport();
@@ -2423,6 +2425,7 @@ const menuActions = {
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
   find: () => void (readerZoom((r) => r.find()) || openSearch(cur.view)),
   replace: () => openSearch(cur.view, true),
+  formatMd: (id: string) => void (session.active && effectiveLang(activeTab()) === "markdown" && runFormat(cur.view, id as FormatId)),
   gotoLine: () => openPaletteWith(":"),
   openPalette: () => openPaletteWith(""),
   gotoSymbol: () => openPaletteWith("@"),
