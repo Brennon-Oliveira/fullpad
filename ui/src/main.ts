@@ -1212,7 +1212,11 @@ function paletteCommands() {
 
 async function openPaletteWith(initial: string) {
   const { openPalette } = await import("./palette");
-  const jump = (line?: number, col?: number) => line !== undefined && gotoLineCol(line, col);
+  // `show` restaura a rolagem da aba num requestAnimationFrame e desfaria o salto: espera esse quadro passar
+  const jump = (line?: number, col?: number) => {
+    if (line === undefined) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => gotoLineCol(line, col)));
+  };
   openPalette(
     {
       tabs: () => pinnedFirst(session.tabs).map((t) => ({ id: t.id, title: t.title, path: t.path, pinned: !!t.pinned, active: t.id === session.active })),
