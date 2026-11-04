@@ -466,6 +466,27 @@ Equação em texto simples: `E = m · c²` e `∑ᵢ xᵢ / n`.
                  └──────────┘
 ```
 
+### Diagramas Mermaid
+
+Um bloco `mermaid` fechado vira diagrama (com o cursor dentro dele, aparece o código):
+
+```mermaid
+flowchart LR
+    UI[ui · TypeScript] -->|IPC| App[app · Tauri]
+    App --> Core[core · Rust]
+    Core --> Disco[(notas e sessão)]
+```
+
+```mermaid
+sequenceDiagram
+    participant U as Pessoa
+    participant E as Editor
+    participant C as Core
+    U->>E: digita
+    E->>C: save_note
+    C-->>E: gravado (atômico)
+```
+
 ### Definições e termos
 
 Termo
