@@ -33,7 +33,7 @@ Achou algo próximo: mostre (número, título, estado) e pergunte se é a mesma 
 
 O objetivo é a issue **sair pronta**, no formato do tipo, sem seção vazia por preguiça. Converse com o usuário.
 
-- **Antes de perguntar, olhe o código/docs** (`docs/AGENTS.md`, os módulos citados): não pergunte o que o repositório responde. Em `improvement` e `bug`, **confira como é hoje** (e, em bug, tente localizar a causa provável; não corrija nada).
+- **Antes de perguntar, olhe o código/docs** (`docs/AGENTS.md`, os módulos citados): não pergunte o que o repositório responde. Em qualquer tipo, **confira o que o texto diz que existe hoje** (funções, comandos, versões, tags: `git tag`, `grep`); em `improvement` e `bug`, veja como é hoje (e, em bug, tente localizar a causa provável; não corrija nada). Afirmação que o código desmente: corrija na issue e avise o usuário; afirmação duvidosa que você não consegue conferir: vai para **Pontos a decidir**, nunca como fato.
 - Pergunte em **rodadas curtas** (até 3 ou 4 perguntas por vez), as que mais mudam a issue. Use a ferramenta de perguntas com opções quando a resposta for uma escolha, e texto livre quando for aberta. Sugira uma resposta recomendada quando tiver uma.
 - O que cobrir, por tipo:
   - `feature`: por que, o que a pessoa vê/faz (comportamento), decisões que o usuário já tomou, o que fica **fora**, riscos (segurança, persistência, desempenho) e o que existe para reaproveitar.
@@ -41,9 +41,10 @@ O objetivo é a issue **sair pronta**, no formato do tipo, sem seção vazia por
   - `bug`: passos para reproduzir, esperado vs. obtido, versão do app, tipo de arquivo/situação, evidência.
 - Pergunte a **prioridade** (`prio: alta`, `boa`, `media`, `futura`, ou sem prioridade/por triar) e sugira a **área**.
 - Pare de perguntar quando as seções do formato puderem ser escritas. O que o usuário não souber decidir vai para **Pontos a decidir** (feature/improvement), não fica inventado.
+- Seções sem fonte ficam de fora: **Decisões** só com o que o usuário disse estar decidido; **Fora de escopo** só se ele disse (pergunte uma vez); **Cuidados** só com riscos que ele citou ou que o código evidencia (nada de enchimento como "texto em português"). Menu, atalho ou nome que você está propondo (e que o usuário não escolheu) é escrito como **proposto**.
 - Se, no meio da conversa, o usuário disser que quer deixar para refinar depois, mude para o modo rascunho.
 
-Escreva a issue no formato do tipo ([../../rules/issues.md](../../rules/issues.md)): título curto sem prefixo, português, sem segredos.
+Escreva a issue no formato do tipo ([../../rules/issues.md](../../rules/issues.md)): título curto sem prefixo, português, sem segredos. O título que o usuário deu (argumento ou conversa) prevalece sobre o de qualquer nota que você tenha lido. Se o título mudou depois do refinamento, **repita a busca de duplicata** (passo 1).
 
 ## 3. Mostrar e confirmar
 
@@ -63,6 +64,8 @@ EOF
 - Sempre uma label de tipo (`bug`, `improvement` ou `feature`). Prioridade só se o usuário disse (em `--draft`, não invente). Rascunho: label `refinar`.
 - Use `--body-file -` com heredoc de aspas simples (não `--body`), para o markdown não ser alterado pelo shell.
 - Não use `--assignee` nem `--milestone` (milestone é da versão que entregar).
+
+Se existir a issue fixada **"Ranking de prioridades"** (`gh issue list --search "Ranking de prioridades in:title"`) e a nova tem prioridade, acrescente `- [ ] #<n>` à lista, na posição que o usuário disser (sem resposta, no fim do grupo da prioridade), editando o corpo dessa issue.
 
 ## 5. Relatar
 

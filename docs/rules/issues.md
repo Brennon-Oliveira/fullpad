@@ -23,7 +23,7 @@ Na dúvida entre `feature` e `improvement`: se a pessoa precisaria aprender uma 
 
 ## Ordem
 
-- O ranking dentro de uma prioridade fica numa issue fixada, **"Ranking de prioridades"**: uma lista de tarefas com `- [ ] #12` na ordem sugerida (o GitHub mostra o título e o estado de cada uma). Mudou a ordem: edite a lista, não os títulos.
+- O ranking dentro de uma prioridade fica numa issue fixada, **"Ranking de prioridades"** (criada junto com a migração das ideias antigas; a skill `criar-issue` a mantém): uma lista de tarefas com `- [ ] #12` na ordem sugerida (o GitHub mostra o título e o estado de cada uma). Mudou a ordem: edite a lista, não os títulos.
 
 ## Escrita
 
