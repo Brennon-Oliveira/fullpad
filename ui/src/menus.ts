@@ -29,6 +29,9 @@ export interface MenuActions {
   find(): void;
   replace(): void;
   gotoLine(): void;
+  openPalette(): void;
+  gotoSymbol(): void;
+  commandPalette(): void;
   togglePreview(): void;
   toggleSplit(): void;
   setView(m: ViewMode): void;
@@ -192,7 +195,7 @@ function textItems(a: MenuActions): MenuItem[] {
     "sep",
     { label: "Localizar…", shortcut: "Ctrl+F", action: a.find },
     { label: "Substituir…", action: a.replace },
-    { label: "Ir para linha…", shortcut: "Ctrl+Alt+G", action: a.gotoLine },
+    { label: "Ir para linha…", shortcut: "Ctrl+G", action: a.gotoLine },
   ];
 }
 
@@ -292,7 +295,8 @@ export function languageItems(a: MenuActions): MenuItem[] {
   return [mk("Automático", "auto"), "sep", mk("Texto simples", "plain"), mk("Markdown", "markdown"), mk("DBML", "dbml"), mk("JSON", "json"), mk("YAML", "yaml"), mk("TOML", "toml"), mk("CSV", "csv")];
 }
 
-export function mountMenuBar(root: HTMLElement, a: MenuActions) {
+/** Os menus do topo (título e itens, calculados na hora): a barra e a paleta de comandos leem o mesmo. */
+export function topMenus(a: MenuActions): { label: () => string; items: () => MenuItem[] }[] {
   // janela reserva ou ainda carregando: não há aba ativa, então `current()` não pode ser chamado
   const langMenuLabel = () => {
     try {
@@ -334,7 +338,10 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
         { label: "Localizar…", shortcut: "Ctrl+F", action: a.find },
         { label: "Substituir…", action: a.replace },
         { label: "Buscar em todas as abas…", shortcut: "Ctrl+Shift+F", action: a.globalSearch },
-        { label: "Ir para linha…", shortcut: "Ctrl+Alt+G", action: a.gotoLine },
+        { label: "Ir para linha…", shortcut: "Ctrl+G", action: a.gotoLine },
+        { label: "Ir para arquivo…", shortcut: "Ctrl+P", action: a.openPalette },
+        { label: "Ir para título ou símbolo…", shortcut: "Ctrl+Shift+O", action: a.gotoSymbol },
+        { label: "Paleta de comandos…", shortcut: "Ctrl+Shift+P", action: a.commandPalette },
       ],
     },
     {
@@ -364,6 +371,11 @@ export function mountMenuBar(root: HTMLElement, a: MenuActions) {
       ],
     },
   ];
+  return menus;
+}
+
+export function mountMenuBar(root: HTMLElement, a: MenuActions) {
+  const menus = topMenus(a);
 
   let open: HTMLElement | null = null;
   const buttons = menus.map((m) => {

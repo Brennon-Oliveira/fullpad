@@ -1,4 +1,3 @@
-import { gotoLine } from "@codemirror/search";
 import { mountGlobalSearch } from "./globalsearch";
 import { openSearch } from "./searchpanel";
 import { redo, selectAll, undo } from "@codemirror/commands";
@@ -28,7 +27,8 @@ import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
 const MAX_CSV_CHARS = 50_000_000; // mesmo valor de csv/panel.ts
-import { codeLangItems, exportItem, isTree, languageItems, mountMenuBar, sideOnly, viewItems, zoomItems } from "./menus";
+import { codeLangItems, exportItem, isTree, languageItems, mountMenuBar, sideOnly, topMenus, viewItems, zoomItems } from "./menus";
+import { dbmlSymbols, markdownSymbols, pushRecent, treeSymbols, type Symbol as PaletteSymbol } from "./palettecore";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
 import { currentZoom, loadZoom, onZoomChange, setZoom, stepZoom, wheelZoom } from "./zoom";
@@ -1136,6 +1136,102 @@ async function showHistory() {
   openHistory(await api.listClosed(300), (id) => void reopenTab(id));
 }
 
+// ---- paleta (Ctrl+P): arquivos, `:` linha, `@` título/símbolo, `>` comandos --------------
+
+const RECENTS_KEY = "fullpad.recentFiles";
+function loadRecents(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+/** Lembra um arquivo aberto/salvo para o Ctrl+P (só caminhos; os 50 últimos). */
+function rememberPath(path: string) {
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(pushRecent(loadRecents(), path)));
+  } catch {
+    /* sem armazenamento: a paleta só fica sem "recentes" */
+  }
+}
+
+/** Vai para a linha/coluna (1 = primeira) do editor do painel atual. */
+function gotoLineCol(line: number, col?: number) {
+  const v = cur.view;
+  const doc = v.state.doc;
+  const ln = doc.line(Math.min(Math.max(line, 1), doc.lines));
+  const pos = Math.min(ln.from + Math.max(0, (col ?? 1) - 1), ln.to);
+  v.dispatch({ selection: { anchor: pos }, effects: CMEditorView.scrollIntoView(pos, { y: "center" }) });
+  v.focus();
+}
+
+function gotoPos(pos: number) {
+  const v = cur.view;
+  const at = Math.min(pos, v.state.doc.length);
+  v.dispatch({ selection: { anchor: at }, effects: CMEditorView.scrollIntoView(at, { y: "start", yMargin: 60 }) });
+  v.focus();
+}
+
+async function symbolsOfActive(): Promise<PaletteSymbol[] | null> {
+  if (!session.active) return null;
+  const tab = activeTab();
+  if (isReader(tab)) return null;
+  const text = cur.view.state.doc.toString();
+  const lang = effectiveLang(tab);
+  try {
+    if (lang === "markdown") return markdownSymbols(text);
+    if (lang === "dbml") return dbmlSymbols(text);
+    if (lang === "json" || lang === "yaml" || lang === "toml") {
+      const a = lang === "json" ? await api.jsonAnalyze(text) : await api.dataAnalyze(lang, text);
+      return a.doc ? treeSymbols(a.doc.nodes) : [];
+    }
+  } catch {
+    return [];
+  }
+  return null;
+}
+
+/** Itens dos menus, achatados: "Editar › Substituir…". Desligados e submenus de valores ficam de fora do que não executa. */
+function paletteCommands() {
+  const out: { title: string; path: string; shortcut?: string; run: () => void }[] = [];
+  const walk = (items: MenuItem[], trail: string) => {
+    for (const it of items) {
+      if (it === "sep" || it.disabled) continue;
+      if (it.submenu) walk(it.submenu, `${trail} › ${it.label.replace(/…$/, "")}`);
+      else if (it.action) out.push({ title: it.label, path: trail, shortcut: it.shortcut, run: it.action });
+    }
+  };
+  try {
+    for (const m of topMenus(menuActions)) walk(m.items(), m.label());
+  } catch {
+    /* janela sem aba ativa: sem comandos que dependam dela */
+  }
+  return out;
+}
+
+async function openPaletteWith(initial: string) {
+  const { openPalette } = await import("./palette");
+  const jump = (line?: number, col?: number) => line !== undefined && gotoLineCol(line, col);
+  openPalette(
+    {
+      tabs: () => pinnedFirst(session.tabs).map((t) => ({ id: t.id, title: t.title, path: t.path, pinned: !!t.pinned, active: t.id === session.active })),
+      closed: () => closedCache.map((c) => ({ id: c.tab.id, title: c.tab.title, path: c.tab.path })),
+      recents: loadRecents,
+      commands: paletteCommands,
+      symbols: symbolsOfActive,
+      lineCount: () => (session.active && !isReader(activeTab()) ? cur.view.state.doc.lines : null),
+      gotoLine: gotoLineCol,
+      gotoPos,
+      openTab: (id, line, col) => void activate(id).then(() => jump(line, col)),
+      reopen: (id, line, col) => void reopenTab(id).then(() => jump(line, col)),
+      openPath: (path, line, col) => void openPaths([path]).then(() => jump(line, col)),
+      refocus: () => cur.view.focus(),
+    },
+    initial,
+  );
+}
+
 async function closeTab(id: string, ask = true) {
   const tab = session.tabs.find((t) => t.id === id);
   if (!tab || (ask && tab.pinned)) return; // fixada: só fecha depois de desafixar
@@ -2132,6 +2228,7 @@ async function openPaths(paths: string[]) {
     const existing = session.tabs.find((t) => t.path === path);
     if (existing) {
       await activate(existing.id);
+      rememberPath(path);
       continue;
     }
     snapshotActive();
@@ -2141,6 +2238,7 @@ async function openPaths(paths: string[]) {
       const { tab, text } = reader ? { tab: await api.openReader(path), text: "" } : await api.openFile(path);
       session.tabs.push(tab);
       await show(tab, text);
+      rememberPath(path);
     } catch (e) {
       await message(String(e), { title: "Erro ao abrir", kind: "error" });
     }
@@ -2175,6 +2273,7 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
   }
   dirtyNotes.delete(tab.id);
   tab.path = path;
+  rememberPath(path);
   tab.release_notes = false; // virou arquivo do usuário: fechar volta a passar pelo histórico
   tab.title = baseName(path);
   tab.dirty = false;
@@ -2320,7 +2419,10 @@ const menuActions = {
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
   find: () => void (readerZoom((r) => r.find()) || openSearch(cur.view)),
   replace: () => openSearch(cur.view, true),
-  gotoLine: () => gotoLine(cur.view),
+  gotoLine: () => openPaletteWith(":"),
+  openPalette: () => openPaletteWith(""),
+  gotoSymbol: () => openPaletteWith("@"),
+  commandPalette: () => openPaletteWith(">"),
   togglePreview,
   toggleSplit,
   setView,
@@ -2388,8 +2490,25 @@ window.addEventListener(
       e.preventDefault();
       return menuActions.saveAll();
     }
+    if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.code === "KeyG") {
+      e.preventDefault();
+      return void openPaletteWith(":");
+    }
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     const key = e.key.toLowerCase();
+    if (e.code === "KeyP") {
+      e.preventDefault(); // sem isto o WebView abre a impressão
+      return void openPaletteWith(e.shiftKey ? ">" : "");
+    }
+    if (e.code === "KeyO" && e.shiftKey) {
+      e.preventDefault();
+      return void openPaletteWith("@");
+    }
+    // Ctrl+G com a busca do editor aberta continua sendo "próximo resultado"
+    if (e.code === "KeyG" && !e.shiftKey && !(e.target instanceof Element && e.target.closest(".cm-panels"))) {
+      e.preventDefault();
+      return void openPaletteWith(":");
+    }
     if (e.code === "Backslash" || e.code === "IntlBackslash" || key === "\\") {
       e.preventDefault();
       return splitActive(e.shiftKey ? "bottom" : "right");

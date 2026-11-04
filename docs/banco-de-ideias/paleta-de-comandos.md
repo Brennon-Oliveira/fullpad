@@ -1,7 +1,7 @@
 ---
 titulo: Paleta de comandos (Ctrl+Shift+P)
-feita: não
-versao: —
+feita: sim
+versao: próxima (a definir ao gerar a versão)
 ---
 
 # Paleta de comandos
@@ -26,3 +26,7 @@ Lista pesquisável (busca aproximada) de todas as ações do app: formatar JSON,
 
 - Não perder o estado do foco do editor ao abrir/fechar a paleta.
 - Mesmo comando disparado pela paleta, menu ou atalho deve ter o mesmo efeito (uma transação no CodeMirror, um passo no Ctrl+Z).
+
+## Como saiu
+
+Junto com a busca de arquivos (Ctrl+P), numa janelinha só: sem prefixo busca abas abertas, fechadas e recentes (mostrando a fonte à direita); `:` linha (Ctrl+G), `@` títulos/símbolos (Ctrl+Shift+O), `>` comandos (Ctrl+Shift+P). Os comandos vêm dos menus achatados, não de um registro único: isso fica como evolução. Detalhes em [AGENTS.md](../AGENTS.md).

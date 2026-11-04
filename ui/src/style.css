@@ -546,3 +546,9 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .gs-preview mark { background: rgba(255, 200, 0, .4); color: inherit; }
 .gs-more { padding: 2px 8px 4px 20px; color: var(--muted); font-style: italic; }
 body.floating #gsearch, .preview-only #gsearch { display: none; }
+
+/* paleta (Ctrl+P) */
+.palette-backdrop .modal { width: min(680px, 94vw); }
+.modal-row .modal-meta { display: flex; gap: 10px; max-width: 65%; }
+.modal-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.modal-badge { flex: none; padding: 0 6px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--fg); font-size: 11px; line-height: 18px; }

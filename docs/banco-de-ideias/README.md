@@ -17,7 +17,7 @@ Ao implementar uma ideia, troque `feita` para `sim`, preencha `versao` e atualiz
 | [Referência com volta (link da nota para o ponto do PDF/EPUB)](referencia-com-volta.md) | não | — |
 | [Nota ao lado do leitor (e "nota do livro")](nota-ao-lado-do-leitor.md) | não | — |
 | [Busca em todas as abas + refação visual da busca](busca-global.md) | sim | próxima (a definir) |
-| [Paleta de comandos](paleta-de-comandos.md) | não | — |
+| [Paleta de comandos](paleta-de-comandos.md) | sim | próxima (a definir) |
 | [Sumário lateral](sumario-lateral.md) | não | — |
 | [YAML e TOML](yaml-toml.md) | sim | próxima (a definir) |
 | [Visão de CSV](csv.md) | sim | 1.1.0 |
