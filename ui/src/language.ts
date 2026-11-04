@@ -1,9 +1,10 @@
 /** `pdf` e `epub`: aba de leitura (sem texto). Só `effectiveLang` o devolve; `detectLanguage` nunca. */
-export type Lang = "plain" | "markdown" | "dbml" | "mermaid" | "json" | "csv" | "yaml" | "toml" | "pdf" | "epub";
+export type Lang = "plain" | "markdown" | "dbml" | "mermaid" | "latex" | "json" | "csv" | "yaml" | "toml" | "pdf" | "epub";
 
 const MD_EXT = new Set(["md", "markdown", "mdown", "mkd", "mdx"]);
 const DBML_EXT = new Set(["dbml", "dbmlx"]);
 const MERMAID_EXT = new Set(["mmd", "mermaid"]);
+const LATEX_EXT = new Set(["tex", "latex", "ltx"]);
 const JSON_EXT = new Set(["json", "jsonc", "geojson", "webmanifest"]);
 const YAML_EXT = new Set(["yaml", "yml"]);
 const TOML_EXT = new Set(["toml"]);
@@ -49,6 +50,7 @@ export function detectLanguage(text: string, path: string | null): Lang {
     if (MD_EXT.has(ext)) return "markdown";
     if (DBML_EXT.has(ext)) return "dbml";
     if (MERMAID_EXT.has(ext)) return "mermaid";
+    if (LATEX_EXT.has(ext)) return "latex";
     if (JSON_EXT.has(ext)) return "json";
     if (CSV_EXT.has(ext)) return "csv";
     if (YAML_EXT.has(ext)) return "yaml";

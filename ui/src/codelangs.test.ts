@@ -6,6 +6,23 @@ import { NO_CODE_LANG, codeLanguageFor, codeLanguages, pickableLanguages } from 
 
 const find = (name: string) => LanguageDescription.matchLanguageName(codeLanguages, name, true);
 
+describe("LaTeX e Mermaid como tipos próprios", () => {
+  it("colorem os blocos do markdown, mas ficam fora do seletor de Lang", () => {
+    expect(find("latex")?.name).toBe("LaTeX");
+    expect(find("tex")?.name).toBe("LaTeX");
+    expect(find("mermaid")?.name).toBe("Mermaid");
+    expect(pickableLanguages.map((l) => l.name)).not.toContain("LaTeX");
+    expect(pickableLanguages.map((l) => l.name)).not.toContain("Mermaid");
+    expect(codeLanguageFor("tese.tex")).toBeNull(); // o .tex é um tipo de arquivo (Language), não só destaque
+  });
+
+  it("o destaque do LaTeX carrega", async () => {
+    const support = await find("latex")!.load();
+    const state = EditorState.create({ doc: "\\section{Oi} $x^2$ % nota", extensions: [support] });
+    expect(state.doc.toString()).toContain("section");
+  });
+});
+
 describe("linguagens dos blocos de código", () => {
   it.each([
     ["js", "JavaScript"],

@@ -16,6 +16,11 @@ describe("detectLanguage", () => {
     expect(detectLanguage("", "C:\\x\\FLUXO.MERMAID")).toBe("mermaid");
     expect(detectLanguage("flowchart LR\n A --> B", null)).toBe("plain");
   });
+  it("reconhece LaTeX só pela extensão", () => {
+    expect(detectLanguage("\\documentclass{article}", "tese.tex")).toBe("latex");
+    expect(detectLanguage("", "C:\\x\\FORMULA.LTX")).toBe("latex");
+    expect(detectLanguage("\\documentclass{article}", null)).toBe("plain");
+  });
   it("reconhece CSV e TSV só pela extensão", () => {
     expect(detectLanguage("a,b\n1,2", "dados.csv")).toBe("csv");
     expect(detectLanguage("a\tb", "C:\\x\\DADOS.TSV")).toBe("csv");

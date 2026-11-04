@@ -6,6 +6,7 @@ Arquivos para abrir no app (Ctrl+O, ou arraste-os para a janela) e ver o que ele
 |---|---|
 | `example.md` | Markdown renderizado e editável; `Ctrl+E` alterna código/renderizado, `Ctrl+Shift+E` lado a lado; blocos de código coloridos; diagramas Mermaid; equações LaTeX (`$...$` e `$$...$$`); Arquivo ▸ Exportar |
 | `example.mmd` | Diagrama Mermaid (fluxograma com subgrafos, rótulos nas setas, estilos e comentários `%%`). Abre com o diagrama ao lado do código (`Ctrl+E`), pan/zoom com a roda e arrastando, botão SVG; apague um trecho para ver o erro de sintaxe na faixa embaixo |
+| `example.tex` | Documento LaTeX com destaque de sintaxe. Ao lado do código (`Ctrl+E`) aparecem só as **equações soltas**, uma por cartão (`$..$`, `\(..\)`, `\[..\]`, `$$..$$`, `equation`, `align`, `gather`, `multline`): passar o mouse pinta o trecho no código, clicar leva o cursor até lá, e uma equação com erro é marcada. O documento não é compilado |
 | `example.json` | Árvore ao lado do código, links, cores, miniatura de imagem, números enormes preservados, chaves repetidas; `Alt+Shift+F` formata |
 | `example.jsonc` | JSON com comentários e vírgulas sobrando (o formatador recusa para não apagar comentários) |
 | `example.dbml` | Diagrama do banco de uma escola de idiomas: esquemas, enums, relações, índices, grupos, `Records` |

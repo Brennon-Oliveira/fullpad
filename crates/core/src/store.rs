@@ -523,6 +523,19 @@ mod tests {
     }
 
     #[test]
+    fn latex_language_survives_session_roundtrip() {
+        let (_d, s) = store();
+        let mut tab = s.create_note().unwrap();
+        tab.language = crate::Language::Latex;
+        let mut session = Session::empty();
+        session.active = Some(tab.id);
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        let loaded = s.load_session().unwrap();
+        assert_eq!(loaded.tabs[0].language, crate::Language::Latex);
+    }
+
+    #[test]
     fn csv_language_and_settings_survive_session_roundtrip() {
         let (_d, s) = store();
         let mut tab = s.create_note().unwrap();
@@ -573,7 +586,7 @@ mod tests {
         let (d, s) = store();
         let t = s.create_note().unwrap();
         let json = format!(
-            r#"{{"version":1,"active":"{id}","tabs":[{{"id":"{id}","title":"x","cursor":2,"scroll":0.0,"mode":"holografico","language":"latex"}}]}}"#,
+            r#"{{"version":1,"active":"{id}","tabs":[{{"id":"{id}","title":"x","cursor":2,"scroll":0.0,"mode":"holografico","language":"holografico"}}]}}"#,
             id = t.id
         );
         std::fs::write(d.path().join("session.json"), json).unwrap();

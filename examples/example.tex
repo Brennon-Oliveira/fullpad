@@ -1,0 +1,74 @@
+% Fórmulas de um curso de Cálculo e Física. O Fullpad não compila documentos LaTeX:
+% ele mostra, ao lado do código (Ctrl+E), cada equação solta do arquivo.
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb}
+
+\title{Notas de aula: limites, séries e mecânica}
+\author{Turma 2026}
+
+\begin{document}
+\maketitle
+
+\section{Limites e continuidade}
+
+O limite fundamental é $\lim_{x \to 0} \frac{\sin x}{x} = 1$, e a definição
+formal usa $\varepsilon$ e $\delta$:
+\[
+  \forall \varepsilon > 0,\ \exists \delta > 0 :\
+  0 < |x - a| < \delta \implies |f(x) - L| < \varepsilon
+\]
+
+Uma função definida por partes:
+\begin{equation}
+  f(x) =
+  \begin{cases}
+    x^2          & \text{se } x \ge 0 \\
+    -x           & \text{se } x < 0
+  \end{cases}
+\end{equation}
+
+\section{Séries}
+
+A soma dos $n$ primeiros inteiros é $\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$.
+A série geométrica e a de Basileia:
+\begin{align*}
+  \sum_{k=0}^{\infty} r^k &= \frac{1}{1 - r}, \qquad |r| < 1 \\
+  \sum_{k=1}^{\infty} \frac{1}{k^2} &= \frac{\pi^2}{6}
+\end{align*}
+
+\section{Integrais}
+
+$$ \int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi} $$
+
+\begin{gather}
+  \int_0^1 x^n\,dx = \frac{1}{n + 1} \\
+  \oint_C \vec{F} \cdot d\vec{r} = \iint_S (\nabla \times \vec{F}) \cdot d\vec{S}
+\end{gather}
+
+\section{Mecânica e álgebra linear}
+
+A energia de repouso é \(E = mc^2\) e a equação de Schrödinger,
+\begin{equation}
+  i\hbar \frac{\partial}{\partial t} \Psi(\mathbf{r}, t)
+  = \left[ -\frac{\hbar^2}{2m} \nabla^2 + V(\mathbf{r}, t) \right] \Psi(\mathbf{r}, t)
+\end{equation}
+
+Uma matriz e o seu determinante:
+\[
+  A = \begin{pmatrix} a & b \\ c & d \end{pmatrix}, \qquad
+  \det A = ad - bc
+\]
+
+\begin{multline}
+  (x_1 + x_2 + x_3 + x_4)^2 = x_1^2 + x_2^2 + x_3^2 + x_4^2 \\
+  + 2(x_1 x_2 + x_1 x_3 + x_1 x_4 + x_2 x_3 + x_2 x_4 + x_3 x_4)
+\end{multline}
+
+\section{O que não vira equação}
+
+Custa \$5 e o desconto é de \$2. Um comentário com fórmula fica de fora:
+% $a^2 + b^2 = c^2$ (comentário)
+
+Uma equação com erro de sintaxe aparece marcada, sem derrubar as outras: $\frac{1}{$ e, depois dela, $x + y$ normal.
+
+\end{document}

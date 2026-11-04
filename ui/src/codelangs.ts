@@ -106,6 +106,7 @@ export const codeLanguages: LanguageDescription[] = [
     extensions: ["dbml", "dbmlx"],
     load: async () => new LanguageSupport(dbmlLanguage), // já está no bundle: não há o que carregar
   }),
+  legacy("LaTeX", ["tex", "latex"], ["tex", "latex", "ltx"], () => import("@codemirror/legacy-modes/mode/stex").then((m) => m.stex)),
   LanguageDescription.of({
     name: "Mermaid",
     alias: ["mermaid", "mmd"],
@@ -115,10 +116,13 @@ export const codeLanguages: LanguageDescription[] = [
 ];
 
 /** Tipos de arquivo que têm visão própria (não são "só destaque"): ficam de fora do seletor de Lang. */
-const OWN_TYPE = new Set(["DBML", "Mermaid", "JSON", "YAML", "TOML"]);
+const OWN_TYPE = new Set(["DBML", "Mermaid", "LaTeX", "JSON", "YAML", "TOML"]);
 
 /** As linguagens que o usuário pode escolher à mão para colorir um arquivo de texto. */
 export const pickableLanguages: readonly LanguageDescription[] = codeLanguages.filter((l) => !OWN_TYPE.has(l.name));
+
+/** O destaque do LaTeX: a linguagem `latex` do app (arquivos `.tex`) é um tipo próprio, fora do seletor de Lang. */
+export const latexDescription = codeLanguages.find((l) => l.name === "LaTeX")!;
 
 /** Valor de `TabState.code_lang` para "sem destaque" (texto puro). */
 export const NO_CODE_LANG = "none";

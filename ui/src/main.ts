@@ -14,7 +14,7 @@ import { api, type ClosedTab, type Encoding, type Eol, type Language, type Sessi
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import { mermaidLanguage } from "./mermaidlang";
 
-/** O que o painel do diagrama (DBML ou Mermaid) oferece: os dois têm o mesmo contrato. */
+/** O que o painel da visão ao lado do código (diagrama DBML ou Mermaid, equações do .tex) oferece. */
 interface DiagramPanel {
   show(text: string, resetView: boolean, rev?: number): void;
   update(text: string, rev?: number): void;
@@ -29,10 +29,11 @@ import type { ReaderPanel } from "./reader/panel";
 import type { ReaderPos } from "./reader/pos";
 import { type CsvSettings, activeDelimiter, readCsvSettings } from "./csv/settings";
 import { type Lang, detectLanguage, extOf } from "./language";
-import { codeLanguageFor } from "./codelangs";
+import { codeLanguageFor, latexDescription } from "./codelangs";
 import { pinnedFirst, toCloseAll, toCloseOthers, toCloseSaved, withUnsavedChanges } from "./tabsets";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
 const MAX_MERMAID_CHARS = 100_000; // mesmo valor de mermaid/render.ts
+const MAX_TEX_CHARS = 500_000; // mesmo valor de latex/panel.ts
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
 const MAX_CSV_CHARS = 50_000_000; // mesmo valor de csv/panel.ts
@@ -99,7 +100,7 @@ interface Group {
   /** Muda a cada edição/troca de aba: o diagrama só se liga ao código se for da mesma versão. */
   rev: number;
   diagram?: DiagramPanel;
-  diagramKind?: "dbml" | "mermaid"; // de qual linguagem é o painel que está em `diagram`
+  diagramKind?: "dbml" | "mermaid" | "latex"; // de qual linguagem é o painel que está em `diagram`
   diagramLoading?: Promise<void>;
   diagramTab: string | null; // aba cujo diagrama está na tela
   mdPane?: MarkdownPane;
@@ -195,7 +196,7 @@ function effectiveLang(tab: TabState): Lang {
 function previewAvailable(tab: TabState): boolean {
   const len = states.get(tab.id)?.doc.length ?? 0;
   const lang = effectiveLang(tab);
-  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (lang === "mermaid" && len <= MAX_MERMAID_CHARS) || (isTree(lang) && len <= MAX_JSON_CHARS) || (lang === "csv" && len <= MAX_CSV_CHARS);
+  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (lang === "mermaid" && len <= MAX_MERMAID_CHARS) || (lang === "latex" && len <= MAX_TEX_CHARS) || (isTree(lang) && len <= MAX_JSON_CHARS) || (lang === "csv" && len <= MAX_CSV_CHARS);
 }
 
 /** Como o arquivo aparece: só código, renderizado no próprio texto (markdown) ou ao lado do código. */
@@ -214,6 +215,7 @@ function viewLabel(tab: TabState): string {
   if (k === "source") return "Código";
   if (tab.detached) return "Janela separada";
   if (effectiveLang(tab) === "dbml" || effectiveLang(tab) === "mermaid") return "Diagrama";
+  if (effectiveLang(tab) === "latex") return "Equações";
   if (isTree(effectiveLang(tab))) return "Árvore";
   if (effectiveLang(tab) === "csv") return k === "inline" ? "Tabela" : "Tabela e código";
   return k === "inline" ? "Preview" : "Lado a lado";
@@ -314,6 +316,8 @@ function supportFor(tab: TabState): Extension | undefined {
       return dbmlSupport;
     case "mermaid":
       return mermaidLanguage;
+    case "latex":
+      return codeSupports.get(latexDescription.name);
     case "json":
     case "yaml":
     case "toml":
@@ -334,7 +338,9 @@ const codeLoading = new Set<string>();
 
 /** Linguagem de destaque da aba (escolhida à mão ou pela extensão); só para texto puro. */
 function codeLangOf(tab: TabState) {
-  return !isReader(tab) && effectiveLang(tab) === "plain" ? codeLanguageFor(tab.path, tab.code_lang) : null;
+  if (isReader(tab)) return null;
+  if (effectiveLang(tab) === "latex") return latexDescription; // tipo próprio, com destaque fixo
+  return effectiveLang(tab) === "plain" ? codeLanguageFor(tab.path, tab.code_lang) : null;
 }
 
 function ensureCodeSupport() {
@@ -403,7 +409,7 @@ function patchCsv(patch: Partial<CsvSettings>) {
 const previewOpen = new Map<string, UnlistenFn[]>(); // abas com janela de preview aberta
 let pvTimer: number | undefined;
 
-const previewLang = (tab: TabState) => (effectiveLang(tab) === "dbml" ? "dbml" : effectiveLang(tab) === "mermaid" ? "mermaid" : effectiveLang(tab) === "json" ? "json" : "markdown");
+const previewLang = (tab: TabState) => (effectiveLang(tab) === "dbml" ? "dbml" : effectiveLang(tab) === "mermaid" ? "mermaid" : effectiveLang(tab) === "latex" ? "latex" : effectiveLang(tab) === "json" ? "json" : "markdown");
 
 /** Pasta do arquivo da aba (para imagens de caminho relativo no JSON). */
 const dirOf = (p: string | null) => (p && /[\\/]/.test(p) ? p.replace(/[\\/][^\\/]*$/, "") : null);
@@ -506,7 +512,7 @@ function toggleDetached() {
 
 // ---- diagrama DBML (carregado sob demanda) ------------------------------------
 
-const isDiagramLang = (l: Lang): l is "dbml" | "mermaid" => l === "dbml" || l === "mermaid";
+const isDiagramLang = (l: Lang): l is "dbml" | "mermaid" | "latex" => l === "dbml" || l === "mermaid" || l === "latex";
 const diagramWanted = (tab: TabState) => previewOn(tab) && !tab.detached && isDiagramLang(effectiveLang(tab));
 
 // ---- árvore JSON ao lado do código (carregada sob demanda) ----------------------------
@@ -714,7 +720,7 @@ function syncDiagram(textChanged = false) {
     g.diagramTab = null;
     return;
   }
-  const kind = effectiveLang(tab) as "dbml" | "mermaid";
+  const kind = effectiveLang(tab) as "dbml" | "mermaid" | "latex";
   if (g.diagram && g.diagramKind !== kind) {
     // a aba mudou de DBML para Mermaid (ou ao contrário): o painel de antes não serve
     g.diagram.hide();
@@ -739,7 +745,19 @@ function syncDiagram(textChanged = false) {
           g.diagram = m.createMermaidPanel(g.diagramEl, { isDark });
           g.diagramKind = "mermaid";
         })
-      : import("./dbml/panel").then((m) => {
+      : kind === "latex"
+        ? import("./latex/panel").then((m) => {
+            g.diagram = m.createLatexPanel(g.diagramEl, {
+              onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
+              onPick: (offset, rev) => {
+                if (rev !== g.rev) return; // o texto mudou depois de a equação ser desenhada
+                g.view.dispatch({ selection: { anchor: offset }, scrollIntoView: true });
+                g.view.focus();
+              },
+            });
+            g.diagramKind = "latex";
+          })
+        : import("./dbml/panel").then((m) => {
           g.diagram = m.createDiagramPanel(g.diagramEl, {
             // mouse sobre o diagrama → destaca a linha no código (sem selecionar)
             onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
@@ -771,7 +789,7 @@ const ENC_LABEL: Record<Encoding, string> = {
   utf16be: "UTF-16 BE BOM",
   windows1252: "Windows-1252",
 };
-const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", mermaid: "Mermaid", json: "JSON", csv: "CSV", yaml: "YAML", toml: "TOML", pdf: "PDF", epub: "EPUB" };
+const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", mermaid: "Mermaid", latex: "LaTeX", json: "JSON", csv: "CSV", yaml: "YAML", toml: "TOML", pdf: "PDF", epub: "EPUB" };
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
@@ -2278,12 +2296,12 @@ async function checkUpdates(manual: boolean) {
 // ---- arquivos ---------------------------------------------------------------
 
 const OPEN_FILTERS = [
-  { name: "Texto, Markdown, DBML, Mermaid, JSON, YAML, TOML, CSV, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "mmd", "mermaid", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv", "pdf", "epub"] },
+  { name: "Texto, Markdown, DBML, Mermaid, LaTeX, JSON, YAML, TOML, CSV, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "mmd", "mermaid", "tex", "latex", "ltx", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv", "pdf", "epub"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
 const FILTERS = [
-  { name: "Texto, Markdown, DBML, Mermaid, JSON, YAML, TOML e CSV", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "mmd", "mermaid", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv"] },
+  { name: "Texto, Markdown, DBML, Mermaid, LaTeX, JSON, YAML, TOML e CSV", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "mmd", "mermaid", "tex", "latex", "ltx", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
@@ -2634,7 +2652,7 @@ const menuActions = {
       csv: csvSettings(tab),
       csvDetected: csvDetected.get(tab.id) ?? ",",
       hasSelection: !cur.view.state.selection.main.empty,
-      codeLang: { chosen: tab.code_lang, effective: codeLangOf(tab)?.name ?? null },
+      codeLang: { chosen: tab.code_lang, effective: effectiveLang(tab) === "plain" ? (codeLangOf(tab)?.name ?? null) : null },
       treeOn: jsonTreeOn(),
       zoom: currentZoom(),
     };

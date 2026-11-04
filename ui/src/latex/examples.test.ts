@@ -16,3 +16,19 @@ describe("exemplo de equações", () => {
     expect(body).toContain("R$ 5 e depois R$ 10");
   });
 });
+
+describe("exemplo do .tex", () => {
+  it("example.tex tem as equações de cada forma e só a de teste dá erro", async () => {
+    const { scanTex } = await import("./texscan");
+    const { renderMath, resetMathForTests } = await import("./render");
+    resetMathForTests();
+    const text = readFileSync(resolve(process.cwd(), "../examples/example.tex"), "utf8");
+    const eqs = scanTex(text);
+    expect(eqs.length).toBeGreaterThanOrEqual(14);
+    const bad = [];
+    for (const e of eqs) if (!(await renderMath(e.tex, e.display)).ok) bad.push(e.tex);
+    expect(bad).toEqual(["\\frac{1}{"]);
+    expect(eqs.map((e) => e.tex).join("\n")).not.toContain("a^2 + b^2"); // o comentário fica de fora
+    expect(eqs.map((e) => e.tex).join("\n")).not.toContain("5"); // o `\$5` é dinheiro
+  });
+});
