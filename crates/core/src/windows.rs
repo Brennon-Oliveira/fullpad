@@ -106,6 +106,8 @@ impl Session {
                 }
                 // o tipo da aba não muda por gravação da UI: uma aba de PDF nunca vira texto editável
                 t.kind = stored.kind;
+                // o carimbo do arquivo é do Rust (gravar e recarregar o atualizam); a UI pode estar atrasada
+                t.disk = stored.disk.or(t.disk);
             }
             t.window = label.to_string();
             accepted.push(t);

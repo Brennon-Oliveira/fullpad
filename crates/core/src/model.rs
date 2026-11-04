@@ -163,6 +163,10 @@ pub struct TabState {
     /// vale a detectada pela extensão. Só colore o texto; não muda o tipo de arquivo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code_lang: Option<String>,
+    /// Carimbo do arquivo real na última vez que o Fullpad o leu ou gravou (`disk::DiskStamp`): é com ele
+    /// que se percebe que o arquivo mudou fora do app. Quem decide é o Rust; a UI só repassa.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disk: Option<crate::disk::DiskStamp>,
 }
 
 fn is_text(kind: &TabKind) -> bool {
@@ -191,6 +195,7 @@ impl TabState {
             csv: None,
             pinned: false,
             code_lang: None,
+            disk: None,
         }
     }
 }

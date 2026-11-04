@@ -124,10 +124,28 @@ export interface TabHits {
   hits: { matches: SearchMatch[]; total: number };
 }
 
+/** Data, tamanho e hash do arquivo na última vez que o Fullpad o leu ou gravou (opaco para a UI). */
+export interface DiskStamp {
+  mtime: number;
+  size: number;
+  hash: number;
+}
+
+export type DiskState = "unchanged" | "changed" | "missing";
+
+export interface Reloaded {
+  text: string;
+  encoding: Encoding;
+  eol: Eol;
+  stamp: DiskStamp;
+}
+
 export interface TabState {
   id: string;
   title: string;
   path: string | null;
+  /** Carimbo do arquivo real (do Rust; a UI só o repassa e o atualiza ao salvar e recarregar). */
+  disk?: DiskStamp;
   cursor: number;
   scroll: number;
   /**
@@ -290,6 +308,16 @@ export const api = {
   /** Abre um link (http, https ou mailto) no navegador do sistema. */
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   exportFile: (path: string, bytes: number[]) => invoke<void>("export_file", { path, bytes }),
-  saveFile: (id: string, path: string, text: string, encoding: Encoding, eol: Eol) =>
-    invoke<void>("save_file", { id, path, text, encoding, eol }),
+  /**
+   * Grava o arquivo da aba. Sem `force`, o erro que começa por `conflito:` diz que o arquivo mudou
+   * fora do Fullpad depois de aberto; devolve o carimbo do arquivo gravado.
+   */
+  saveFile: (id: string, path: string, text: string, encoding: Encoding, eol: Eol, force = false) =>
+    invoke<DiskStamp>("save_file", { id, path, text, encoding, eol, force }),
+  /** O arquivo da aba mudou fora do Fullpad? (só confere; não altera nada) */
+  fileCheck: (id: string) => invoke<DiskState>("file_check", { id }),
+  /** Relê o arquivo da aba do disco (texto, codificação, quebras de linha e carimbo). */
+  fileReload: (id: string) => invoke<Reloaded>("file_reload", { id }),
+  /** Ficar com o texto da aba: o arquivo de agora vira a referência e o próximo Salvar não pergunta. */
+  fileKeep: (id: string) => invoke<DiskStamp | null>("file_keep", { id }),
 };

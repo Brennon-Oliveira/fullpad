@@ -74,6 +74,13 @@ pub fn encode(text: &str, encoding: Encoding, eol: Eol) -> Result<Vec<u8>> {
     })
 }
 
+/// Lê o arquivo e devolve também o carimbo dele (para detectar mudança externa depois).
+pub fn read_file_stamped(path: &Path) -> Result<(Decoded, crate::disk::DiskStamp)> {
+    let bytes = std::fs::read(path).at(path)?;
+    let stamp = crate::disk::stamp_of(path, &bytes);
+    Ok((decode(&bytes), stamp))
+}
+
 pub fn read_file(path: &Path) -> Result<Decoded> {
     let bytes = std::fs::read(path).at(path)?;
     Ok(decode(&bytes))

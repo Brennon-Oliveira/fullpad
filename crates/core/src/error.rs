@@ -14,6 +14,9 @@ pub enum Error {
     Unencodable(&'static str),
     #[error("não foi possível determinar o diretório de dados")]
     NoDataDir,
+    /// O arquivo mudou no disco depois de aberto: gravar por cima apagaria a mudança. A UI pergunta.
+    #[error("conflito: o arquivo foi alterado fora do Fullpad depois de aberto")]
+    Conflict,
     #[error("{0}")]
     Invalid(String),
 }

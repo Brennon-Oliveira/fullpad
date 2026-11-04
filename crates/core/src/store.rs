@@ -1,4 +1,5 @@
 use crate::atomic::write_atomic;
+use crate::disk::{self, DiskState, DiskStamp};
 use crate::fileio;
 use crate::error::{Error, IoContext, Result};
 use crate::model::{ClosedTab, Encoding, Eol, Language, Session, TabKind, TabState, ViewMode};
@@ -164,7 +165,7 @@ impl Store {
 
     /// Abre um arquivo real: cria a aba (com buffer em `notes/`) e devolve o texto.
     pub fn open_file(&self, path: &Path) -> Result<(TabState, String)> {
-        let decoded = fileio::read_file(path)?;
+        let (decoded, stamp) = fileio::read_file_stamped(path)?;
         let mut tab = self.create_note()?;
         self.write_note(tab.id, &decoded.text)?;
         tab.path = Some(path.to_path_buf());
@@ -174,7 +175,38 @@ impl Store {
             .unwrap_or_default();
         tab.encoding = decoded.encoding;
         tab.eol = decoded.eol;
+        tab.disk = Some(stamp);
         Ok((tab, decoded.text))
+    }
+
+    /// Como o arquivo da aba está em relação ao que o Fullpad leu ou gravou por último. Devolve também
+    /// o carimbo a guardar (data nova de um arquivo de mesmo conteúdo, ou o primeiro carimbo de uma
+    /// aba antiga que ainda não tinha um). Uma mudança (`Changed`) **não** vira carimbo: continua
+    /// sendo apontada até a pessoa recarregar ou escolher manter o texto dela.
+    pub fn disk_state(&self, tab: &TabState) -> Result<(DiskState, Option<DiskStamp>)> {
+        let Some(path) = tab.path.as_ref().filter(|_| tab.kind == TabKind::Text && !tab.release_notes) else {
+            return Ok((DiskState::Unchanged, None));
+        };
+        match tab.disk {
+            // só uma data nova de conteúdo igual vira carimbo; uma mudança de verdade continua apontada
+            Some(known) => disk::check(path, &known).map(|(s, n)| (s, n.filter(|_| s == DiskState::Unchanged))),
+            None => {
+                // aba de uma versão anterior, sem carimbo: o texto salvo na nota diz se o arquivo é o mesmo
+                let Some(now) = disk::stamp(path)? else { return Ok((DiskState::Missing, None)) };
+                let on_disk = fileio::read_file(path)?.text;
+                let same = self.read_note(tab.id).map(|t| t == on_disk).unwrap_or(false);
+                // sem carimbo e com edições locais, não há como saber quem mudou: vale o disco de agora
+                Ok(if same || tab.dirty { (DiskState::Unchanged, Some(now)) } else { (DiskState::Changed, None) })
+            }
+        }
+    }
+
+    /// Relê o arquivo da aba (para "recarregar do disco"): o texto novo, a codificação e as quebras de
+    /// linha dele, e o carimbo. Atualiza o buffer da nota; quem chama atualiza a aba na sessão.
+    pub fn reload_file(&self, id: Uuid, path: &Path) -> Result<(fileio::Decoded, DiskStamp)> {
+        let (decoded, stamp) = fileio::read_file_stamped(path)?;
+        self.write_note(id, &decoded.text)?;
+        Ok((decoded, stamp))
     }
 
     /// Abre um PDF/EPUB como aba só de leitura. Não lê o arquivo (só confere que existe): a nota
@@ -242,7 +274,10 @@ impl Store {
         write_atomic(&self.positions_path(), &serde_json::to_vec(&all)?)
     }
 
-    /// Grava o texto no arquivo real e sincroniza o buffer da nota.
+    /// Grava o texto no arquivo real e sincroniza o buffer da nota. Devolve o carimbo do arquivo
+    /// gravado. Sem `force`, **recusa** (`Error::Conflict`) se o arquivo mudou no disco depois do
+    /// último carimbo da aba: gravar por cima apagaria a mudança de outro programa. Arquivo que sumiu
+    /// pode ser gravado de novo; "Salvar como" para outro caminho não tem o que conferir.
     pub fn save_file(
         &self,
         id: Uuid,
@@ -250,13 +285,26 @@ impl Store {
         text: &str,
         encoding: Encoding,
         eol: Eol,
-    ) -> Result<()> {
+        force: bool,
+    ) -> Result<DiskStamp> {
+        let session = self.load_session()?;
+        let tab = session.tabs.iter().find(|t| t.id == id);
         // última trava: o texto de uma aba de PDF/EPUB (vazio) jamais pode ir parar no arquivo dele
-        if self.load_session()?.tabs.iter().any(|t| t.id == id && t.kind.is_reader()) {
+        if tab.is_some_and(|t| t.kind.is_reader()) {
             return Err(Error::Invalid("abas de PDF e EPUB são só de leitura".into()));
         }
+        if let (false, Some(tab)) = (force, tab) {
+            if tab.path.as_deref() == Some(path) {
+                if let Some(known) = tab.disk {
+                    if disk::check(path, &known)?.0 == DiskState::Changed {
+                        return Err(Error::Conflict);
+                    }
+                }
+            }
+        }
         fileio::write_file(path, text, encoding, eol)?;
-        self.write_note(id, text)
+        self.write_note(id, text)?;
+        disk::stamp(path)?.ok_or_else(|| Error::Invalid("o arquivo sumiu logo depois de gravar".into()))
     }
 
     /// Fecha uma nota movendo-a para `trash/` (nunca apaga de verdade).
@@ -464,7 +512,7 @@ mod tests {
         assert_eq!((tab.encoding, tab.eol), (Encoding::Utf8Bom, Eol::Crlf));
         assert_eq!(s.read_note(tab.id).unwrap(), text);
 
-        s.save_file(tab.id, &file, "# T\nnova\n", tab.encoding, tab.eol).unwrap();
+        s.save_file(tab.id, &file, "# T\nnova\n", tab.encoding, tab.eol, false).unwrap();
         assert_eq!(std::fs::read(&file).unwrap(), b"\xEF\xBB\xBF# T\r\nnova\r\n");
         assert_eq!(s.read_note(tab.id).unwrap(), "# T\nnova\n");
     }
@@ -520,6 +568,127 @@ mod tests {
         s.save_session(&session).unwrap();
         let loaded = s.load_session().unwrap();
         assert_eq!(loaded.tabs[0].language, crate::Language::Mermaid);
+    }
+
+    /// Abre um arquivo e põe a aba na sessão (como a UI faz ao gravar a janela).
+    fn open_in_session(s: &Store, path: &Path) -> TabState {
+        let (tab, _) = s.open_file(path).unwrap();
+        let mut session = Session::empty();
+        session.active = Some(tab.id);
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        tab
+    }
+
+    fn touch_later(path: &Path) {
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        std::fs::File::options().write(true).open(path).unwrap().set_modified(later).unwrap();
+    }
+
+    #[test]
+    fn open_file_records_the_disk_stamp() {
+        let (d, s) = store();
+        let file = d.path().join("a.md");
+        std::fs::write(&file, "um\n").unwrap();
+        let tab = open_in_session(&s, &file);
+        assert_eq!(tab.disk, disk::stamp(&file).unwrap());
+        assert_eq!(s.disk_state(&tab).unwrap().0, DiskState::Unchanged);
+    }
+
+    #[test]
+    fn save_refuses_to_overwrite_a_change_made_outside_unless_forced() {
+        let (d, s) = store();
+        let file = d.path().join("a.md");
+        std::fs::write(&file, "original\n").unwrap();
+        let tab = open_in_session(&s, &file);
+        // outro programa grava no arquivo
+        std::fs::write(&file, "do outro programa\n").unwrap();
+        touch_later(&file);
+        assert_eq!(s.disk_state(&tab).unwrap().0, DiskState::Changed);
+        let e = s.save_file(tab.id, &file, "meu texto\n", tab.encoding, tab.eol, false).unwrap_err();
+        assert!(matches!(e, Error::Conflict), "veio {e:?}");
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "do outro programa\n", "nada foi sobrescrito");
+        // com `force` (a pessoa escolheu sobrescrever) grava e devolve o carimbo novo
+        let stamp = s.save_file(tab.id, &file, "meu texto\n", tab.encoding, tab.eol, true).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "meu texto\n");
+        assert_eq!(Some(stamp), disk::stamp(&file).unwrap());
+    }
+
+    #[test]
+    fn save_goes_through_when_the_file_did_not_change_and_after_updating_the_stamp() {
+        let (d, s) = store();
+        let file = d.path().join("a.md");
+        std::fs::write(&file, "um\n").unwrap();
+        let mut tab = open_in_session(&s, &file);
+        let stamp = s.save_file(tab.id, &file, "dois\n", tab.encoding, tab.eol, false).unwrap();
+        // a UI guarda o carimbo devolvido; um segundo salvar não pode achar que o arquivo mudou
+        tab.disk = Some(stamp);
+        let mut session = s.load_session().unwrap();
+        session.tabs[0].disk = tab.disk;
+        s.save_session(&session).unwrap();
+        s.save_file(tab.id, &file, "tres\n", tab.encoding, tab.eol, false).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "tres\n");
+    }
+
+    #[test]
+    fn save_as_another_path_and_recreating_a_deleted_file_are_not_conflicts() {
+        let (d, s) = store();
+        let file = d.path().join("a.md");
+        std::fs::write(&file, "um\n").unwrap();
+        let tab = open_in_session(&s, &file);
+        let other = d.path().join("b.md");
+        std::fs::write(&other, "ocupado\n").unwrap(); // o diálogo do sistema já confirmou a troca
+        s.save_file(tab.id, &other, "novo\n", tab.encoding, tab.eol, false).unwrap();
+        std::fs::remove_file(&file).unwrap();
+        assert_eq!(s.disk_state(&tab).unwrap().0, DiskState::Missing);
+        s.save_file(tab.id, &file, "de volta\n", tab.encoding, tab.eol, false).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "de volta\n");
+    }
+
+    #[test]
+    fn a_tab_from_an_older_version_without_a_stamp_is_judged_by_its_saved_text() {
+        let (d, s) = store();
+        let file = d.path().join("a.md");
+        std::fs::write(&file, "texto\n").unwrap();
+        let (mut tab, _) = s.open_file(&file).unwrap();
+        tab.disk = None; // sessão gravada antes de existir o carimbo
+        // o texto da nota é o do arquivo: sem mudança, e o carimbo é criado
+        let (state, stamp) = s.disk_state(&tab).unwrap();
+        assert_eq!((state, stamp.is_some()), (DiskState::Unchanged, true));
+        // o arquivo mudou e a aba não tem edições: é mudança externa, e não vira carimbo
+        std::fs::write(&file, "outro\n").unwrap();
+        assert_eq!(s.disk_state(&tab).unwrap(), (DiskState::Changed, None));
+        // com edições locais não há como saber quem mudou: vale o disco de agora
+        tab.dirty = true;
+        assert_eq!(s.disk_state(&tab).unwrap().0, DiskState::Unchanged);
+    }
+
+    #[test]
+    fn reload_file_replaces_the_note_and_returns_the_stamp() {
+        let (d, s) = store();
+        let file = d.path().join("a.md");
+        std::fs::write(&file, "um\r\ndois\r\n").unwrap();
+        let tab = open_in_session(&s, &file);
+        std::fs::write(&file, "tres\n").unwrap();
+        let (decoded, stamp) = s.reload_file(tab.id, &file).unwrap();
+        assert_eq!((decoded.text.as_str(), decoded.eol), ("tres\n", Eol::Lf));
+        assert_eq!(s.read_note(tab.id).unwrap(), "tres\n");
+        assert_eq!(Some(stamp), disk::stamp(&file).unwrap());
+    }
+
+    #[test]
+    fn the_stamp_is_kept_by_the_session_and_not_changed_by_a_stale_window_save() {
+        let (d, s) = store();
+        let file = d.path().join("a.md");
+        std::fs::write(&file, "um\n").unwrap();
+        let tab = open_in_session(&s, &file);
+        let loaded = s.load_session().unwrap();
+        assert_eq!(loaded.tabs[0].disk, tab.disk, "o carimbo sobrevive a reiniciar");
+        let mut stale = tab.clone();
+        stale.disk = Some(DiskStamp { mtime: 1, size: 1, hash: 1 });
+        let mut session = loaded;
+        session.apply_window("main", vec![stale], None, &Default::default());
+        assert_eq!(session.tabs[0].disk, tab.disk, "a UI atrasada não troca o carimbo do Rust");
     }
 
     #[test]
@@ -739,13 +908,13 @@ mod tests {
         let mut session = Session::empty();
         session.tabs.push(tab.clone());
         s.save_session(&session).unwrap();
-        assert!(s.save_file(tab.id, &pdf_path, "", Encoding::Utf8, Eol::Lf).is_err());
+        assert!(s.save_file(tab.id, &pdf_path, "", Encoding::Utf8, Eol::Lf, true).is_err());
         assert_eq!(std::fs::read(&pdf_path).unwrap(), before);
 
         // uma nota de texto comum continua gravando normalmente
         let note = s.create_note().unwrap();
         let out = d.path().join("saida.txt");
-        s.save_file(note.id, &out, "oi", Encoding::Utf8, Eol::Lf).unwrap();
+        s.save_file(note.id, &out, "oi", Encoding::Utf8, Eol::Lf, false).unwrap();
         assert_eq!(std::fs::read_to_string(out).unwrap(), "oi");
     }
 

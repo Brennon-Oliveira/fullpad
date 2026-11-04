@@ -3,7 +3,7 @@
 use fullpad_core::changelog;
 use fullpad_core::json::{self, Doc, Indent, JsonError};
 use fullpad_core::reader::{FileStatus, PdfScan};
-use fullpad_core::{ClosedTab, Encoding, Eol, Geometry, Session, Store, TabKind, TabState, MAIN_WINDOW};
+use fullpad_core::{ClosedTab, DiskStamp, DiskState, Encoding, Eol, Geometry, Session, Store, TabKind, TabState, MAIN_WINDOW};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -824,6 +824,9 @@ fn reader_relocate(state: State<AppState>, id: String, path: PathBuf) -> Result<
     Ok(updated)
 }
 
+/// Grava o arquivo da aba. Sem `force`, recusa (erro que começa por `conflito:`) se o arquivo mudou
+/// no disco depois de aberto; a UI pergunta e, se a pessoa mandar, repete com `force`. Devolve o
+/// carimbo do arquivo gravado, que também fica na sessão.
 #[tauri::command]
 fn save_file(
     state: State<AppState>,
@@ -832,11 +835,82 @@ fn save_file(
     text: String,
     encoding: Encoding,
     eol: Eol,
-) -> Result<(), String> {
-    state
-        .store
-        .save_file(parse_id(&id)?, &path, &text, encoding, eol)
-        .map_err(err)
+    force: bool,
+) -> Result<DiskStamp, String> {
+    let id = parse_id(&id)?;
+    let _g = state.session_lock.lock().unwrap();
+    let stamp = state.store.save_file(id, &path, &text, encoding, eol, force).map_err(err)?;
+    remember_stamp(&state, id, stamp)?;
+    Ok(stamp)
+}
+
+/// Guarda na sessão o carimbo do arquivo da aba (quem chama já tem o `session_lock`).
+fn remember_stamp(state: &AppState, id: Uuid, stamp: DiskStamp) -> Result<(), String> {
+    let mut session = state.store.load_session().map_err(err)?;
+    if let Some(tab) = session.tabs.iter_mut().find(|t| t.id == id) {
+        tab.disk = Some(stamp);
+        state.store.save_session(&session).map_err(err)?;
+    }
+    Ok(())
+}
+
+/// O arquivo da aba mudou fora do Fullpad? Chamado ao focar a janela e de tempos em tempos na aba
+/// ativa; só confere data e tamanho (e o conteúdo, se eles mudaram). Não altera o arquivo nem o texto.
+#[tauri::command]
+fn file_check(state: State<AppState>, id: String) -> Result<DiskState, String> {
+    let id = parse_id(&id)?;
+    let _g = state.session_lock.lock().unwrap();
+    let mut session = state.store.load_session().map_err(err)?;
+    let Some(tab) = session.tabs.iter_mut().find(|t| t.id == id) else { return Ok(DiskState::Unchanged) };
+    let (disk, stamp) = state.store.disk_state(tab).map_err(err)?;
+    if let Some(stamp) = stamp.filter(|s| tab.disk != Some(*s)) {
+        tab.disk = Some(stamp);
+        state.store.save_session(&session).map_err(err)?;
+    }
+    Ok(disk)
+}
+
+/// O arquivo de uma aba relido do disco ("Recarregar do disco").
+#[derive(Serialize)]
+struct Reloaded {
+    text: String,
+    encoding: Encoding,
+    eol: Eol,
+    stamp: DiskStamp,
+}
+
+/// Relê o arquivo da aba. Troca o texto da nota, a codificação, as quebras de linha e o carimbo; a UI
+/// põe o texto no editor (numa transação, então Ctrl+Z traz o de antes).
+#[tauri::command]
+fn file_reload(state: State<AppState>, id: String) -> Result<Reloaded, String> {
+    let id = parse_id(&id)?;
+    let _g = state.session_lock.lock().unwrap();
+    let mut session = state.store.load_session().map_err(err)?;
+    let tab = session.tabs.iter_mut().find(|t| t.id == id).ok_or("aba não encontrada")?;
+    if tab.kind != TabKind::Text || tab.release_notes {
+        return Err("a aba não tem um arquivo para recarregar".into());
+    }
+    let path = tab.path.clone().ok_or("a aba não está ligada a um arquivo")?;
+    let (decoded, stamp) = state.store.reload_file(id, &path).map_err(err)?;
+    tab.encoding = decoded.encoding;
+    tab.eol = decoded.eol;
+    tab.disk = Some(stamp);
+    tab.dirty = false;
+    state.store.save_session(&session).map_err(err)?;
+    Ok(Reloaded { text: decoded.text, encoding: decoded.encoding, eol: decoded.eol, stamp })
+}
+
+/// "Manter o meu": a pessoa viu que o arquivo mudou e escolheu ficar com o texto da aba. O arquivo de
+/// agora vira a referência, e o próximo Salvar grava por cima sem perguntar de novo.
+#[tauri::command]
+fn file_keep(state: State<AppState>, id: String) -> Result<Option<DiskStamp>, String> {
+    let id = parse_id(&id)?;
+    let _g = state.session_lock.lock().unwrap();
+    let session = state.store.load_session().map_err(err)?;
+    let Some(path) = session.tabs.iter().find(|t| t.id == id).and_then(|t| t.path.clone()) else { return Ok(None) };
+    let Some(stamp) = fullpad_core::disk::stamp(&path).map_err(err)? else { return Ok(None) };
+    remember_stamp(&state, id, stamp)?;
+    Ok(Some(stamp))
 }
 
 /// Resultado de `json_analyze`: ou a árvore ou o erro (a UI mantém a última árvore boa no erro).
@@ -1253,6 +1327,9 @@ fn main() {
             reader_read,
             reader_relocate,
             save_file,
+            file_check,
+            file_reload,
+            file_keep,
             export_file,
             list_windows,
             move_tab,

@@ -6,6 +6,7 @@ pub mod css;
 pub mod csv;
 pub mod epub;
 pub mod error;
+pub mod disk;
 pub mod fileio;
 pub mod json;
 pub mod model;
@@ -17,6 +18,7 @@ pub mod yaml;
 pub mod store;
 pub mod windows;
 
+pub use disk::{DiskStamp, DiskState};
 pub use error::{Error, Result};
 pub use model::{ClosedTab, Encoding, Eol, Geometry, Language, Session, TabKind, TabState, ViewMode, WindowState, MAIN_WINDOW};
 pub use store::Store;

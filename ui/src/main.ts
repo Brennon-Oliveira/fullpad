@@ -113,6 +113,8 @@ interface Group {
   csvEl: HTMLElement;
   /** Faixa de aviso logo abaixo das abas (CSV grande demais para a tabela). */
   noteEl: HTMLElement;
+  /** Faixa de aviso: o arquivo da aba mudou fora do Fullpad, ou sumiu. */
+  diskEl: HTMLElement;
   csv?: CsvPanel;
   csvLoading?: Promise<void>;
   csvTab: string | null; // aba cuja tabela está na tela
@@ -1128,6 +1130,8 @@ async function show(tab: TabState, text?: string) {
   applyTabConfig();
   void syncCsv(tab);
   renderTabs();
+  renderDiskBar(g);
+  void checkDisk(tab); // o arquivo pode ter mudado enquanto a aba não estava à vista (ou o app, fechado)
   requestAnimationFrame(() => {
     g.view.scrollDOM.scrollTop = tab.scroll;
     g.view.focus();
@@ -1558,9 +1562,11 @@ function createGroup(id: number): Group {
   bodyEl.append(editorEl, mdEl, diagramEl, jsonEl, csvEl, readerEl, outlineEl);
   const noteEl = div("note");
   noteEl.hidden = true;
-  el.append(tabsEl, noteEl, bodyEl);
+  const diskEl = div("diskbar");
+  diskEl.hidden = true;
+  el.append(tabsEl, diskEl, noteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, csvEl, noteEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0 };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0 };
   g.outline = createOutline(outlineEl, { goto: (pos) => gotoPosIn(g, pos), togglePinned: toggleOutlinePinned, focusEditor: () => g.view.focus() });
   g.outline.config({ enabled: outlineOn, pinned: outlinePinned, side: outlineSide });
   groups.set(id, g);
@@ -2436,6 +2442,187 @@ function suggestedName(tab: TabState): string {
 }
 
 /** Salva a aba; sem caminho (ou `forceDialog`) abre "Salvar como". */
+// ---- o arquivo mudou fora do Fullpad ---------------------------------------------------
+//
+// Cada aba ligada a arquivo guarda o carimbo dele (`tab.disk`, do Rust). Ao focar a janela, a cada
+// poucos segundos e ao mostrar a aba, `file_check` compara o arquivo com o carimbo:
+//  - mudou e a aba não tem alterações: recarrega sozinho (Ctrl+Z traz o texto de antes);
+//  - mudou e a aba tem alterações: faixa com "Recarregar do disco" ou "Manter o meu";
+//  - sumiu: faixa avisando (o texto continua na aba; Salvar recria o arquivo).
+// E Salvar nunca grava por cima de uma mudança externa sem perguntar (`save`, erro `conflito:`).
+
+type DiskIssue = "changed" | "missing";
+const diskIssue = new Map<string, DiskIssue>(); // aba → problema ainda sem resposta
+const diskDismissed = new Set<string>(); // "sumiu" que a pessoa dispensou
+const diskChecking = new Set<string>();
+const DISK_POLL_MS = 2000;
+const isConflict = (e: unknown) => String(e).startsWith("conflito:");
+
+/** Aba ligada a um arquivo de texto do usuário (as únicas que têm o que conferir no disco). */
+const hasDiskFile = (tab: TabState) => !!tab.path && !isReader(tab) && !tab.release_notes;
+
+function renderDiskBar(g: Group, info?: string) {
+  const tab = tabOf(g);
+  const issue = tab && hasDiskFile(tab) ? diskIssue.get(tab.id) : undefined;
+  const bar = g.diskEl;
+  bar.replaceChildren();
+  if (!tab || (!issue && !info) || (issue === "missing" && diskDismissed.has(tab.id))) {
+    bar.hidden = true;
+    return;
+  }
+  const msg = document.createElement("span");
+  msg.className = "diskbar-msg";
+  bar.append(msg);
+  const btn = (label: string, title: string, run: () => void) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.title = title;
+    b.addEventListener("click", run);
+    bar.append(b);
+  };
+  const name = tab.title || "este arquivo";
+  if (issue === "changed") {
+    msg.textContent = `"${name}" foi alterado fora do Fullpad, e você também tem alterações aqui.`;
+    btn("Recarregar do disco", "Troca o texto pelo do arquivo (suas alterações ficam no Ctrl+Z)", () => void reloadFromDisk(tab));
+    btn("Manter o meu", "Fica com o texto da aba; o próximo Salvar grava por cima do arquivo", () => void keepMine(tab));
+  } else if (issue === "missing") {
+    msg.textContent = `O arquivo de "${name}" foi apagado ou movido. O texto continua aqui.`;
+    btn("Salvar como…", "Grava o texto da aba num arquivo", () => void save(tab, true));
+    btn("Dispensar", "Esconde este aviso", () => {
+      diskDismissed.add(tab.id);
+      renderDiskBar(g);
+    });
+  } else {
+    msg.textContent = info!;
+  }
+  bar.hidden = false;
+}
+
+/** Aviso passageiro (some sozinho) na faixa do painel que mostra a aba. */
+function flashDiskInfo(tab: TabState, text: string) {
+  const g = groupShowing(tab.id);
+  if (!g) return;
+  renderDiskBar(g, text);
+  window.setTimeout(() => groupShowing(tab.id) === g && !diskIssue.has(tab.id) && renderDiskBar(g), 5000);
+}
+
+/** Confere o arquivo de uma aba que está à vista; as outras são conferidas quando aparecem. */
+async function checkDisk(tab: TabState) {
+  const g = groupShowing(tab.id);
+  if (!g || !hasDiskFile(tab) || diskChecking.has(tab.id)) return;
+  diskChecking.add(tab.id);
+  try {
+    const state = await api.fileCheck(tab.id);
+    if (state === "unchanged") {
+      if (diskIssue.delete(tab.id)) renderDiskBar(g); // voltou ao normal (o arquivo reapareceu, ou a mudança foi desfeita)
+      diskDismissed.delete(tab.id);
+    } else if (state === "missing") {
+      if (diskIssue.get(tab.id) !== "missing") {
+        diskIssue.set(tab.id, "missing");
+        diskDismissed.delete(tab.id);
+      }
+      renderDiskBar(g);
+    } else if (!tab.dirty) {
+      await reloadFromDisk(tab, true); // sem alterações para perder: acompanha o arquivo
+    } else {
+      diskIssue.set(tab.id, "changed");
+      renderDiskBar(g);
+    }
+  } catch (e) {
+    console.error("falha ao conferir o arquivo", e);
+  } finally {
+    diskChecking.delete(tab.id);
+  }
+}
+
+function checkAllDisks() {
+  for (const g of groups.values()) {
+    const t = tabOf(g);
+    if (t) void checkDisk(t);
+  }
+}
+
+/** Troca o texto da aba pelo do arquivo no disco, numa transação (Ctrl+Z desfaz). */
+async function reloadFromDisk(tab: TabState, automatic = false): Promise<boolean> {
+  const g = groupShowing(tab.id);
+  if (!g || !hasDiskFile(tab)) return false;
+  const rev = g.rev;
+  let r: Awaited<ReturnType<typeof api.fileReload>>;
+  try {
+    r = await api.fileReload(tab.id);
+  } catch (e) {
+    if (!automatic) await message(String(e), { title: "Não foi possível recarregar", kind: "error" });
+    else console.error("falha ao recarregar o arquivo", e);
+    return false;
+  }
+  if (g.rev !== rev || groupShowing(tab.id) !== g) {
+    // a pessoa digitou (ou trocou de aba) enquanto o arquivo era lido: o texto dela fica
+    diskIssue.set(tab.id, "changed");
+    renderDiskBar(g);
+    return false;
+  }
+  tab.encoding = r.encoding;
+  tab.eol = r.eol;
+  tab.disk = r.stamp;
+  withGroup(g, () => {
+    const len = g.view.state.doc.length;
+    g.view.dispatch({
+      changes: { from: 0, to: len, insert: r.text },
+      selection: { anchor: Math.min(g.view.state.selection.main.head, r.text.length) },
+    });
+  });
+  dirtyNotes.delete(tab.id); // o buffer em notas/ já é o do arquivo (o Rust o trocou)
+  tab.dirty = false;
+  diskIssue.delete(tab.id);
+  diskDismissed.delete(tab.id);
+  redetect(tab);
+  if (tab.id === session.active) applyTabConfig();
+  renderTabs();
+  refreshStatus(false);
+  sessionDirty = true;
+  scheduleSave();
+  flashDiskInfo(tab, automatic ? `"${tab.title}" foi atualizado: o arquivo mudou no disco. Ctrl+Z volta ao texto de antes.` : `"${tab.title}" recarregado do disco. Ctrl+Z volta ao texto de antes.`);
+  return true;
+}
+
+/** "Manter o meu": o arquivo de agora vira a referência; o próximo Salvar grava por cima sem perguntar. */
+async function keepMine(tab: TabState) {
+  try {
+    const stamp = await api.fileKeep(tab.id);
+    if (stamp) tab.disk = stamp;
+  } catch (e) {
+    await message(String(e), { title: "Erro", kind: "error" });
+    return;
+  }
+  diskIssue.delete(tab.id);
+  const g = groupShowing(tab.id);
+  if (g) renderDiskBar(g);
+  sessionDirty = true;
+  scheduleSave();
+}
+
+/** Arquivo > "Recarregar do disco" (F5 / Ctrl+R). Com alterações não salvas, confirma antes. */
+async function reloadActive() {
+  if (!session.active) return;
+  const tab = activeTab();
+  if (!hasDiskFile(tab)) return;
+  if (tab.dirty) {
+    const r = await message(`Recarregar "${tab.title}" do disco? As alterações não salvas serão trocadas (Ctrl+Z as traz de volta).`, {
+      title: "Fullpad",
+      kind: "warning",
+      buttons: { ok: "Recarregar", cancel: "Cancelar" },
+    });
+    if (r !== "Recarregar") return;
+  }
+  snapshotActive();
+  await reloadFromDisk(tab);
+}
+
+// Ao voltar para a janela (alt+tab) e de tempos em tempos enquanto ela está em foco.
+window.addEventListener("focus", checkAllDisks);
+window.setInterval(() => document.hasFocus() && checkAllDisks(), DISK_POLL_MS);
+
 async function save(tab: TabState = activeTab(), forceDialog = false): Promise<boolean> {
   if (isReadOnlyText(tab)) return false; // nota de versão: o texto é do app e é refeito em Ajuda; não vira arquivo do usuário
   if (isReader(tab)) return false; // PDF/EPUB são só de leitura: nada a gravar, e o arquivo nunca é tocado
@@ -2448,11 +2635,26 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
   if (showing) snapshotGroup(showing);
   const text = await textOf(tab.id); // aba que ainda não foi aberta nesta execução não tem estado
   try {
-    await enqueue(() => api.saveFile(tab.id, path, text, tab.encoding, tab.eol));
+    try {
+      tab.disk = await enqueue(() => api.saveFile(tab.id, path, text, tab.encoding, tab.eol));
+    } catch (e) {
+      if (!isConflict(e)) throw e;
+      // o arquivo mudou fora do Fullpad depois de aberto: gravar por cima apagaria essa mudança
+      const r = await message(`"${baseName(path)}" foi alterado fora do Fullpad depois de aberto. Gravar por cima apaga essa mudança.`, {
+        title: "Arquivo alterado",
+        kind: "warning",
+        buttons: { yes: "Sobrescrever", no: "Salvar como…", cancel: "Cancelar" },
+      });
+      if (r === "Salvar como…") return save(tab, true);
+      if (r !== "Sobrescrever") return false;
+      tab.disk = await enqueue(() => api.saveFile(tab.id, path, text, tab.encoding, tab.eol, true));
+    }
   } catch (e) {
     await message(String(e), { title: "Erro ao salvar", kind: "error" });
     return false;
   }
+  diskIssue.delete(tab.id);
+  diskDismissed.delete(tab.id);
   dirtyNotes.delete(tab.id);
   tab.path = path;
   rememberPath(path);
@@ -2467,6 +2669,8 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
   refreshStatus(false);
   sessionDirty = true;
   scheduleSave();
+  const shown = groupShowing(tab.id);
+  if (shown) renderDiskBar(shown);
   return true;
 }
 
@@ -2585,6 +2789,7 @@ const menuActions = {
   save: () => void save(),
   saveAs: () => void save(activeTab(), true),
   saveAll: () => void saveAll(),
+  reloadFromDisk: () => void reloadActive(),
   globalSearch: openGlobalSearch,
   setCodeLang,
   closeTab: () => void closeTab(session.active!),
@@ -2645,6 +2850,7 @@ const menuActions = {
       detached: tab.detached,
       previewAvailable: previewAvailable(tab),
       canSave: !isReadOnlyText(tab) && !isReader(tab),
+      canReload: hasDiskFile(tab),
       wrap,
       lineNumbers,
       outline: { on: outlineOn, pinned: outlinePinned, side: outlineSide },
@@ -2662,6 +2868,10 @@ const menuActions = {
 window.addEventListener(
   "keydown",
   (e) => {
+    if (e.key === "F5" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault(); // sem isto o WebView recarrega a interface, e nada muda no texto
+      return void reloadActive();
+    }
     if (e.key === "Insert" && !e.ctrlKey && !e.altKey && !e.shiftKey) {
       e.preventDefault();
       toggleOverwrite();
@@ -2719,6 +2929,7 @@ window.addEventListener(
     else if (key === "o") run(menuActions.openFile);
     else if (key === "s") run(e.shiftKey ? menuActions.saveAs : menuActions.save);
     else if (key === "w") run(menuActions.closeTab);
+    else if (key === "r" && !e.shiftKey) run(() => void reloadActive());
     else if (key === "e") run(e.shiftKey ? toggleSplit : togglePreview);
     else if (e.key === "Tab") run(() => cycle(e.shiftKey ? -1 : 1));
   },

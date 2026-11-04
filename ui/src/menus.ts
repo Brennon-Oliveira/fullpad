@@ -14,6 +14,8 @@ export interface MenuActions {
   save(): void;
   saveAs(): void;
   saveAll(): void;
+  /** Relê o arquivo da aba do disco (F5 / Ctrl+R). */
+  reloadFromDisk(): void;
   globalSearch(): void;
   /** `undefined` volta ao automático (extensão); `NO_CODE_LANG` desliga o destaque. */
   setCodeLang(v: string | undefined): void;
@@ -76,6 +78,8 @@ export interface MenuActions {
     previewAvailable: boolean;
     /** Falso na nota de versão e nas abas de leitura: Salvar e Salvar como ficam desabilitados. */
     canSave: boolean;
+    /** A aba está ligada a um arquivo de texto: dá para recarregá-lo do disco. */
+    canReload: boolean;
     wrap: boolean;
     lineNumbers: boolean;
     outline: { on: boolean; pinned: boolean; side: "left" | "right" };
@@ -366,6 +370,7 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
         { label: "Salvar", shortcut: "Ctrl+S", action: a.save, disabled: !a.current().canSave },
         { label: "Salvar como…", shortcut: "Ctrl+Shift+S", action: a.saveAs, disabled: !a.current().canSave },
         { label: "Salvar todos", shortcut: "Ctrl+Alt+S", action: a.saveAll },
+        { label: "Recarregar do disco", shortcut: "F5", action: a.reloadFromDisk, disabled: !a.current().canReload },
         "sep",
         { label: "Fechar", shortcut: "Ctrl+W", action: a.closeTab },
         ...reopenItems(a),
