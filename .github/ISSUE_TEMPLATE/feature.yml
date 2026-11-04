@@ -1,0 +1,23 @@
+name: Novidade (feature)
+description: Algo novo que o app passa a ter
+labels: ["feature"]
+body:
+  - type: textarea
+    id: o-que-e
+    attributes:
+      label: O que é
+      description: O que a pessoa passa a poder fazer.
+    validations: { required: true }
+  - type: textarea
+    id: por-que
+    attributes:
+      label: Por que
+  - type: textarea
+    id: ideia
+    attributes:
+      label: Ideia
+      description: Como seria, em tópicos (comportamento visível).
+  - type: textarea
+    id: pontos
+    attributes:
+      label: Pontos a decidir

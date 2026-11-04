@@ -82,6 +82,7 @@ Não há pipeline de CI por enquanto (nenhum workflow do GitHub); testes e build
 - Commits: [rules/commits.md](rules/commits.md).
 - Persistência (`crates/core`): [rules/persistencia.md](rules/persistencia.md).
 - Publicar uma versão (tag, notas, instalador, release): skill [gerar-versao](skills/gerar-versao/SKILL.md).
+- Bugs, melhorias e novidades: issues do GitHub, no padrão de [rules/issues.md](rules/issues.md); criar uma: skill [criar-issue](skills/criar-issue/SKILL.md) (`--bug`, `--improvement`, `--feature`, `--draft`).
 - Ao terminar qualquer ajuste, gere o build de Windows e reporte o resultado: [rules/build-windows.md](rules/build-windows.md).
 
 ## Segurança

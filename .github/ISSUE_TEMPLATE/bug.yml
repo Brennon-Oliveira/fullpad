@@ -1,0 +1,22 @@
+name: Bug
+description: Algo está errado
+labels: ["bug"]
+body:
+  - type: textarea
+    id: acontece
+    attributes:
+      label: O que acontece
+    validations: { required: true }
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que deveria acontecer
+  - type: textarea
+    id: reproduzir
+    attributes:
+      label: Como reproduzir
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do Fullpad
+      placeholder: "2.0.0"
