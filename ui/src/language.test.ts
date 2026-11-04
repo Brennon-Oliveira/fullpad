@@ -11,6 +11,11 @@ describe("detectLanguage", () => {
     expect(detectLanguage("", "C:\\x\\esquema.DBMLX")).toBe("dbml");
     expect(detectLanguage("Table a { id int }", null)).toBe("plain");
   });
+  it("reconhece Mermaid só pela extensão", () => {
+    expect(detectLanguage("flowchart LR\n A --> B", "fluxo.mmd")).toBe("mermaid");
+    expect(detectLanguage("", "C:\\x\\FLUXO.MERMAID")).toBe("mermaid");
+    expect(detectLanguage("flowchart LR\n A --> B", null)).toBe("plain");
+  });
   it("reconhece CSV e TSV só pela extensão", () => {
     expect(detectLanguage("a,b\n1,2", "dados.csv")).toBe("csv");
     expect(detectLanguage("a\tb", "C:\\x\\DADOS.TSV")).toBe("csv");

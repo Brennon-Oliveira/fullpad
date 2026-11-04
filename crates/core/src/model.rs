@@ -17,7 +17,7 @@ pub enum ViewMode {
 }
 
 /// Linguagem escolhida para a aba. `Auto` detecta pelo conteúdo/extensão;
-/// `Plain`, `Markdown`, `Dbml`, `Json` e `Csv` são escolhas manuais que nunca mudam sozinhas.
+/// `Plain`, `Markdown`, `Dbml`, `Mermaid`, `Json` e `Csv` são escolhas manuais que nunca mudam sozinhas.
 ///
 /// Uma linguagem que esta versão não conhece (gravada por uma versão mais nova) vira `Auto`:
 /// sem isso o `session.json` inteiro falharia ao ler e iria para `session.json.corrupt`,
@@ -32,6 +32,7 @@ pub enum Language {
     Csv,
     Yaml,
     Toml,
+    Mermaid,
     #[default]
     #[serde(other)]
     Auto,

@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Analysis, JsonError } from "./json/tree";
 
 export type ViewMode = "rendered" | "source" | "split";
-export type Language = "auto" | "plain" | "markdown" | "dbml" | "json" | "csv" | "yaml" | "toml";
+export type Language = "auto" | "plain" | "markdown" | "dbml" | "mermaid" | "json" | "csv" | "yaml" | "toml";
 export type Eol = "lf" | "crlf";
 /** O que a aba mostra: o editor ("text") ou um leitor só de leitura. "unknown": tipo de uma versão mais nova. */
 export type TabKind = "text" | "pdf" | "epub" | "unknown";

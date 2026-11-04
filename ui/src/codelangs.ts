@@ -1,5 +1,6 @@
 import { LanguageDescription, LanguageSupport, StreamLanguage, type StreamParser } from "@codemirror/language";
 import { dbmlLanguage } from "./dbmllang";
+import { mermaidLanguage } from "./mermaidlang";
 
 /**
  * Linguagens dos blocos de código do markdown (```js ... ```). Cada uma carrega sob demanda, só
@@ -105,10 +106,16 @@ export const codeLanguages: LanguageDescription[] = [
     extensions: ["dbml", "dbmlx"],
     load: async () => new LanguageSupport(dbmlLanguage), // já está no bundle: não há o que carregar
   }),
+  LanguageDescription.of({
+    name: "Mermaid",
+    alias: ["mermaid", "mmd"],
+    extensions: ["mmd", "mermaid"],
+    load: async () => new LanguageSupport(mermaidLanguage), // pequeno, já está no bundle
+  }),
 ];
 
 /** Tipos de arquivo que têm visão própria (não são "só destaque"): ficam de fora do seletor de Lang. */
-const OWN_TYPE = new Set(["DBML", "JSON", "YAML", "TOML"]);
+const OWN_TYPE = new Set(["DBML", "Mermaid", "JSON", "YAML", "TOML"]);
 
 /** As linguagens que o usuário pode escolher à mão para colorir um arquivo de texto. */
 export const pickableLanguages: readonly LanguageDescription[] = codeLanguages.filter((l) => !OWN_TYPE.has(l.name));

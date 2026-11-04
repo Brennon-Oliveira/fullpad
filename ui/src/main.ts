@@ -12,7 +12,15 @@ import { createFileDrop } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type ClosedTab, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
-import type { DiagramPanel } from "./dbml/panel";
+import { mermaidLanguage } from "./mermaidlang";
+
+/** O que o painel do diagrama (DBML ou Mermaid) oferece: os dois têm o mesmo contrato. */
+interface DiagramPanel {
+  show(text: string, resetView: boolean, rev?: number): void;
+  update(text: string, rev?: number): void;
+  setCursor(offset: number | null, rev: number): void;
+  hide(): void;
+}
 import type { CsvPanel } from "./csv/panel";
 import type { JsonPanel, TreeFormat } from "./json/panel";
 import { mapCursor } from "./json/format";
@@ -24,6 +32,7 @@ import { type Lang, detectLanguage, extOf } from "./language";
 import { codeLanguageFor } from "./codelangs";
 import { pinnedFirst, toCloseAll, toCloseOthers, toCloseSaved, withUnsavedChanges } from "./tabsets";
 import { MAX_PREVIEW_CHARS } from "./livepreview";
+const MAX_MERMAID_CHARS = 100_000; // mesmo valor de mermaid/render.ts
 const MAX_DIAGRAM_CHARS = 500_000; // mesmo valor de dbml/panel.ts (não importamos o módulo no boot)
 const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
 const MAX_CSV_CHARS = 50_000_000; // mesmo valor de csv/panel.ts
@@ -90,6 +99,7 @@ interface Group {
   /** Muda a cada edição/troca de aba: o diagrama só se liga ao código se for da mesma versão. */
   rev: number;
   diagram?: DiagramPanel;
+  diagramKind?: "dbml" | "mermaid"; // de qual linguagem é o painel que está em `diagram`
   diagramLoading?: Promise<void>;
   diagramTab: string | null; // aba cujo diagrama está na tela
   mdPane?: MarkdownPane;
@@ -185,7 +195,7 @@ function effectiveLang(tab: TabState): Lang {
 function previewAvailable(tab: TabState): boolean {
   const len = states.get(tab.id)?.doc.length ?? 0;
   const lang = effectiveLang(tab);
-  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (isTree(lang) && len <= MAX_JSON_CHARS) || (lang === "csv" && len <= MAX_CSV_CHARS);
+  return (lang === "markdown" && len <= MAX_PREVIEW_CHARS) || (lang === "dbml" && len <= MAX_DIAGRAM_CHARS) || (lang === "mermaid" && len <= MAX_MERMAID_CHARS) || (isTree(lang) && len <= MAX_JSON_CHARS) || (lang === "csv" && len <= MAX_CSV_CHARS);
 }
 
 /** Como o arquivo aparece: só código, renderizado no próprio texto (markdown) ou ao lado do código. */
@@ -203,7 +213,7 @@ function viewLabel(tab: TabState): string {
   const k = viewKind(tab);
   if (k === "source") return "Código";
   if (tab.detached) return "Janela separada";
-  if (effectiveLang(tab) === "dbml") return "Diagrama";
+  if (effectiveLang(tab) === "dbml" || effectiveLang(tab) === "mermaid") return "Diagrama";
   if (isTree(effectiveLang(tab))) return "Árvore";
   if (effectiveLang(tab) === "csv") return k === "inline" ? "Tabela" : "Tabela e código";
   return k === "inline" ? "Preview" : "Lado a lado";
@@ -302,6 +312,8 @@ function supportFor(tab: TabState): Extension | undefined {
   switch (effectiveLang(tab)) {
     case "dbml":
       return dbmlSupport;
+    case "mermaid":
+      return mermaidLanguage;
     case "json":
     case "yaml":
     case "toml":
@@ -391,7 +403,7 @@ function patchCsv(patch: Partial<CsvSettings>) {
 const previewOpen = new Map<string, UnlistenFn[]>(); // abas com janela de preview aberta
 let pvTimer: number | undefined;
 
-const previewLang = (tab: TabState) => (effectiveLang(tab) === "dbml" ? "dbml" : effectiveLang(tab) === "json" ? "json" : "markdown");
+const previewLang = (tab: TabState) => (effectiveLang(tab) === "dbml" ? "dbml" : effectiveLang(tab) === "mermaid" ? "mermaid" : effectiveLang(tab) === "json" ? "json" : "markdown");
 
 /** Pasta do arquivo da aba (para imagens de caminho relativo no JSON). */
 const dirOf = (p: string | null) => (p && /[\\/]/.test(p) ? p.replace(/[\\/][^\\/]*$/, "") : null);
@@ -494,7 +506,8 @@ function toggleDetached() {
 
 // ---- diagrama DBML (carregado sob demanda) ------------------------------------
 
-const diagramWanted = (tab: TabState) => previewOn(tab) && !tab.detached && effectiveLang(tab) === "dbml";
+const isDiagramLang = (l: Lang): l is "dbml" | "mermaid" => l === "dbml" || l === "mermaid";
+const diagramWanted = (tab: TabState) => previewOn(tab) && !tab.detached && isDiagramLang(effectiveLang(tab));
 
 // ---- árvore JSON ao lado do código (carregada sob demanda) ----------------------------
 
@@ -701,10 +714,18 @@ function syncDiagram(textChanged = false) {
     g.diagramTab = null;
     return;
   }
+  const kind = effectiveLang(tab) as "dbml" | "mermaid";
+  if (g.diagram && g.diagramKind !== kind) {
+    // a aba mudou de DBML para Mermaid (ou ao contrário): o painel de antes não serve
+    g.diagram.hide();
+    g.diagram = undefined;
+    g.diagramLoading = undefined;
+    g.diagramTab = null;
+  }
   const text = g.view.state.doc.toString();
   const run = () => {
     const t = tabOf(g);
-    if (!g.diagram || !t || !diagramWanted(t)) return;
+    if (!g.diagram || !t || !diagramWanted(t) || g.diagramKind !== effectiveLang(t)) return;
     if (textChanged && g.diagramTab === tab.id) g.diagram.update(text, g.rev);
     else g.diagram.show(text, g.diagramTab !== tab.id, g.rev);
     g.diagramTab = tab.id;
@@ -712,12 +733,19 @@ function syncDiagram(textChanged = false) {
   };
   if (g.diagram) return run();
   g.diagramEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
-  g.diagramLoading ??= import("./dbml/panel").then((m) => {
-    g.diagram = m.createDiagramPanel(g.diagramEl, {
-      // mouse sobre o diagrama → destaca a linha no código (sem selecionar)
-      onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
-    });
-  });
+  g.diagramLoading ??=
+    kind === "mermaid"
+      ? import("./mermaid/panel").then((m) => {
+          g.diagram = m.createMermaidPanel(g.diagramEl, { isDark });
+          g.diagramKind = "mermaid";
+        })
+      : import("./dbml/panel").then((m) => {
+          g.diagram = m.createDiagramPanel(g.diagramEl, {
+            // mouse sobre o diagrama → destaca a linha no código (sem selecionar)
+            onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
+          });
+          g.diagramKind = "dbml";
+        });
   void g.diagramLoading.then(run);
 }
 
@@ -743,7 +771,7 @@ const ENC_LABEL: Record<Encoding, string> = {
   utf16be: "UTF-16 BE BOM",
   windows1252: "Windows-1252",
 };
-const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", json: "JSON", csv: "CSV", yaml: "YAML", toml: "TOML", pdf: "PDF", epub: "EPUB" };
+const LANG_LABEL: Record<Lang, string> = { plain: "Texto simples", markdown: "Markdown", dbml: "DBML", mermaid: "Mermaid", json: "JSON", csv: "CSV", yaml: "YAML", toml: "TOML", pdf: "PDF", epub: "EPUB" };
 
 function langLabel(tab: TabState): string {
   const l = LANG_LABEL[effectiveLang(tab)];
@@ -2250,12 +2278,12 @@ async function checkUpdates(manual: boolean) {
 // ---- arquivos ---------------------------------------------------------------
 
 const OPEN_FILTERS = [
-  { name: "Texto, Markdown, DBML, JSON, YAML, TOML, CSV, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv", "pdf", "epub"] },
+  { name: "Texto, Markdown, DBML, Mermaid, JSON, YAML, TOML, CSV, PDF e EPUB", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "mmd", "mermaid", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv", "pdf", "epub"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 
 const FILTERS = [
-  { name: "Texto, Markdown, DBML, JSON, YAML, TOML e CSV", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv"] },
+  { name: "Texto, Markdown, DBML, Mermaid, JSON, YAML, TOML e CSV", extensions: ["md", "markdown", "txt", "dbml", "dbmlx", "mmd", "mermaid", "json", "jsonc", "yaml", "yml", "toml", "csv", "tsv"] },
   { name: "Todos os arquivos", extensions: ["*"] },
 ];
 

@@ -5,7 +5,7 @@ import { api } from "./api";
 import "./style.css";
 
 /**
- * Janela com a visão renderizada de uma aba (markdown, diagrama DBML ou árvore JSON) que está em outra janela, a
+ * Janela com a visão renderizada de uma aba (markdown, diagrama DBML ou Mermaid, ou árvore JSON) que está em outra janela, a
  * "dona". O texto chega por eventos `pv-text`; passar o mouse no diagrama avisa a dona
  * (`pv-hover:<aba>`) para ela destacar a linha. Fechar a janela avisa a dona (`pv-closed:<aba>`), que
  * volta a mostrar a visão ao lado do código.
@@ -58,6 +58,19 @@ async function boot() {
       panel.setCursor(m.cursor, m.rev);
     };
     void listen<{ offset: number | null; rev: number }>("pv-cursor", (e) => panel.setCursor(e.payload.offset, e.payload.rev));
+  } else if (info.lang === "mermaid") {
+    const { createMermaidPanel } = await import("./mermaid/panel");
+    const dark = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const panel = createMermaidPanel(diagramEl, { isDark: () => !!dark?.matches });
+    let first = true;
+    let last = "";
+    apply = (m) => {
+      last = m.text;
+      if (first) panel.show(m.text, true, m.rev);
+      else panel.update(m.text, m.rev);
+      first = false;
+    };
+    dark?.addEventListener("change", () => !first && panel.update(last, rev)); // o tema mudou: desenha de novo
   } else {
     const { createMarkdownPane } = await import("./mdpreview");
     const pane = createMarkdownPane(mdEl, {

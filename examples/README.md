@@ -5,7 +5,7 @@ Arquivos para abrir no app (Ctrl+O, ou arraste-os para a janela) e ver o que ele
 | Arquivo | O que abrir para ver |
 |---|---|
 | `example.md` | Markdown renderizado e editável; `Ctrl+E` alterna código/renderizado, `Ctrl+Shift+E` lado a lado; blocos de código coloridos; diagramas Mermaid; Arquivo ▸ Exportar |
-| `example.mmd` | Diagrama Mermaid (fluxograma com subgrafos, rótulos nas setas, estilos e comentários `%%`). Só vira diagrama ao lado do código quando o #10 ganhar os arquivos `.mmd`; hoje abre como texto |
+| `example.mmd` | Diagrama Mermaid (fluxograma com subgrafos, rótulos nas setas, estilos e comentários `%%`). Abre com o diagrama ao lado do código (`Ctrl+E`), pan/zoom com a roda e arrastando, botão SVG; apague um trecho para ver o erro de sintaxe na faixa embaixo |
 | `example.json` | Árvore ao lado do código, links, cores, miniatura de imagem, números enormes preservados, chaves repetidas; `Alt+Shift+F` formata |
 | `example.jsonc` | JSON com comentários e vírgulas sobrando (o formatador recusa para não apagar comentários) |
 | `example.dbml` | Diagrama do banco de uma escola de idiomas: esquemas, enums, relações, índices, grupos, `Records` |

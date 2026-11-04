@@ -94,7 +94,7 @@ export interface MenuActions {
 /** Linguagens cuja visão renderizada fica sempre ao lado do código (diagrama, árvore). */
 /** Formatos que mostram uma árvore ao lado do código (JSON, YAML e TOML). */
 export const isTree = (l: Lang) => l === "json" || l === "yaml" || l === "toml";
-export const sideOnly = (l: Lang) => l === "dbml" || isTree(l);
+export const sideOnly = (l: Lang) => l === "dbml" || l === "mermaid" || isTree(l);
 
 /** Opções de visão do arquivo (menu Visualizar e botão da barra de status). */
 export function viewItems(a: MenuActions): MenuItem[] {
@@ -109,9 +109,9 @@ export function viewItems(a: MenuActions): MenuItem[] {
   });
   const detach: MenuItem[] = [
     "sep",
-    { label: c.lang === "dbml" ? "Diagrama em janela separada" : isTree(c.lang) ? "Árvore em janela separada" : "Preview em janela separada", checked: c.detached, disabled: off, action: a.toggleDetached },
+    { label: c.lang === "dbml" || c.lang === "mermaid" ? "Diagrama em janela separada" : isTree(c.lang) ? "Árvore em janela separada" : "Preview em janela separada", checked: c.detached, disabled: off, action: a.toggleDetached },
   ];
-  if (c.lang === "dbml") return [item("Somente código", "source"), item("Código e diagrama lado a lado", "split", "Ctrl+E"), ...detach];
+  if (c.lang === "dbml" || c.lang === "mermaid") return [item("Somente código", "source"), item("Código e diagrama lado a lado", "split", "Ctrl+E"), ...detach];
   if (c.lang === "json") return [item("Somente código", "source"), item("Código e árvore lado a lado", "split", "Ctrl+E"), ...detach];
   if (isTree(c.lang)) return [item("Somente código", "source"), item("Código e árvore lado a lado", "split", "Ctrl+E")];
   if (c.lang === "csv") return [item("Somente tabela", "rendered", "Ctrl+E"), item("Somente código", "source"), item("Tabela e código lado a lado", "split", "Ctrl+Shift+E")];
@@ -210,7 +210,7 @@ function textItems(a: MenuActions): MenuItem[] {
 }
 
 /** Nome do menu de ações do tipo de arquivo da aba ativa (muda com a linguagem). */
-export const LANG_MENU: Record<Lang, string> = { plain: "Texto", markdown: "Markdown", dbml: "DBML", json: "JSON", csv: "CSV", yaml: "YAML", toml: "TOML", pdf: "PDF", epub: "EPUB" };
+export const LANG_MENU: Record<Lang, string> = { plain: "Texto", markdown: "Markdown", dbml: "DBML", mermaid: "Mermaid", json: "JSON", csv: "CSV", yaml: "YAML", toml: "TOML", pdf: "PDF", epub: "EPUB" };
 
 /** Itens do menu "YAML"/"TOML": só árvore e caminho (não reescrevemos o texto: perderia comentários). */
 export function treeItems(a: MenuActions): MenuItem[] {
@@ -281,6 +281,7 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
         ...viewItems(a),
       ];
     case "dbml":
+    case "mermaid":
       return viewItems(a);
     case "epub":
       return [
@@ -336,7 +337,7 @@ export function languageItems(a: MenuActions): MenuItem[] {
     checked: cur === l,
     action: () => a.setLanguage(l),
   });
-  return [mk("Automático", "auto"), "sep", mk("Texto simples", "plain"), mk("Markdown", "markdown"), mk("DBML", "dbml"), mk("JSON", "json"), mk("YAML", "yaml"), mk("TOML", "toml"), mk("CSV", "csv")];
+  return [mk("Automático", "auto"), "sep", mk("Texto simples", "plain"), mk("Markdown", "markdown"), mk("DBML", "dbml"), mk("Mermaid", "mermaid"), mk("JSON", "json"), mk("YAML", "yaml"), mk("TOML", "toml"), mk("CSV", "csv")];
 }
 
 /** Os menus do topo (título e itens, calculados na hora): a barra e a paleta de comandos leem o mesmo. */
