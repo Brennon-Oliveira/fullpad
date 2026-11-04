@@ -67,6 +67,41 @@ describe("toggleInline", () => {
   });
 });
 
+describe("equação ($)", () => {
+  it("envolve a seleção em $...$ e desfaz ao repetir", () => {
+    const d = "a energia E = mc^2 vale";
+    const [f, t] = sel(d, "E = mc^2");
+    expect(show(d, toggleInline(d, f, t, "math"))).toBe("a energia $⟦E = mc^2⟧$ vale");
+    const d2 = "a energia $E = mc^2$ vale";
+    const [f2, t2] = sel(d2, "E = mc^2");
+    expect(show(d2, toggleInline(d2, f2, t2, "math"))).toBe("a energia ⟦E = mc^2⟧ vale");
+  });
+
+  it("desfaz também com os cifrões dentro da seleção, e a destacada $$ de uma vez", () => {
+    const d = "veja $x^2$ aqui";
+    const [f, t] = sel(d, "$x^2$");
+    expect(show(d, toggleInline(d, f, t, "math"))).toBe("veja ⟦x^2⟧ aqui");
+    const d2 = "veja $$x^2$$ aqui";
+    const [f2, t2] = sel(d2, "x^2");
+    expect(show(d2, toggleInline(d2, f2, t2, "math"))).toBe("veja ⟦x^2⟧ aqui");
+  });
+
+  it("sem seleção abre o par, com o cursor no meio", () => {
+    expect(show("ab", toggleInline("ab", 1, 1, "math"))).toBe("a$⟦⟧$b");
+  });
+
+  it("não leva os espaços das pontas (um $ seguido de espaço não abre equação)", () => {
+    const d = "a  x+y  b";
+    expect(show(d, toggleInline(d, 1, 8, "math"))).toBe("a  $⟦x+y⟧$  b");
+  });
+
+  it("acende o botão só quando a seleção está numa equação", () => {
+    const d = "com $x^2$ e y";
+    expect(activeMarks(d, ...sel(d, "x^2"))).toMatchObject({ math: true });
+    expect(activeMarks(d, ...sel(d, "y"))).toMatchObject({ math: false });
+  });
+});
+
 describe("activeMarks", () => {
   it("acende o que vale para a seleção", () => {
     const d = "uma **palavra** e *outra*";

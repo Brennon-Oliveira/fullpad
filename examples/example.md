@@ -468,6 +468,8 @@ Equação em texto simples: `E = m · c²` e `∑ᵢ xᵢ / n` (as equações de
 
 ### Equações (LaTeX)
 
+Selecione um trecho e use o botão **√x** da barra (ou `Ctrl+Shift+M`) para transformá-lo em equação; repetir desfaz.
+
 Equação em linha com `$...$`: a energia de repouso é $E = mc^2$, a raiz de $x^2 - 5x + 6 = 0$ são $x = \frac{5 \pm \sqrt{25 - 24}}{2}$, e a soma $\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$ vale para todo $n \in \mathbb{N}$. Com o cursor dentro de uma equação, aparece o código.
 
 Equação em bloco com `$$...$$`, centralizada:

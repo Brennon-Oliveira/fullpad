@@ -236,6 +236,7 @@ export function formatItem(a: Pick<MenuActions, "formatMd">): MenuItem {
       { label: "Itálico", shortcut: "Ctrl+I", action: () => a.formatMd("italic") },
       { label: "Tachado", shortcut: "Ctrl+Shift+X", action: () => a.formatMd("strike") },
       { label: "Código", action: () => a.formatMd("code") },
+      { label: "Equação", shortcut: "Ctrl+Shift+M", action: () => a.formatMd("math") },
       { label: "Link", shortcut: "Ctrl+K", action: () => a.formatMd("link") },
       { label: "Limpar formatação", action: () => a.formatMd("clear") },
       "sep",

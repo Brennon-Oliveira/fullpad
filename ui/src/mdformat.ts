@@ -16,11 +16,11 @@ export interface Outcome {
   head: number;
 }
 
-export type Inline = "bold" | "italic" | "strike" | "code";
+export type Inline = "bold" | "italic" | "strike" | "code" | "math";
 export type Block = "paragraph" | "h1" | "h2" | "h3" | "ul" | "ol" | "todo" | "quote" | "code";
 
-const CH: Record<Inline, string> = { bold: "*", italic: "*", strike: "~", code: "`" };
-const LEN: Record<Inline, number> = { bold: 2, italic: 1, strike: 2, code: 1 };
+const CH: Record<Inline, string> = { bold: "*", italic: "*", strike: "~", code: "`", math: "$" };
+const LEN: Record<Inline, number> = { bold: 2, italic: 1, strike: 2, code: 1, math: 1 };
 
 /** Início de linha que é marcação de bloco (título, lista, tarefa, citação), com o recuo. */
 const PREFIX = /^([ \t]*)(?:#{1,6}[ \t]+|[-*+][ \t]+\[[ xX]\][ \t]+|[-*+][ \t]+|\d+[.)][ \t]+|>[ \t]?)/;
@@ -99,11 +99,19 @@ export function activeMarks(doc: string, from: number, to: number): Record<Inlin
     italic: all((s) => wrapped(doc, s, "italic") !== null),
     strike: all((s) => wrapped(doc, s, "strike") !== null),
     code: all((s) => wrapped(doc, s, "code") !== null),
+    math: all((s) => wrapped(doc, s, "math") !== null),
     link: all((s) => LINK.test(doc.slice(s.from, s.to)) || (doc.slice(0, s.from).endsWith("[") && doc.slice(s.to).startsWith("]("))),
   };
 }
 
-/** Liga/desliga negrito, itálico, tachado ou código na seleção (cada linha à parte). Sem seleção, abre o par. */
+/** Quantos `$` envolvem o trecho (por fora ou por dentro). */
+function mathRun(doc: string, s: Seg, w: Where): number {
+  if (w === "outside") return Math.min(runBefore(doc, s.from, "$"), runAfter(doc, s.to, "$"));
+  const text = doc.slice(s.from, s.to);
+  return Math.min(runAfter(text, 0, "$"), runBefore(text, text.length, "$"));
+}
+
+/** Liga/desliga negrito, itálico, tachado, código ou equação na seleção (cada linha à parte). Sem seleção, abre o par. */
 export function toggleInline(doc: string, from: number, to: number, k: Inline): Outcome {
   const mark = CH[k].repeat(LEN[k]);
   const segs = segments(doc, from, to);
@@ -116,7 +124,8 @@ export function toggleInline(doc: string, from: number, to: number, k: Inline): 
   for (const s of segs) {
     const w = wrapped(doc, s, k);
     if (on) {
-      const n = LEN[k];
+      // a equação destacada (`$$x$$`) também desfaz de uma vez; os outros marcadores têm tamanho fixo
+      const n = k === "math" ? Math.min(2, mathRun(doc, s, w)) : LEN[k];
       if (w === "outside") changes.push({ from: s.from - n, to: s.from, insert: "" }, { from: s.to, to: s.to + n, insert: "" });
       else changes.push({ from: s.from, to: s.from + n, insert: "" }, { from: s.to - n, to: s.to, insert: "" });
     } else if (w === null) {

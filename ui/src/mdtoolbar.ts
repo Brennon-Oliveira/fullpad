@@ -4,7 +4,7 @@ import { BLOCK_LABELS, type Block, type Outcome, activeMarks, clearFormat, curre
 import { showMenu } from "./popup";
 
 /** Ações de formatação (ids usados pelo menu, pela barra e pelos atalhos). */
-export type FormatId = "bold" | "italic" | "strike" | "code" | "link" | "clear" | Block;
+export type FormatId = "bold" | "italic" | "strike" | "code" | "math" | "link" | "clear" | Block;
 
 function apply(view: EditorView, o: Outcome | null): boolean {
   if (!o) return true;
@@ -28,6 +28,7 @@ export function runFormat(view: EditorView, id: FormatId): boolean {
     case "italic":
     case "strike":
     case "code":
+    case "math":
       return apply(view, toggleInline(doc, from, to, id));
     case "link":
       return apply(view, toggleLink(doc, from, to));
@@ -82,6 +83,7 @@ function build(view: EditorView): HTMLElement {
     btn("i", "I", "Itálico (Ctrl+I)", () => runFormat(view, "italic"), marks.italic),
     btn("s", "S", "Tachado (Ctrl+Shift+X)", () => runFormat(view, "strike"), marks.strike),
     btn("c", "&lt;/&gt;", "Código", () => runFormat(view, "code"), marks.code),
+    btn("m", "√x", "Equação (Ctrl+Shift+M)", () => runFormat(view, "math"), marks.math),
     sep(),
     btn("l", "🔗", "Link (Ctrl+K)", () => runFormat(view, "link"), marks.link),
     sep(),
@@ -127,6 +129,7 @@ const formatKeys = Prec.high(
     { key: "Mod-i", run: (v) => runFormat(v, "italic") },
     { key: "Mod-k", run: (v) => runFormat(v, "link") },
     { key: "Mod-Shift-x", run: (v) => runFormat(v, "strike") },
+    { key: "Mod-Shift-m", run: (v) => runFormat(v, "math") },
   ]),
 );
 

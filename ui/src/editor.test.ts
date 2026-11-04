@@ -43,7 +43,12 @@ describe("barra de formatação do markdown", () => {
     await new Promise((r) => setTimeout(r, 50));
     const bar = document.querySelector(".fp-fmt");
     expect(bar).not.toBeNull();
-    expect(bar!.querySelectorAll("button").length).toBe(7);
+    expect(bar!.querySelectorAll("button").length).toBe(8);
+    expect(bar!.querySelector(".fp-fmt-btn.m")?.textContent).toBe("√x");
+    (bar!.querySelector(".fp-fmt-btn.m") as HTMLButtonElement).click();
+    expect(view.state.doc.toString()).toBe("uma $palavra$ aqui");
+    (bar!.querySelector(".fp-fmt-btn.m") as HTMLButtonElement).click(); // repetir desfaz
+    expect(view.state.doc.toString()).toBe("uma palavra aqui");
     (bar!.querySelector(".fp-fmt-btn.b") as HTMLButtonElement).click();
     expect(view.state.doc.toString()).toBe("uma **palavra** aqui");
     view.dispatch({ selection: { anchor: 0 } });
