@@ -566,3 +566,38 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .fp-fmt-btn.c { font-family: ui-monospace, monospace; font-size: 12px; }
 .fp-fmt-btn.type .caret { opacity: .6; font-size: 10px; }
 .fp-fmt-sep { width: 1px; height: 18px; margin: 0 3px; background: var(--border); }
+
+/* sumário lateral (barrinhas que viram cartão; ou fixo ao lado do arquivo) */
+.group .body { position: relative; }
+.outline { position: absolute; top: 0; bottom: 0; width: 26px; z-index: 6; pointer-events: none; }
+.outline[hidden] { display: none; }
+.outline.left { left: 0; }
+.outline.right { right: 0; }
+.ol-hot { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: auto; padding: 8px 6px; }
+.outline.left .ol-hot { left: 0; }
+.outline.right .ol-hot { right: 0; }
+.ol-rail { display: flex; flex-direction: column; gap: 9px; }
+.outline.left .ol-rail { align-items: flex-start; }
+.outline.right .ol-rail { align-items: flex-end; }
+.ol-bar { height: 2px; border-radius: 2px; background: var(--muted); opacity: .55; }
+.ol-bar.on { background: var(--fg); opacity: 1; }
+.ol-card { display: none; position: absolute; top: 50%; transform: translateY(-50%); width: 250px; max-height: min(70vh, 540px); flex-direction: column; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.35); overflow: hidden; }
+.outline.left .ol-card { left: 4px; }
+.outline.right .ol-card { right: 4px; }
+.ol-hot:hover .ol-card { display: flex; }
+.ol-hot:hover .ol-rail { visibility: hidden; }
+.ol-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 4px 12px; font-size: 12px; color: var(--muted); }
+.ol-pin { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.ol-pin:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--fg); }
+.ol-pin.on { color: var(--accent); }
+.ol-list { overflow-y: auto; padding: 2px 6px 8px; scrollbar-width: thin; }
+.ol-item { padding: 4px 8px; border-radius: 5px; font-size: 13px; line-height: 1.35; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.ol-item:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--fg); }
+.ol-item.on { background: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--fg); font-weight: 600; }
+/* fixo: vira uma coluna ao lado do arquivo */
+.outline.pinned { position: static; width: 250px; flex: none; pointer-events: auto; overflow: hidden; }
+.outline.pinned.left { order: -1; border-right: 1px solid var(--border); }
+.outline.pinned.right { order: 99; border-left: 1px solid var(--border); }
+.outline.pinned .ol-hot { position: static; transform: none; padding: 0; height: 100%; }
+.outline.pinned .ol-rail { display: none; }
+.outline.pinned .ol-card { display: flex; position: static; transform: none; width: auto; max-height: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; }

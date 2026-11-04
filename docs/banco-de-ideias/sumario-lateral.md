@@ -1,7 +1,7 @@
 ---
 titulo: Sumário lateral (outline)
-feita: não
-versao: —
+feita: sim
+versao: próxima (a definir ao gerar a versão)
 ---
 
 # Sumário lateral
@@ -29,3 +29,7 @@ Painel lateral (ou algo equivalente) com a estrutura do arquivo ativo; clicar pu
 - A extração dos itens deve ficar em funções puras, sem DOM, testadas (como `tree.ts`/`grid.ts`).
 - Carregar sob demanda; nada pesa na abertura.
 - Pode ser um comando da [paleta](paleta-de-comandos.md) ("Ir para título…").
+
+## Como saiu
+
+Forma: barrinhas na borda do painel que viram um cartão ao passar o mouse, ou o cartão fixo ao lado do arquivo (botão "Manter aberto"); à esquerda por padrão, com opção à direita em Visualizar > Sumário. Markdown, DBML, JSON, YAML e TOML; PDF (marcadores) e texto simples ficaram de fora. O filtro por texto ficou com a paleta (`@`). Detalhes em [AGENTS.md](../AGENTS.md).

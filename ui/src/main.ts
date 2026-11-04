@@ -29,6 +29,8 @@ const MAX_JSON_CHARS = 8_000_000; // mesmo valor de json/panel.ts
 const MAX_CSV_CHARS = 50_000_000; // mesmo valor de csv/panel.ts
 import { codeLangItems, exportItem, isTree, languageItems, mountMenuBar, sideOnly, topMenus, viewItems, zoomItems } from "./menus";
 import { type FormatId, runFormat } from "./mdtoolbar";
+import { type Outline, type OutlineSide, createOutline } from "./outline";
+import { type OutlineItem, activeIndex, treeOutline } from "./outlinecore";
 import { dbmlSymbols, markdownSymbols, pushRecent, treeSymbols, type Symbol as PaletteSymbol } from "./palettecore";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
@@ -60,6 +62,9 @@ let writeChain: Promise<unknown> = Promise.resolve(); // serializa escritas
 let wrap = readSetting("wrap", true);
 let lineNumbers = readSetting("lineNumbers", true);
 let overwrite = false;
+let outlineOn = readSetting("outline", true);
+let outlinePinned = readSetting("outlinePinned", false);
+let outlineSide: OutlineSide = readString("outlineSide", "left") === "right" ? "right" : "left";
 let lastSize = 0;
 
 const menubarEl = document.getElementById("menubar")!;
@@ -106,6 +111,13 @@ interface Group {
   readerLoading?: Promise<void>;
   /** Texto da barra de status enquanto o leitor está na tela. */
   readerInfo?: string | null;
+  /** Sumário lateral deste painel (barrinhas ou fixo ao lado do arquivo). */
+  outlineEl: HTMLElement;
+  outline: Outline;
+  olItems: OutlineItem[];
+  olKey: string;
+  olToken: number;
+  olTimer?: number;
 }
 
 const groups = new Map<number, Group>();
@@ -223,6 +235,7 @@ function applyTabConfig() {
   ensureJsonSupport();
   ensureCsvSupport();
   ensureCodeSupport();
+  scheduleOutline(cur, 0);
   cur.mdPane?.setDark(isDark());
   reconcileDetached();
   syncDiagram();
@@ -892,6 +905,7 @@ function onEditorUpdate(u: ViewUpdate) {
   if (u.view !== g.view) return; // só o painel com o foco recebe digitação
   if (u.docChanged) {
     g.rev++;
+    scheduleOutline(g, 500);
     syncDiagram(true);
     const tab = activeTab();
     if (!tab.path) {
@@ -931,7 +945,10 @@ const PIN_ICON =
 
 function renderTabs() {
   clearGhost();
-  for (const g of groups.values()) renderStrip(g);
+  for (const g of groups.values()) {
+    renderStrip(g);
+    scheduleOutline(g, 120);
+  }
   updateTitle();
 }
 
@@ -1395,6 +1412,83 @@ function cycle(delta: number) {
   void activate(mine[(i + delta + mine.length) % mine.length].id);
 }
 
+// ---- sumário lateral ----------------------------------------------------------------
+
+/** Vai para a posição no editor do painel (a linha fica perto do topo) e devolve o foco a ele. */
+function gotoPosIn(g: Group, pos: number) {
+  if (g !== cur) enterGroup(g);
+  const at = Math.min(pos, g.view.state.doc.length);
+  g.view.dispatch({ selection: { anchor: at }, effects: CMEditorView.scrollIntoView(at, { y: "start", yMargin: 30 }) });
+  g.view.focus();
+}
+
+function scheduleOutline(g: Group, delay: number) {
+  window.clearTimeout(g.olTimer);
+  g.olTimer = window.setTimeout(() => void refreshOutline(g), delay);
+}
+
+async function outlineItemsOf(g: Group): Promise<OutlineItem[] | null> {
+  const tab = tabOf(g);
+  if (!tab || isReader(tab)) return null;
+  const lang = effectiveLang(tab);
+  const text = g.view.state.doc.toString();
+  if (lang === "markdown") return markdownSymbols(text).map((s) => ({ label: s.label, pos: s.pos, depth: s.depth ?? 0 }));
+  if (lang === "dbml") return dbmlSymbols(text).map((s) => ({ label: `${s.meta === "Table" ? "" : (s.meta ?? "") + " "}${s.label}`, pos: s.pos, depth: 0 }));
+  if (lang === "json" || lang === "yaml" || lang === "toml") {
+    if (text.length > 2_000_000) return null;
+    const a = lang === "json" ? await api.jsonAnalyze(text) : await api.dataAnalyze(lang, text);
+    return a.doc ? treeOutline(a.doc.nodes) : null;
+  }
+  return null;
+}
+
+async function refreshOutline(g: Group) {
+  const tab = tabOf(g);
+  const key = tab ? `${tab.id}|${effectiveLang(tab)}|${g.rev}` : "";
+  if (key === g.olKey) return;
+  g.olKey = key;
+  const token = ++g.olToken;
+  let items: OutlineItem[] | null = null;
+  try {
+    items = await outlineItemsOf(g);
+  } catch {
+    items = null;
+  }
+  if (token !== g.olToken) return; // chegou outra pedida depois
+  g.olItems = items ?? [];
+  g.outline.set(items);
+  updateOutlineActive(g);
+}
+
+function updateOutlineActive(g: Group) {
+  if (g.olItems.length === 0) return;
+  const top = g.view.lineBlockAtHeight(g.view.scrollDOM.scrollTop + 8).from;
+  g.outline.setActive(activeIndex(g.olItems, top));
+}
+
+function applyOutlineConfig() {
+  for (const g of groups.values()) g.outline.config({ enabled: outlineOn, pinned: outlinePinned, side: outlineSide });
+}
+function toggleOutline() {
+  outlineOn = !outlineOn;
+  writeSetting("outline", outlineOn);
+  applyOutlineConfig();
+}
+function toggleOutlinePinned() {
+  outlinePinned = !outlinePinned;
+  writeSetting("outlinePinned", outlinePinned);
+  applyOutlineConfig();
+}
+function setOutlineSide(side: OutlineSide) {
+  outlineSide = side;
+  try {
+    localStorage.setItem("fullpad.outlineSide", side);
+  } catch {
+    /* sem storage: só não lembra */
+  }
+  applyOutlineConfig();
+}
+
 // ---- painéis (grupos de abas) ---------------------------------------------------
 
 const newGroupId = () => Math.max(-1, ...groups.keys()) + 1;
@@ -1411,14 +1505,25 @@ function createGroup(id: number): Group {
   const jsonEl = div("jsonview");
   const csvEl = div("csvview");
   const readerEl = div("reader");
-  bodyEl.append(editorEl, mdEl, diagramEl, jsonEl, csvEl, readerEl);
+  const outlineEl = div("outline");
+  bodyEl.append(editorEl, mdEl, diagramEl, jsonEl, csvEl, readerEl, outlineEl);
   const noteEl = div("note");
   noteEl.hidden = true;
   el.append(tabsEl, noteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, csvEl, noteEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, csvEl, noteEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0 };
+  g.outline = createOutline(outlineEl, { goto: (pos) => gotoPosIn(g, pos), togglePinned: toggleOutlinePinned });
+  g.outline.config({ enabled: outlineOn, pinned: outlinePinned, side: outlineSide });
   groups.set(id, g);
-  view.scrollDOM.addEventListener("scroll", () => followScroll(g), { passive: true });
+  let olFrame = 0;
+  view.scrollDOM.addEventListener(
+    "scroll",
+    () => {
+      followScroll(g);
+      if (!olFrame) olFrame = requestAnimationFrame(() => ((olFrame = 0), updateOutlineActive(g)));
+    },
+    { passive: true },
+  );
   // botão direito num markdown ou JSON: copiar/colar e exportar/formatar (nos outros tipos fica o menu padrão)
   el.addEventListener("contextmenu", (e) => {
     const t = tabOf(g);
@@ -2436,6 +2541,9 @@ const menuActions = {
   toggleDetached,
   toggleWrap,
   toggleLineNumbers,
+  toggleOutline,
+  toggleOutlinePinned,
+  setOutlineSide,
   setLanguage,
   formatJson: () => void formatJson(),
   formatJsonSelection: () => void formatJson({ selection: true }),
@@ -2466,6 +2574,7 @@ const menuActions = {
       previewAvailable: previewAvailable(tab),
       wrap,
       lineNumbers,
+      outline: { on: outlineOn, pinned: outlinePinned, side: outlineSide },
       jsonIndent,
       csv: csvSettings(tab),
       csvDetected: csvDetected.get(tab.id) ?? ",",

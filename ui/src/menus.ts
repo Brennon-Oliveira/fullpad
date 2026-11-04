@@ -41,6 +41,9 @@ export interface MenuActions {
   toggleDetached(): void;
   toggleWrap(): void;
   toggleLineNumbers(): void;
+  toggleOutline(): void;
+  toggleOutlinePinned(): void;
+  setOutlineSide(side: "left" | "right"): void;
   splitRight(): void;
   splitDown(): void;
   setLanguage(l: Language): void;
@@ -72,6 +75,7 @@ export interface MenuActions {
     previewAvailable: boolean;
     wrap: boolean;
     lineNumbers: boolean;
+    outline: { on: boolean; pinned: boolean; side: "left" | "right" };
     jsonIndent: string;
     /** Escolhas do CSV da aba e o separador que a detecção achou (vale quando a escolha é automática). */
     csv: CsvSettings;
@@ -236,6 +240,21 @@ export function formatItem(a: Pick<MenuActions, "formatMd">): MenuItem {
   };
 }
 
+/** Submenu "Sumário" de Visualizar: mostrar, manter aberto e o lado. */
+export function outlineItem(a: MenuActions): MenuItem {
+  const o = a.current().outline;
+  return {
+    label: "Sumário",
+    submenu: [
+      { label: "Mostrar sumário", checked: o.on, action: a.toggleOutline },
+      { label: "Manter aberto", checked: o.pinned, action: a.toggleOutlinePinned },
+      "sep",
+      { label: "À esquerda", checked: o.side === "left", action: () => a.setOutlineSide("left") },
+      { label: "À direita", checked: o.side === "right", action: () => a.setOutlineSide("right") },
+    ],
+  };
+}
+
 /** Itens do menu do tipo de arquivo: só o que faz sentido para ele. */
 export function langMenuItems(a: MenuActions): MenuItem[] {
   const c = a.current();
@@ -378,6 +397,7 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
           "sep",
           { label: "Quebra de linha", checked: c.wrap, action: a.toggleWrap },
           { label: "Números de linha", checked: c.lineNumbers, action: a.toggleLineNumbers },
+          outlineItem(a),
           "sep",
           zoomItem(a),
         ];
