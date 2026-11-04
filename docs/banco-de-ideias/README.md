@@ -16,6 +16,9 @@ Ao implementar uma ideia, troque `feita` para `sim`, preencha `versao` e atualiz
 |---|---|---|
 | [Referência com volta (link da nota para o ponto do PDF/EPUB)](referencia-com-volta.md) | não | — |
 | [Nota ao lado do leitor (e "nota do livro")](nota-ao-lado-do-leitor.md) | não | — |
+| [Comparar (diff) entre abas e com o arquivo em disco](comparar-diff.md) | não | — |
+| [Tabelas de markdown renderizadas e editáveis](tabelas-markdown.md) | não | — |
+| [Links entre notas (`[[nome]]`) e backlinks](links-entre-notas.md) | não | — |
 | [Suporte a LaTeX](latex.md) | não | — |
 | [Suporte a Mermaid](mermaid.md) | não | — |
 | [Mapas mentais em arquivo próprio](mapas-mentais.md) | não | — |
