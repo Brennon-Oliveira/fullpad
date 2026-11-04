@@ -1515,7 +1515,7 @@ function createGroup(id: number): Group {
   el.append(tabsEl, noteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
   const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, csvEl, noteEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0 };
-  g.outline = createOutline(outlineEl, { goto: (pos) => gotoPosIn(g, pos), togglePinned: toggleOutlinePinned });
+  g.outline = createOutline(outlineEl, { goto: (pos) => gotoPosIn(g, pos), togglePinned: toggleOutlinePinned, focusEditor: () => g.view.focus() });
   g.outline.config({ enabled: outlineOn, pinned: outlinePinned, side: outlineSide });
   groups.set(id, g);
   let olFrame = 0;

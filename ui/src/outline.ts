@@ -1,4 +1,4 @@
-import { type OutlineItem, railItems } from "./outlinecore";
+import { type OutlineItem, filterOutline, railItems } from "./outlinecore";
 
 export type OutlineSide = "left" | "right";
 
@@ -18,13 +18,14 @@ export interface Outline {
   config(c: OutlineConfig): void;
 }
 
+const SEARCH_ICON = `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>`;
 const PIN_ICON = `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M6 2.5v11"/></svg>`;
 
 /**
  * Sumário de um painel (estilo Notion): barrinhas na borda que viram um cartão com os títulos ao passar
  * o mouse, ou o mesmo cartão fixo ao lado do arquivo. `root` é filho do corpo do painel.
  */
-export function createOutline(root: HTMLElement, host: { goto(pos: number): void; togglePinned(): void }): Outline {
+export function createOutline(root: HTMLElement, host: { goto(pos: number): void; togglePinned(): void; focusEditor?(): void }): Outline {
   root.className = "outline";
   root.hidden = true;
   const hot = document.createElement("div");
@@ -42,10 +43,24 @@ export function createOutline(root: HTMLElement, host: { goto(pos: number): void
   pin.type = "button";
   pin.innerHTML = PIN_ICON;
   pin.addEventListener("click", () => host.togglePinned());
-  head.append(title, pin);
+  const find = document.createElement("button");
+  find.className = "ol-find";
+  find.type = "button";
+  find.title = "Buscar no sumário";
+  find.innerHTML = SEARCH_ICON;
+  const tools = document.createElement("span");
+  tools.className = "ol-tools";
+  tools.append(find, pin);
+  head.append(title, tools);
+  // campo de busca: só com o sumário fixo; filtra a lista do sumário e nada além dela
+  const search = document.createElement("input");
+  search.className = "ol-search";
+  search.type = "search";
+  search.placeholder = "Buscar no sumário…";
+  search.spellcheck = false;
   const list = document.createElement("div");
   list.className = "ol-list";
-  card.append(head, list);
+  card.append(head, search, list);
   hot.append(rail, card);
   root.append(hot);
 
@@ -53,8 +68,10 @@ export function createOutline(root: HTMLElement, host: { goto(pos: number): void
   let active = 0;
   let cfg: OutlineConfig = { enabled: true, pinned: false, side: "left" };
 
+  let wantFocus = false; // a lupa fixou o sumário: o campo ganha o foco quando ele aparecer
+
   const paintActive = () => {
-    list.querySelectorAll(".ol-item").forEach((el, i) => el.classList.toggle("on", i === active));
+    list.querySelectorAll<HTMLElement>(".ol-item").forEach((el) => el.classList.toggle("on", Number(el.dataset.i) === active));
     // rola só a lista (scrollIntoView poderia rolar o painel inteiro)
     const row = list.querySelector<HTMLElement>(".on");
     if (row) {
@@ -73,24 +90,70 @@ export function createOutline(root: HTMLElement, host: { goto(pos: number): void
     root.classList.toggle("pinned", cfg.pinned);
     root.classList.toggle("left", cfg.side === "left");
     root.classList.toggle("right", cfg.side === "right");
+    if (!cfg.pinned && search.value) {
+      search.value = ""; // sem o fixo não há campo: a lista volta inteira
+      renderList();
+    }
+    if (cfg.pinned && wantFocus) search.focus();
+    wantFocus = false;
     pin.title = cfg.pinned ? "Soltar (mostrar só as barrinhas)" : "Manter aberto";
     pin.classList.toggle("on", cfg.pinned);
   };
 
+  /** Desenha a lista: todos os itens, ou só os que casam com o campo de busca. */
+  const renderList = () => {
+    const shown = filterOutline(items, search.value);
+    if (shown.length === 0 && items.length > 0) {
+      const empty = document.createElement("div");
+      empty.className = "ol-empty";
+      empty.textContent = "Nada encontrado";
+      list.replaceChildren(empty);
+      return;
+    }
+    list.replaceChildren(
+      ...shown.map((i) => {
+        const it = items[i];
+        const row = document.createElement("div");
+        row.className = "ol-item";
+        row.dataset.i = String(i);
+        row.style.paddingLeft = `${10 + it.depth * 14}px`;
+        row.textContent = it.label;
+        row.title = it.label;
+        row.addEventListener("click", () => host.goto(it.pos));
+        return row;
+      }),
+    );
+    paintActive();
+  };
+
+  find.addEventListener("click", () => {
+    if (cfg.pinned) search.focus();
+    else {
+      wantFocus = true;
+      host.togglePinned();
+    }
+  });
+  search.addEventListener("input", renderList);
+  search.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (search.value) {
+        search.value = "";
+        renderList();
+      } else host.focusEditor?.();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const first = items[filterOutline(items, search.value)[0]];
+      if (first && search.value.trim()) host.goto(first.pos);
+    }
+  });
+
   return {
     set(next) {
       items = next ?? [];
-      list.replaceChildren(
-        ...items.map((it) => {
-          const row = document.createElement("div");
-          row.className = "ol-item";
-          row.style.paddingLeft = `${10 + it.depth * 14}px`;
-          row.textContent = it.label;
-          row.title = it.label;
-          row.addEventListener("click", () => host.goto(it.pos));
-          return row;
-        }),
-      );
+      active = Math.min(active, Math.max(0, items.length - 1));
+      renderList();
       rail.replaceChildren(
         ...railItems(items).map((it) => {
           const bar = document.createElement("div");
@@ -99,7 +162,6 @@ export function createOutline(root: HTMLElement, host: { goto(pos: number): void
           return bar;
         }),
       );
-      active = Math.min(active, Math.max(0, items.length - 1));
       paint();
       paintActive();
     },

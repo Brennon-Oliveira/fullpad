@@ -1,6 +1,7 @@
 /** Lógica pura do sumário lateral: itens da árvore de JSON/YAML/TOML e o item "atual" pela posição. Sem DOM. */
 import type { JNode } from "./json/tree";
 import { isContainer } from "./json/tree";
+import { bestScore } from "./palettecore";
 
 export interface OutlineItem {
   label: string;
@@ -49,4 +50,15 @@ export function railItems<T extends { depth: number }>(items: readonly T[], max 
   if (items.length <= max) return [...items];
   const shallow = Math.min(...items.map((i) => i.depth));
   return items.filter((i) => i.depth === shallow).slice(0, max);
+}
+
+/**
+ * Índices dos itens que casam com o texto da busca do sumário, na ordem do arquivo (um sumário se
+ * lê em ordem). Mesma busca aproximada da paleta: sem maiúscula nem acento, subsequência. Sem texto,
+ * todos.
+ */
+export function filterOutline(items: readonly { label: string }[], query: string): number[] {
+  const all = items.map((_, i) => i);
+  if (!query.trim()) return all;
+  return all.filter((i) => bestScore(query, [items[i].label]) !== null);
 }

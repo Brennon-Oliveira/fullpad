@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeIndex, railItems, treeOutline } from "./outlinecore";
+import { activeIndex, filterOutline, railItems, treeOutline } from "./outlinecore";
 
 describe("activeIndex", () => {
   const items = [{ pos: 10 }, { pos: 50 }, { pos: 90 }];
@@ -36,5 +36,18 @@ describe("treeOutline", () => {
       { parent: 4, kind: "object", from: 62, to: 70, end: 7, len: 0 },
     ] as never;
     expect(treeOutline(nodes).map((x) => [x.label, x.depth])).toEqual([["a", 0], ["l", 1], ["b", 0], ["[0]", 1], ["[1]", 1]]);
+  });
+});
+
+describe("filterOutline", () => {
+  const items = [{ label: "Introdução" }, { label: "Instalação" }, { label: "Configuração avançada" }, { label: "Perguntas" }];
+  it("sem texto devolve todos, em ordem", () => {
+    expect(filterOutline(items, "")).toEqual([0, 1, 2, 3]);
+    expect(filterOutline(items, "   ")).toEqual([0, 1, 2, 3]);
+  });
+  it("ignora maiúsculas e acentos e mantém a ordem do arquivo", () => {
+    expect(filterOutline(items, "ACAO")).toEqual([1, 2]);
+    expect(filterOutline(items, "avanc")).toEqual([2]);
+    expect(filterOutline(items, "zzz")).toEqual([]);
   });
 });
