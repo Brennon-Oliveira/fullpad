@@ -99,7 +99,9 @@ Escreva em `crates/app/release-notes.md` (substituindo o conteúdo da versão an
 - `docs`, `test`, `build`, `ci`, `chore` ficam de fora, a não ser que mudem algo para o usuário (ex.: o instalador).
 - Mudança incompatível: diga o que muda e o que a pessoa precisa fazer.
 
-O `scripts/release.sh` lê esse mesmo arquivo para o release e para o `latest.json` (no diálogo, sem os `#`). O diálogo de atualização mostra o texto como está, **sem acrescentar título**: os títulos (`Novidades`, `Correções`, `Melhorias`) são os das próprias notas.
+**Histórico (`crates/app/CHANGELOG.md`)**: depois de escrever a nota, acrescente a mesma nota **no topo** do `crates/app/CHANGELOG.md`, logo abaixo do texto de abertura e acima da versão anterior, com o cabeçalho `## <nova> · <aaaa-mm-dd>` (data de hoje) e as seções rebaixadas para `###` (`### Novidades`, `### Correções`, `### Melhorias`). O app separa as versões pelo cabeçalho `## x.y.z`, então **nenhum outro `##` pode começar por um número de versão**, e as versões ficam da mais nova para a mais antiga, sem repetir. O arquivo vai embutido no app (Ajuda > "Histórico de versões…") e a nota que abre depois de atualizar mostra tudo o que entrou desde a versão que a pessoa tinha.
+
+O `scripts/release.sh` lê o `release-notes.md` para o release e para o `latest.json` (no diálogo, sem os `#`). O diálogo de atualização mostra o texto como está, **sem acrescentar título**: os títulos (`Novidades`, `Correções`, `Melhorias`) são os das próprias notas.
 
 ## 5. Confirmar com o usuário
 
@@ -118,12 +120,12 @@ pnpm --dir ui exec vitest run
 PUBLISH=0 scripts/release.sh       # build local: instalador assinado + latest.json
 ```
 
-Confira que a primeira linha `version` do `Cargo.toml` é a do `[package]`. Falhou um teste ou o build: pare, desfaça a mudança de versão e as notas (`git checkout crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md`) e relate a saída.
+Confira que a primeira linha `version` do `Cargo.toml` é a do `[package]`. Falhou um teste ou o build: pare, desfaça a mudança de versão e as notas (`git checkout crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md crates/app/CHANGELOG.md`) e relate a saída.
 
 ## 7. Commit e tag
 
 ```sh
-git add crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md
+git add crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md crates/app/CHANGELOG.md
 git commit -m "chore(versao): <nova>" -m "<notas>"   # com as linhas de atribuição da sessão
 git tag -a v<nova> -m "Fullpad <nova>" -m "$(cat crates/app/release-notes.md)"
 git push origin main v<nova>

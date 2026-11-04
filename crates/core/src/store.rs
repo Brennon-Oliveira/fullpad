@@ -111,15 +111,27 @@ impl Store {
 
     /// Nota de versão: markdown, aberta renderizada, com o título "Nota de versão V<versão>".
     pub fn create_release_notes(&self, version: &str, notes: &str) -> Result<(TabState, String)> {
-        let title = format!("Nota de versão V{version}");
-        let text = format!("# {title}\n\n{}\n", notes.trim());
+        self.create_app_note(&format!("Nota de versão V{version}"), notes)
+    }
+
+    /// Nota só de leitura cujo texto é do app (nota de versão, histórico de versões): markdown,
+    /// aberta renderizada, marcada `release_notes` (fechar apaga de vez, sem histórico).
+    pub fn create_app_note(&self, title: &str, body: &str) -> Result<(TabState, String)> {
+        let text = format!("# {title}\n\n{}\n", body.trim());
         let mut tab = self.create_note()?;
         self.write_note(tab.id, &text)?;
-        tab.title = title;
+        tab.title = title.to_string();
         tab.language = Language::Markdown;
         tab.mode = ViewMode::Rendered;
         tab.release_notes = true;
         Ok((tab, text))
+    }
+
+    /// A versão gravada na última execução (antes de `note_running_version` trocá-la).
+    pub fn previous_version(&self) -> Option<String> {
+        let v = std::fs::read_to_string(self.root.join("version")).ok()?;
+        let v = v.trim();
+        (!v.is_empty()).then(|| v.to_string())
     }
 
     /// Registra a versão em execução e diz se o app acabou de ser atualizado: a versão gravada da
@@ -339,6 +351,25 @@ mod tests {
         let other = s.create_note().unwrap();
         s.close_tab(&other).unwrap();
         assert_eq!(s.list_closed(10).len(), 1);
+    }
+
+    #[test]
+    fn previous_version_is_read_before_it_is_replaced() {
+        let (_d, s) = store();
+        assert_eq!(s.previous_version(), None);
+        s.note_running_version("1.1.0").unwrap();
+        assert_eq!(s.previous_version().as_deref(), Some("1.1.0"));
+        s.note_running_version("2.0.0").unwrap();
+        assert_eq!(s.previous_version().as_deref(), Some("2.0.0"));
+    }
+
+    #[test]
+    fn app_note_is_read_only_and_leaves_no_history() {
+        let (_d, s) = store();
+        let (tab, text) = s.create_app_note("Histórico de versões", "## 1.0.0\n\n- x").unwrap();
+        assert!(tab.release_notes && text.starts_with("# Histórico de versões\n\n## 1.0.0"));
+        s.close_tab(&tab).unwrap();
+        assert!(s.list_closed(10).is_empty());
     }
 
     #[test]

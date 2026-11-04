@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use fullpad_core::changelog;
 use fullpad_core::json::{self, Doc, Indent, JsonError};
 use fullpad_core::reader::{FileStatus, PdfScan};
 use fullpad_core::{ClosedTab, Encoding, Eol, Geometry, Session, Store, TabKind, TabState, MAIN_WINDOW};
@@ -58,10 +59,14 @@ struct AppState {
     update_bytes: Mutex<Option<Vec<u8>>>,
     /// O app acabou de ser atualizado: a janela principal abre a nota de versão uma vez.
     just_updated: Mutex<bool>,
+    /// A versão que estava gravada antes desta execução (para a nota mostrar tudo desde ela).
+    previous_version: Mutex<Option<String>>,
 }
 
 /// Notas da versão em execução, embutidas no app (a skill `gerar-versao` escreve este arquivo).
 const RELEASE_NOTES: &str = include_str!("../release-notes.md");
+/// Histórico de todas as versões, embutido no app (a skill `gerar-versao` acrescenta a nova no topo).
+const CHANGELOG: &str = include_str!("../CHANGELOG.md");
 
 /// Caminhos de arquivo dos argumentos (sem o executável e sem opções), absolutos: uma segunda
 /// instância pode ter sido chamada de outra pasta.
@@ -124,13 +129,38 @@ fn release_notes(app: AppHandle, state: State<AppState>) -> Result<OpenedFile, S
     Ok(OpenedFile { tab, text })
 }
 
-/// Na primeira abertura depois de uma atualização, a nota de versão (uma vez só).
+/// Na primeira abertura depois de uma atualização, a nota de versão (uma vez só). Quem pulou
+/// versões vê tudo o que entrou desde a que tinha; com uma só versão nova, é a nota de sempre.
 #[tauri::command]
 fn startup_release_notes(app: AppHandle, state: State<AppState>) -> Result<Option<OpenedFile>, String> {
     if !std::mem::take(&mut *state.just_updated.lock().unwrap()) {
         return Ok(None);
     }
-    release_notes(app, state).map(Some)
+    let version = app.package_info().version.to_string();
+    let previous = state.previous_version.lock().unwrap().clone();
+    let entries = changelog::parse(CHANGELOG);
+    let missed = previous.as_deref().map(|p| changelog::since(&entries, p, &version)).unwrap_or_default();
+    if missed.len() < 2 {
+        return release_notes(app, state).map(Some);
+    }
+    let (tab, text) = state
+        .store
+        .create_release_notes(&version, &changelog::render(&missed))
+        .map_err(err)?;
+    Ok(Some(OpenedFile { tab, text }))
+}
+
+/// Abre o histórico de versões (Ajuda > "Histórico de versões") numa nota só de leitura, com todas
+/// as versões embutidas, da mais nova para a mais antiga.
+#[tauri::command]
+fn open_changelog(state: State<AppState>) -> Result<OpenedFile, String> {
+    let entries = changelog::parse(CHANGELOG);
+    let all = changelog::range(&entries, None, None);
+    if all.is_empty() {
+        return Err("o histórico de versões está vazio".into());
+    }
+    let (tab, text) = state.store.create_app_note("Histórico de versões", &changelog::render(&all)).map_err(err)?;
+    Ok(OpenedFile { tab, text })
 }
 
 /// Entrega (e esvazia) os arquivos pedidos na linha de comando.
@@ -1184,12 +1214,13 @@ fn main() {
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
         self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), epubs: Mutex::new(Default::default()), csvs: Mutex::new(Default::default()), closed: Mutex::new(HashSet::new()),
         open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()),
-        update: Mutex::new(None), update_bytes: Mutex::new(None), just_updated: Mutex::new(false) })
+        update: Mutex::new(None), update_bytes: Mutex::new(None), just_updated: Mutex::new(false), previous_version: Mutex::new(None) })
         .setup(|app| {
             // reabre as janelas flutuantes da sessão anterior, no mesmo lugar
             let state = app.state::<AppState>();
             // antes de qualquer janela ler a sessão: numa instalação nova ela ainda não existe
             let version = app.package_info().version.to_string();
+            *state.previous_version.lock().unwrap() = state.store.previous_version();
             match state.store.note_running_version(&version) {
                 Ok(updated) => *state.just_updated.lock().unwrap() = updated,
                 Err(e) => eprintln!("versão em execução não gravada: {e}"),
@@ -1242,6 +1273,7 @@ fn main() {
             install_update,
             release_notes,
             startup_release_notes,
+            open_changelog,
             json_analyze,
             json_check,
             data_analyze,

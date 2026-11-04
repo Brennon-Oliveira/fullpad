@@ -49,6 +49,7 @@ export interface MenuActions {
   setLanguage(l: Language): void;
   checkUpdates(): void;
   releaseNotes(): void;
+  changelog(): void;
   formatJson(): void;
   formatJsonSelection(): void;
   minifyJson(): void;
@@ -411,6 +412,7 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
       label: () => "Ajuda",
       items: () => [
         { label: "Ver nota de versão", action: a.releaseNotes },
+        { label: "Histórico de versões", action: a.changelog },
         { label: "Verificar atualizações…", action: a.checkUpdates },
       ],
     },

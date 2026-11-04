@@ -1,6 +1,7 @@
 //! Núcleo do Fullpad: notas, sessão e persistência. Sem dependência de UI.
 
 pub mod atomic;
+pub mod changelog;
 pub mod css;
 pub mod csv;
 pub mod epub;

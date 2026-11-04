@@ -2337,6 +2337,27 @@ async function showReleaseNotes(opened?: { tab: TabState; text: string } | null)
   scheduleSave();
 }
 
+/** Ajuda > "Histórico de versões": o changelog completo numa aba só de leitura (ou a que já estiver aberta). */
+async function showChangelog() {
+  try {
+    const opened = await api.openChangelog();
+    const existing = session.tabs.find((t) => t.release_notes && t.title === opened.tab.title);
+    if (existing) {
+      await api.closeNote(opened.tab.id).catch(() => {});
+      await activate(existing.id);
+      return;
+    }
+    snapshotActive();
+    placeInGroup(opened.tab, cur);
+    await show(opened.tab, opened.text);
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível abrir o histórico", kind: "error" });
+    return;
+  }
+  sessionDirty = true;
+  scheduleSave();
+}
+
 async function openPaths(paths: string[]) {
   for (const path of paths) {
     const existing = session.tabs.find((t) => t.path === path);
@@ -2529,6 +2550,7 @@ const menuActions = {
   exit: () => void thisWindow.close(),
   checkUpdates: () => void checkUpdates(true),
   releaseNotes: () => void showReleaseNotes(),
+  changelog: () => void showChangelog(),
   undo: () => (undo(cur.view), cur.view.focus()),
   redo: () => (redo(cur.view), cur.view.focus()),
   selectAll: () => (selectAll(cur.view), cur.view.focus()),

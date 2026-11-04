@@ -220,6 +220,8 @@ export const api = {
   /** Nota nova com a nota de versão do app em execução. */
   releaseNotes: () => invoke<{ tab: TabState; text: string }>("release_notes"),
   /** A nota de versão, só na primeira abertura depois de uma atualização. */
+  /** Nota só de leitura com o histórico completo de versões. */
+  openChangelog: () => invoke<{ tab: TabState; text: string }>("open_changelog"),
   startupReleaseNotes: () => invoke<{ tab: TabState; text: string } | null>("startup_release_notes"),
   exitApp: () => invoke<void>("exit_app"),
   newNote: () => invoke<TabState>("new_note"),
