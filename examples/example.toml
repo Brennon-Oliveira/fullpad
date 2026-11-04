@@ -1,0 +1,57 @@
+# Fullpad — exemplo de TOML: manifesto de um projeto Rust + configuração de app.
+# Mostra tabelas, tabelas aninhadas, listas de tabelas ([[...]]), tabelas em linha,
+# strings (básica, literal, multilinha), números, datas e horas.
+
+titulo = "Fullpad (exemplo)"
+ativo = true
+tentativas = 3
+taxa = 0.75
+grande = 1_000_000
+hex = 0xDEADBEEF
+infinito = inf
+
+# Datas e horas são valores próprios do TOML
+nascimento = 1990-05-14
+reuniao = 2026-11-03T09:30:00-03:00
+almoco = 12:30:00
+
+[package]
+name = "fullpad-exemplo"
+version = "1.1.0"
+edition = "2021"
+authors = ["Brennon <brennon@exemplo.dev>"]
+descricao = """
+Editor de notas rápido.
+Mais de uma linha, preservada como está.
+"""
+caminho = 'C:\Users\brennon\notas'   # literal: a barra invertida não escapa
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1.38", default-features = false, features = ["rt", "macros"] }
+regex = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = "symbols"
+
+[servidor]
+host = "127.0.0.1"
+portas = [8080, 8081, 9090]
+tags = ["web", "api", "interno"]
+mista = [1, "dois", 3.0, true]
+
+[servidor.tls]
+ativo = false
+certificado = "/etc/ssl/cert.pem"
+
+[[ambientes]]
+nome = "desenvolvimento"
+url = "http://localhost:1420"
+debug = true
+
+[[ambientes]]
+nome = "producao"
+url = "https://exemplo.dev"
+debug = false

@@ -1,0 +1,61 @@
+código	descrição	unidade	estoque	mínimo	preço	local	situação
+INV-0001	Broca para concreto 8 mm #1	pç	437	20	35,67	A-02	ok
+INV-0002	Lixa d'água 220 #2	un	137	50	26,01	B-07	ok
+INV-0003	Lixa d'água 220 #3	un	298	50	83,68	D-15	ok
+INV-0004	Broca para concreto 8 mm #4	kg	193	50	31,25	D-15	ok
+INV-0005	Arruela lisa 8 mm #5	pç	413	20	64,26	B-07	ok
+INV-0006	Lixa d'água 220 #6	kg	395	50	6,73	D-15	ok
+INV-0007	Broca para concreto 8 mm #7	kg	109	50	2,75	A-01	ok
+INV-0008	Broca para concreto 8 mm #8	un	110	50	42,21	B-12	ok
+INV-0009	Bucha nylon S8 #9	kg	299	100	24,58	D-15	ok
+INV-0010	Fita veda-rosca 18 mm #10	cx	318	100	56,03	A-02	ok
+INV-0011	Porca autotravante M8 #11	pç	38	50	52,14	A-02	REPOR
+INV-0012	Cola de contato 200 g #12	kg	354	20	41,96	B-12	ok
+INV-0013	Lixa d'água 220 #13	kg	197	20	57,35	D-15	ok
+INV-0014	Fita veda-rosca 18 mm #14	pç	290	20	45,84	A-01	ok
+INV-0015	Chave Allen 5 mm #15	pç	266	50	70,28	A-01	ok
+INV-0016	Broca para concreto 8 mm #16	kg	467	50	52,35	A-02	ok
+INV-0017	Luva de segurança #17	pç	53	50	16,26	B-07	ok
+INV-0018	Porca autotravante M8 #18	un	373	50	83,97	D-15	ok
+INV-0019	Lixa d'água 220 #19	un	228	50	32,68	B-12	ok
+INV-0020	Bucha nylon S8 #20	kg	74	100	23,96	B-07	REPOR
+INV-0021	Parafuso sextavado M8 #21	cx	39	20	73,70	C-03	ok
+INV-0022	Arruela lisa 8 mm #22	pç	427	50	46,71	C-03	ok
+INV-0023	Cola de contato 200 g #23	kg	11	20	57,44	C-03	REPOR
+INV-0024	Lixa d'água 220 #24	kg	32	50	32,38	C-03	REPOR
+INV-0025	Bucha nylon S8 #25	un	129	100	48,99	B-12	ok
+INV-0026	Broca para concreto 8 mm #26	pç	304	50	46,12	B-12	ok
+INV-0027	Broca para concreto 8 mm #27	pç	173	50	36,63	B-07	ok
+INV-0028	Bucha nylon S8 #28	kg	328	100	16,47	A-01	ok
+INV-0029	Lixa d'água 220 #29	pç	276	100	61,58	A-02	ok
+INV-0030	Fita veda-rosca 18 mm #30	pç	35	50	75,91	C-03	REPOR
+INV-0031	Fita veda-rosca 18 mm #31	cx	233	20	41,73	B-12	ok
+INV-0032	Chave Allen 5 mm #32	cx	324	50	3,86	A-01	ok
+INV-0033	Arruela lisa 8 mm #33	cx	36	100	7,60	C-03	REPOR
+INV-0034	Cola de contato 200 g #34	pç	27	20	65,26	A-01	ok
+INV-0035	Cola de contato 200 g #35	kg	160	100	3,89	C-03	ok
+INV-0036	Broca para concreto 8 mm #36	kg	500	50	59,07	C-03	ok
+INV-0037	Bucha nylon S8 #37	cx	44	20	9,71	C-03	ok
+INV-0038	Lixa d'água 220 #38	cx	109	100	62,59	A-02	ok
+INV-0039	Fita veda-rosca 18 mm #39	pç	228	20	81,13	A-01	ok
+INV-0040	Porca autotravante M8 #40	un	374	50	18,22	B-07	ok
+INV-0041	Lixa d'água 220 #41	kg	294	20	42,56	A-02	ok
+INV-0042	Fita veda-rosca 18 mm #42	kg	206	50	41,00	A-01	ok
+INV-0043	Chave Allen 5 mm #43	un	157	50	16,85	A-02	ok
+INV-0044	Lixa d'água 220 #44	kg	496	50	31,67	B-12	ok
+INV-0045	Cola de contato 200 g #45	pç	58	20	15,00	B-07	ok
+INV-0046	Parafuso sextavado M8 #46	kg	447	20	25,35	B-07	ok
+INV-0047	Chave Allen 5 mm #47	un	88	100	13,84	B-07	REPOR
+INV-0048	Luva de segurança #48	un	424	20	16,97	C-03	ok
+INV-0049	Porca autotravante M8 #49	pç	461	20	78,14	D-15	ok
+INV-0050	Fita veda-rosca 18 mm #50	pç	315	50	67,84	A-01	ok
+INV-0051	Bucha nylon S8 #51	kg	400	50	80,13	A-02	ok
+INV-0052	Arruela lisa 8 mm #52	pç	435	100	40,23	D-15	ok
+INV-0053	Fita veda-rosca 18 mm #53	cx	487	20	2,31	B-12	ok
+INV-0054	Bucha nylon S8 #54	cx	188	20	6,92	B-12	ok
+INV-0055	Broca para concreto 8 mm #55	cx	463	100	83,58	B-07	ok
+INV-0056	Parafuso sextavado M8 #56	cx	460	100	52,15	B-12	ok
+INV-0057	Broca para concreto 8 mm #57	cx	414	20	4,41	C-03	ok
+INV-0058	Luva de segurança #58	pç	430	50	30,28	B-12	ok
+INV-0059	Lixa d'água 220 #59	cx	10	50	29,59	A-01	REPOR
+INV-0060	Porca autotravante M8 #60	pç	9	100	3,36	B-12	REPOR

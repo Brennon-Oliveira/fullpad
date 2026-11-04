@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fullpad — página de exemplo</title>
+    <style>
+      :root { --destaque: #4f8cff; --fundo: #f7f8fa; --texto: #1d2733; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 16px/1.6 system-ui, sans-serif; background: var(--fundo); color: var(--texto); }
+      header { padding: 3rem 1.5rem; text-align: center; background: linear-gradient(135deg, var(--destaque), #8e44ad); color: #fff; }
+      main { max-width: 860px; margin: 0 auto; padding: 1.5rem; }
+      .cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+      .cartao { background: #fff; border-radius: 10px; padding: 1.2rem; box-shadow: 0 2px 8px rgb(0 0 0 / .08); transition: transform .15s; }
+      .cartao:hover { transform: translateY(-3px); }
+      table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+      th, td { padding: .5rem .75rem; border-bottom: 1px solid #dde2e8; text-align: left; }
+      @media (prefers-color-scheme: dark) { :root { --fundo: #14181f; --texto: #e6e9ee; } .cartao { background: #1d242e; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Nada se perde</h1>
+      <p>Um editor de notas rápido que lembra de tudo.</p>
+    </header>
+    <main>
+      <section class="cartoes" aria-label="Recursos">
+        <article class="cartao"><h2>📝 Notas</h2><p>Abra, escreva, feche. A nota volta como estava.</p></article>
+        <article class="cartao"><h2>🧩 Painéis</h2><p>Divida a janela e arraste abas entre os painéis.</p></article>
+        <article class="cartao"><h2>📖 Leitura</h2><p>PDF e EPUB sem sair do app.</p></article>
+      </section>
+
+      <table>
+        <caption>Atalhos principais</caption>
+        <thead><tr><th>Ação</th><th>Atalho</th></tr></thead>
+        <tbody>
+          <tr><td>Nova nota</td><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td></tr>
+          <tr><td>Reabrir aba</td><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd></td></tr>
+        </tbody>
+      </table>
+
+      <form onsubmit="return false">
+        <label for="nome">Seu nome</label>
+        <input id="nome" type="text" placeholder="Ana" required />
+        <button type="submit">Enviar</button>
+      </form>
+    </main>
+    <script>
+      document.querySelector("form").addEventListener("submit", () => {
+        console.log("Olá,", document.getElementById("nome").value);
+      });
+    </script>
+  </body>
+</html>

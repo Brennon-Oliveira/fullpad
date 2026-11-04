@@ -1,0 +1,89 @@
+# Fullpad — exemplo de YAML: pipeline de CI + docker-compose misturados.
+# Mostra âncoras (&), aliases (*), merges (<<), listas, blocos de texto e tipos.
+
+versao: "3.9"
+projeto: fullpad-exemplo
+ativo: true
+tentativas: 3
+taxa: 0.75
+nulo: ~
+data: 2026-11-03
+horario: 2026-11-03T09:30:00-03:00
+
+defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+  environment: &env_comum
+    TZ: America/Sao_Paulo
+    LANG: pt_BR.UTF-8
+
+services:
+  api:
+    <<: *defaults
+    image: ghcr.io/exemplo/api:1.4.2
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      <<: *env_comum
+      DATABASE_URL: postgres://app:segredo@db:5432/app
+      LOG_LEVEL: info
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/saude"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
+  db:
+    <<: *defaults
+    image: postgres:16-alpine
+    volumes:
+      - dados:/var/lib/postgresql/data
+      - ./inicial.sql:/docker-entrypoint-initdb.d/inicial.sql:ro
+    environment:
+      <<: *env_comum
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: segredo
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+
+volumes:
+  dados: {}
+
+# ---------- CI ----------
+ci:
+  nome: testes
+  em:
+    push: { branches: [main] }
+    pull_request: {}
+  matriz:
+    sistema: [ubuntu-latest, windows-latest]
+    node: [20, 22]
+    incluir:
+      - sistema: ubuntu-latest
+        node: 24
+        experimental: true
+  passos:
+    - nome: Baixar o código
+      usa: actions/checkout@v4
+    - nome: Instalar dependências
+      executa: pnpm install --frozen-lockfile
+    - nome: Rodar os testes (texto em bloco, quebras preservadas)
+      executa: |
+        pnpm test
+        cargo test --workspace
+        echo "tudo certo"
+    - nome: Mensagem longa (texto dobrado em uma linha)
+      mensagem: >
+        Este texto está escrito em várias linhas no arquivo,
+        mas vira um único parágrafo quando lido.
+
+notificacoes:
+  - { canal: email, para: [equipe@example.com, ops@example.com] }
+  - { canal: chat, webhook: "https://hooks.example.com/abc123" }

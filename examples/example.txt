@@ -1,0 +1,77 @@
+FULLPAD — arquivo de texto puro
+============================================================
+
+Este arquivo não tem formatação nenhuma: é só texto. Use-o para testar o menu
+"Texto": quebra de linha, localizar (Ctrl+F), substituir e ir para linha (Ctrl+Alt+G).
+
+Acentuação: ação, coração, pão, açaí, você, ônibus, tênis, à, é, ü, ñ, ç.
+Símbolos: © ® ™ € £ ¥ ° ± × ÷ ≈ ≠ ≤ ≥ ∞ → ← ↑ ↓ ✓ ✗ ★ ☆ ♥ ♪
+Emoji: 🚀 ✨ 📝 🧠 🇧🇷 👩‍💻 🏳️‍🌈 (posições contadas em UTF-16)
+
+Tabulações:
+coluna1	coluna2	coluna3
+a	b	c
+alfa	beta	gama
+
+Recuos com espaços:
+    quatro espaços
+        oito espaços
+
+Linha muito longa para testar a quebra automática (ligue em Texto > Quebra de linha): palavra1 palavra2 palavra3 palavra4 palavra5 palavra6 palavra7 palavra8 palavra9 palavra10 palavra11 palavra12 palavra13 palavra14 palavra15 palavra16 palavra17 palavra18 palavra19 palavra20 palavra21 palavra22 palavra23 palavra24 palavra25 palavra26 palavra27 palavra28 palavra29 palavra30 palavra31 palavra32 palavra33 palavra34 palavra35 palavra36 palavra37 palavra38 palavra39 palavra40 palavra41 palavra42 palavra43 palavra44 palavra45 palavra46 palavra47 palavra48 palavra49 palavra50 palavra51 palavra52 palavra53 palavra54 palavra55 palavra56 palavra57 palavra58 palavra59
+
+Espaços no fim da linha (invisíveis):   
+
+--- Lista de compras (use Localizar para achar 'leite') ---
+  1. leite
+  2. pão francês
+  3. ovos (dúzia)
+  4. café
+  5. queijo minas
+  6. tomate
+  7. cebola
+  8. arroz 5 kg
+  9. feijão
+ 10. leite condensado
+ 11. detergente
+ 12. papel higiênico
+
+--- Trecho de poema (Fernando Pessoa, domínio público) ---
+Tudo vale a pena
+Se a alma não é pequena.
+Quem quer passar além do Bojador
+Tem que passar além da dor.
+Deus ao mar o perigo e o abismo deu,
+Mas nele é que espelhou o céu.
+
+--- Dados soltos ---
+2026-11-03 09:15:02 INFO  servidor iniciado na porta 8080
+2026-11-03 09:15:07 WARN  cache frio, carregando 12000 itens
+2026-11-03 09:15:41 ERROR falha ao conectar em db:5432 (tentativa 1/3)
+2026-11-03 09:15:46 INFO  conexão restabelecida
+
+--- Ir para linha ---
+Linha 53: use Ctrl+Alt+G e digite 53 para pular direto para cá.
+Linha 54: use Ctrl+Alt+G e digite 54 para pular direto para cá.
+Linha 55: use Ctrl+Alt+G e digite 55 para pular direto para cá.
+Linha 56: use Ctrl+Alt+G e digite 56 para pular direto para cá.
+Linha 57: use Ctrl+Alt+G e digite 57 para pular direto para cá.
+Linha 58: use Ctrl+Alt+G e digite 58 para pular direto para cá.
+Linha 59: use Ctrl+Alt+G e digite 59 para pular direto para cá.
+Linha 60: use Ctrl+Alt+G e digite 60 para pular direto para cá.
+Linha 61: use Ctrl+Alt+G e digite 61 para pular direto para cá.
+Linha 62: use Ctrl+Alt+G e digite 62 para pular direto para cá.
+Linha 63: use Ctrl+Alt+G e digite 63 para pular direto para cá.
+Linha 64: use Ctrl+Alt+G e digite 64 para pular direto para cá.
+Linha 65: use Ctrl+Alt+G e digite 65 para pular direto para cá.
+Linha 66: use Ctrl+Alt+G e digite 66 para pular direto para cá.
+Linha 67: use Ctrl+Alt+G e digite 67 para pular direto para cá.
+Linha 68: use Ctrl+Alt+G e digite 68 para pular direto para cá.
+Linha 69: use Ctrl+Alt+G e digite 69 para pular direto para cá.
+Linha 70: use Ctrl+Alt+G e digite 70 para pular direto para cá.
+Linha 71: use Ctrl+Alt+G e digite 71 para pular direto para cá.
+Linha 72: use Ctrl+Alt+G e digite 72 para pular direto para cá.
+Linha 73: use Ctrl+Alt+G e digite 73 para pular direto para cá.
+Linha 74: use Ctrl+Alt+G e digite 74 para pular direto para cá.
+Linha 75: use Ctrl+Alt+G e digite 75 para pular direto para cá.
+
+Fim do arquivo.

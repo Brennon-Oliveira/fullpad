@@ -1,0 +1,87 @@
+/* Fullpad — exemplo de CSS: tema com variáveis, grid, animações e media queries. */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap");
+
+@layer reset, base, componentes;
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; }
+}
+
+:root {
+  --cor-fundo: hsl(220 20% 97%);
+  --cor-texto: #1d2733;
+  --cor-destaque: oklch(62% 0.19 255);
+  --espaco: clamp(0.75rem, 2vw, 1.5rem);
+  --raio: 10px;
+  --sombra: 0 2px 8px rgb(0 0 0 / 0.12);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { --cor-fundo: #14181f; --cor-texto: #e6e9ee; }
+}
+
+@layer base {
+  body {
+    font: 400 1rem/1.6 "Inter", system-ui, sans-serif;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+  }
+
+  a { color: var(--cor-destaque); text-underline-offset: 0.2em; }
+  a:is(:hover, :focus-visible) { text-decoration-thickness: 2px; }
+  ::selection { background: color-mix(in srgb, var(--cor-destaque) 35%, transparent); }
+}
+
+@layer componentes {
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: var(--espaco);
+    padding: var(--espaco);
+  }
+
+  .cartao {
+    position: relative;
+    padding: calc(var(--espaco) * 1.2);
+    border-radius: var(--raio);
+    background: color-mix(in srgb, var(--cor-fundo) 92%, var(--cor-texto));
+    box-shadow: var(--sombra);
+    transition: transform 150ms ease, box-shadow 150ms ease;
+
+    &:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgb(0 0 0 / 0.18); }
+    & > h2 { font-size: 1.15rem; margin-bottom: 0.4em; }
+    &.destaque { outline: 2px solid var(--cor-destaque); }
+  }
+
+  .cartao[data-novo]::after {
+    content: "novo";
+    position: absolute; top: 0.6rem; right: 0.6rem;
+    padding: 0.1em 0.6em;
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+    border-radius: 999px;
+    background: var(--cor-destaque); color: #fff;
+    animation: pulsar 1.8s ease-in-out infinite;
+  }
+
+  .tabela tr:nth-child(even) td { background: rgb(127 127 127 / 0.08); }
+  .tabela td:first-child { font-variant-numeric: tabular-nums; }
+}
+
+@keyframes pulsar {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.12); opacity: 0.75; }
+}
+
+@media (max-width: 600px) {
+  .grade { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+@container (min-width: 400px) {
+  .cartao { display: flex; gap: 1rem; }
+}

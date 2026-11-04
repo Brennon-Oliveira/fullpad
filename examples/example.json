@@ -1,0 +1,743 @@
+{
+  "$schema": "https://example.com/schemas/loja-v3.json",
+  "loja": {
+    "nome": "Papelaria & Cia — Edição Especial",
+    "fundadaEm": 1987,
+    "ativa": true,
+    "site": "https://www.example.com/loja",
+    "contato": {
+      "email": "contato@example.com",
+      "telefone": "+55 (11) 4002-8922",
+      "redes": {
+        "instagram": "https://instagram.com/example",
+        "x": "https://x.com/example"
+      }
+    },
+    "logo": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCI+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMzAiIGZpbGw9IiNlNjc2MjIiLz48L3N2Zz4=",
+    "corPrincipal": "#e67e22",
+    "coresDoTema": {
+      "fundo": "hsl(30, 100%, 97%)",
+      "texto": "rgb(34, 40, 49)",
+      "destaque": "#e67e22",
+      "alerta": "rgb(192 57 43)"
+    },
+    "endereco": {
+      "rua": "Rua das Acácias",
+      "numero": 1200,
+      "complemento": null,
+      "cidade": "São Paulo",
+      "uf": "SP",
+      "cep": "01310-100",
+      "geo": {
+        "type": "Point",
+        "coordinates": [
+          -46.6333,
+          -23.5505
+        ]
+      }
+    }
+  },
+  "configuracoes": {
+    "moeda": "BRL",
+    "casasDecimais": 2,
+    "impostos": {
+      "icms": 0.18,
+      "ipi": 0.0,
+      "pis": 0.0165,
+      "cofins": 0.076
+    },
+    "frete": {
+      "gratisAcimaDe": 250.0,
+      "regioes": {
+        "sudeste": {
+          "prazoDias": [
+            2,
+            4
+          ],
+          "valor": 14.9
+        },
+        "sul": {
+          "prazoDias": [
+            3,
+            6
+          ],
+          "valor": 19.9
+        },
+        "nordeste": {
+          "prazoDias": [
+            5,
+            9
+          ],
+          "valor": 29.9
+        }
+      }
+    },
+    "funcionalidades": {
+      "avaliacoes": true,
+      "listaDeDesejos": true,
+      "cupons": {
+        "ativo": true,
+        "maximoPorPedido": 2,
+        "regras": [
+          {
+            "codigo": "BEMVINDO10",
+            "percentual": 10,
+            "primeiraCompra": true
+          },
+          {
+            "codigo": "FRETEGRATIS",
+            "percentual": 0,
+            "freteGratis": true,
+            "expiraEm": "2026-12-31"
+          }
+        ]
+      }
+    },
+    "textos": {
+      "boasVindas": "Olá! 👋 Bem-vindo à nossa loja.",
+      "rodape": "© 2026 Papelaria & Cia.\nTodos os direitos reservados.",
+      "caminhoWindows": "C:\\Users\\loja\\Documentos",
+      "aspas": "Ele disse: \"nada se perde\"",
+      "unicode": "\u00e7\u00e3o \u2014 \u20ac \ud83d\ude80"
+    }
+  },
+  "clientes": [
+    {
+      "id": 0,
+      "nome": "Ana Beatriz Souza",
+      "email": "ana.souza@example.com",
+      "endereco": {
+        "cidade": "São Paulo",
+        "uf": "SP"
+      },
+      "vip": true,
+      "pontos": 4682,
+      "preferencias": {
+        "newsletter": true,
+        "categorias": [
+          "casa",
+          "papelaria"
+        ]
+      }
+    },
+    {
+      "id": 1,
+      "nome": "João Pedro Álvares",
+      "email": "joao.alvares@example.com",
+      "endereco": {
+        "cidade": "Belo Horizonte",
+        "uf": "MG"
+      },
+      "vip": false,
+      "pontos": 4843,
+      "preferencias": {
+        "newsletter": true,
+        "categorias": [
+          "acessorios",
+          "eletronicos"
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "nome": "Mariana Çavuşoğlu",
+      "email": "mariana.c@example.com",
+      "endereco": {
+        "cidade": "Curitiba",
+        "uf": "PR"
+      },
+      "vip": true,
+      "pontos": 2755,
+      "preferencias": {
+        "newsletter": true,
+        "categorias": [
+          "casa",
+          "eletronicos"
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "nome": "Luiz Fernando Ñandú",
+      "email": "luiz.nandu@example.com",
+      "endereco": {
+        "cidade": "Porto Alegre",
+        "uf": "RS"
+      },
+      "vip": false,
+      "pontos": 569,
+      "preferencias": {
+        "newsletter": true,
+        "categorias": [
+          "papelaria",
+          "acessorios"
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "nome": "Júlia 🌻 Campos",
+      "email": "julia.campos@example.com",
+      "endereco": {
+        "cidade": "Recife",
+        "uf": "PE"
+      },
+      "vip": true,
+      "pontos": 1420,
+      "preferencias": {
+        "newsletter": false,
+        "categorias": [
+          "papelaria",
+          "casa"
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "nome": "Carlos Eduardo Lima",
+      "email": "carlos.lima@example.com",
+      "endereco": {
+        "cidade": "Salvador",
+        "uf": "BA"
+      },
+      "vip": false,
+      "pontos": 1544,
+      "preferencias": {
+        "newsletter": true,
+        "categorias": [
+          "papelaria",
+          "acessorios"
+        ]
+      }
+    }
+  ],
+  "produtos": [
+    {
+      "sku": "FP-001",
+      "nome": "Caderno pautado 96 folhas",
+      "preco": 24.9,
+      "categoria": "papelaria",
+      "cor": "#e67e22",
+      "estoque": 271,
+      "foto": "https://picsum.photos/seed/FP-001/400/300.jpg",
+      "dimensoesCm": {
+        "largura": 12.7,
+        "altura": 35.9,
+        "profundidade": 22.5
+      },
+      "avaliacoes": [
+        {
+          "nota": 3,
+          "comentario": "Chegou rápido, recomendo."
+        }
+      ]
+    },
+    {
+      "sku": "FP-002",
+      "nome": "Caneta gel 0,5 mm (caixa com 12)",
+      "preco": 39.0,
+      "categoria": "papelaria",
+      "cor": "rgb(41, 128, 185)",
+      "estoque": 199,
+      "foto": "https://picsum.photos/seed/FP-002/400/300.jpg",
+      "dimensoesCm": {
+        "largura": 14.5,
+        "altura": 23.7,
+        "profundidade": 21.8
+      },
+      "avaliacoes": [
+        {
+          "nota": 4,
+          "comentario": "Chegou rápido, recomendo."
+        },
+        {
+          "nota": 4,
+          "comentario": "Chegou rápido, recomendo."
+        },
+        {
+          "nota": 4,
+          "comentario": "Poderia ser mais barato."
+        }
+      ]
+    },
+    {
+      "sku": "FP-003",
+      "nome": "Mochila urbana impermeável",
+      "preco": 219.9,
+      "categoria": "acessorios",
+      "cor": "hsl(145, 63%, 42%)",
+      "estoque": 254,
+      "foto": "https://picsum.photos/seed/FP-003/400/300.jpg",
+      "dimensoesCm": {
+        "largura": 40.0,
+        "altura": 33.5,
+        "profundidade": 7.9
+      },
+      "avaliacoes": [
+        {
+          "nota": 4,
+          "comentario": null
+        }
+      ]
+    },
+    {
+      "sku": "FP-004",
+      "nome": "Luminária de mesa LED",
+      "preco": 129.5,
+      "categoria": "casa",
+      "cor": "#8e44ad",
+      "estoque": 246,
+      "foto": "https://picsum.photos/seed/FP-004/400/300.jpg",
+      "dimensoesCm": {
+        "largura": 20.6,
+        "altura": 23.5,
+        "profundidade": 13.6
+      },
+      "avaliacoes": [
+        {
+          "nota": 3,
+          "comentario": "Chegou rápido, recomendo."
+        },
+        {
+          "nota": 3,
+          "comentario": "Ótimo!"
+        }
+      ]
+    },
+    {
+      "sku": "FP-005",
+      "nome": "Garrafa térmica 750 ml",
+      "preco": 89.9,
+      "categoria": "casa",
+      "cor": "#c0392b",
+      "estoque": 47,
+      "foto": "https://picsum.photos/seed/FP-005/400/300.jpg",
+      "dimensoesCm": {
+        "largura": 35.8,
+        "altura": 27.6,
+        "profundidade": 10.8
+      },
+      "avaliacoes": [
+        {
+          "nota": 3,
+          "comentario": "Qualidade excelente 😍"
+        }
+      ]
+    },
+    {
+      "sku": "FP-006",
+      "nome": "Fone de ouvido sem fio",
+      "preco": 349.0,
+      "categoria": "eletronicos",
+      "cor": "rgb(44, 62, 80)",
+      "estoque": 80,
+      "foto": "https://picsum.photos/seed/FP-006/400/300.jpg",
+      "dimensoesCm": {
+        "largura": 17.3,
+        "altura": 29.1,
+        "profundidade": 20.0
+      },
+      "avaliacoes": [
+        {
+          "nota": 3,
+          "comentario": null
+        }
+      ]
+    },
+    {
+      "sku": "FP-007",
+      "nome": "Teclado mecânico compacto",
+      "preco": 459.9,
+      "categoria": "eletronicos",
+      "cor": "hsl(48, 96%, 53%)",
+      "estoque": 143,
+      "foto": "https://picsum.photos/seed/FP-007/400/300.jpg",
+      "dimensoesCm": {
+        "largura": 24.5,
+        "altura": 24.9,
+        "profundidade": 6.1
+      },
+      "avaliacoes": [
+        {
+          "nota": 5,
+          "comentario": "Qualidade excelente 😍"
+        },
+        {
+          "nota": 5,
+          "comentario": null
+        }
+      ]
+    },
+    {
+      "sku": "FP-008",
+      "nome": "Suporte ajustável para notebook",
+      "preco": 159.0,
+      "categoria": "acessorios",
+      "cor": "#16a085",
+      "estoque": 67,
+      "foto": "https://picsum.photos/seed/FP-008/400/300.jpg",
+      "dimensoesCm": {
+        "largura": 8.6,
+        "altura": 14.2,
+        "profundidade": 23.9
+      },
+      "avaliacoes": [
+        {
+          "nota": 3,
+          "comentario": "Ótimo!"
+        }
+      ]
+    }
+  ],
+  "pedidos": [
+    {
+      "numero": 10001,
+      "cliente": 0,
+      "realizadoEm": "2026-08-08T08:39:00-03:00",
+      "status": "pago",
+      "itens": [
+        {
+          "sku": "FP-002",
+          "quantidade": 2,
+          "precoUnitario": 39.0,
+          "desconto": null
+        },
+        {
+          "sku": "FP-007",
+          "quantidade": 4,
+          "precoUnitario": 459.9,
+          "desconto": null
+        }
+      ],
+      "total": 1917.6,
+      "rastreio": null
+    },
+    {
+      "numero": 10002,
+      "cliente": 0,
+      "realizadoEm": "2026-06-12T20:24:00-03:00",
+      "status": "cancelado",
+      "itens": [
+        {
+          "sku": "FP-001",
+          "quantidade": 4,
+          "precoUnitario": 24.9,
+          "desconto": 0.05
+        },
+        {
+          "sku": "FP-004",
+          "quantidade": 4,
+          "precoUnitario": 129.5,
+          "desconto": 0.05
+        }
+      ],
+      "total": 586.72,
+      "rastreio": "BR876435574XY"
+    },
+    {
+      "numero": 10003,
+      "cliente": 2,
+      "realizadoEm": "2026-03-21T19:45:00-03:00",
+      "status": "cancelado",
+      "itens": [
+        {
+          "sku": "FP-005",
+          "quantidade": 3,
+          "precoUnitario": 89.9,
+          "desconto": 0.1
+        }
+      ],
+      "total": 242.73,
+      "rastreio": "BR863282616XY"
+    },
+    {
+      "numero": 10004,
+      "cliente": 2,
+      "realizadoEm": "2026-07-17T20:48:00-03:00",
+      "status": "cancelado",
+      "itens": [
+        {
+          "sku": "FP-008",
+          "quantidade": 4,
+          "precoUnitario": 159.0,
+          "desconto": 0
+        },
+        {
+          "sku": "FP-007",
+          "quantidade": 4,
+          "precoUnitario": 459.9,
+          "desconto": 0
+        }
+      ],
+      "total": 2475.6,
+      "rastreio": "BR527508601XY"
+    },
+    {
+      "numero": 10005,
+      "cliente": 4,
+      "realizadoEm": "2026-01-23T16:56:00-03:00",
+      "status": "pago",
+      "itens": [
+        {
+          "sku": "FP-007",
+          "quantidade": 4,
+          "precoUnitario": 459.9,
+          "desconto": null
+        },
+        {
+          "sku": "FP-001",
+          "quantidade": 2,
+          "precoUnitario": 24.9,
+          "desconto": 0
+        }
+      ],
+      "total": 1889.4,
+      "rastreio": "BR561074970XY"
+    },
+    {
+      "numero": 10006,
+      "cliente": 3,
+      "realizadoEm": "2026-08-22T15:45:00-03:00",
+      "status": "cancelado",
+      "itens": [
+        {
+          "sku": "FP-008",
+          "quantidade": 2,
+          "precoUnitario": 159.0,
+          "desconto": 0
+        }
+      ],
+      "total": 318.0,
+      "rastreio": null
+    },
+    {
+      "numero": 10007,
+      "cliente": 3,
+      "realizadoEm": "2026-03-21T22:38:00-03:00",
+      "status": "aguardando_pagamento",
+      "itens": [
+        {
+          "sku": "FP-005",
+          "quantidade": 4,
+          "precoUnitario": 89.9,
+          "desconto": 0.1
+        },
+        {
+          "sku": "FP-007",
+          "quantidade": 2,
+          "precoUnitario": 459.9,
+          "desconto": 0.05
+        },
+        {
+          "sku": "FP-005",
+          "quantidade": 1,
+          "precoUnitario": 89.9,
+          "desconto": 0
+        }
+      ],
+      "total": 1287.35,
+      "rastreio": "BR625615445XY"
+    },
+    {
+      "numero": 10008,
+      "cliente": 2,
+      "realizadoEm": "2026-09-25T21:31:00-03:00",
+      "status": "aguardando_pagamento",
+      "itens": [
+        {
+          "sku": "FP-005",
+          "quantidade": 4,
+          "precoUnitario": 89.9,
+          "desconto": 0.1
+        }
+      ],
+      "total": 323.64,
+      "rastreio": "BR136099144XY"
+    },
+    {
+      "numero": 10009,
+      "cliente": 2,
+      "realizadoEm": "2026-07-27T19:30:00-03:00",
+      "status": "pago",
+      "itens": [
+        {
+          "sku": "FP-008",
+          "quantidade": 1,
+          "precoUnitario": 159.0,
+          "desconto": 0.1
+        },
+        {
+          "sku": "FP-005",
+          "quantidade": 4,
+          "precoUnitario": 89.9,
+          "desconto": 0
+        }
+      ],
+      "total": 502.7,
+      "rastreio": "BR635175209XY"
+    },
+    {
+      "numero": 10010,
+      "cliente": 2,
+      "realizadoEm": "2026-08-01T09:00:00-03:00",
+      "status": "aguardando_pagamento",
+      "itens": [
+        {
+          "sku": "FP-004",
+          "quantidade": 4,
+          "precoUnitario": 129.5,
+          "desconto": 0
+        }
+      ],
+      "total": 518.0,
+      "rastreio": "BR998029442XY"
+    },
+    {
+      "numero": 10011,
+      "cliente": 0,
+      "realizadoEm": "2026-10-19T20:59:00-03:00",
+      "status": "aguardando_pagamento",
+      "itens": [
+        {
+          "sku": "FP-004",
+          "quantidade": 2,
+          "precoUnitario": 129.5,
+          "desconto": 0
+        },
+        {
+          "sku": "FP-001",
+          "quantidade": 3,
+          "precoUnitario": 24.9,
+          "desconto": 0.05
+        },
+        {
+          "sku": "FP-003",
+          "quantidade": 1,
+          "precoUnitario": 219.9,
+          "desconto": 0.05
+        }
+      ],
+      "total": 538.87,
+      "rastreio": "BR244809748XY"
+    },
+    {
+      "numero": 10012,
+      "cliente": 4,
+      "realizadoEm": "2026-09-10T09:26:00-03:00",
+      "status": "enviado",
+      "itens": [
+        {
+          "sku": "FP-008",
+          "quantidade": 2,
+          "precoUnitario": 159.0,
+          "desconto": null
+        }
+      ],
+      "total": 318.0,
+      "rastreio": "BR941210101XY"
+    },
+    {
+      "numero": 10013,
+      "cliente": 4,
+      "realizadoEm": "2026-02-13T22:04:00-03:00",
+      "status": "pago",
+      "itens": [
+        {
+          "sku": "FP-007",
+          "quantidade": 4,
+          "precoUnitario": 459.9,
+          "desconto": 0
+        },
+        {
+          "sku": "FP-004",
+          "quantidade": 4,
+          "precoUnitario": 129.5,
+          "desconto": 0
+        }
+      ],
+      "total": 2357.6,
+      "rastreio": "BR793929754XY"
+    },
+    {
+      "numero": 10014,
+      "cliente": 2,
+      "realizadoEm": "2026-05-15T13:58:00-03:00",
+      "status": "pago",
+      "itens": [
+        {
+          "sku": "FP-001",
+          "quantidade": 4,
+          "precoUnitario": 24.9,
+          "desconto": 0.05
+        }
+      ],
+      "total": 94.62,
+      "rastreio": "BR600989477XY"
+    }
+  ],
+  "matrizes": {
+    "identidade3x3": [
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ]
+    ],
+    "misturado": [
+      1,
+      "dois",
+      3.0,
+      true,
+      null,
+      [
+        5,
+        [
+          6,
+          [
+            7,
+            [
+              8,
+              [
+                9
+              ]
+            ]
+          ]
+        ]
+      ],
+      {
+        "dez": 10
+      }
+    ],
+    "vazios": {
+      "objeto": {},
+      "lista": [],
+      "texto": ""
+    }
+  },
+  "numeros": {
+    "inteiroGigante": 12345678901234567890123456789,
+    "decimalPreciso": 1.10000000000000000000001,
+    "estourado": 1e400,
+    "negativo": -273.15,
+    "cientifica": 6.022e+23,
+    "zeroNegativo": -0.0,
+    "float": 3.141592653589793
+  },
+  "chaveRepetida": 1,
+  "chaveRepetida": 2,
+  "metadados": {
+    "geradoPor": "examples/_gerar/dados.py",
+    "linhasDeExemplo": true,
+    "observacao": "Passe o mouse sobre URLs, imagens e cores na árvore."
+  }
+}

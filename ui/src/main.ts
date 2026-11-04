@@ -1175,6 +1175,11 @@ function setPinned(id: string, pinned: boolean) {
   sessionDirty = true;
   scheduleSave();
   renderTabs();
+  // a aba mudou de lugar: leva a barra até ela (depois do desenho, senão a medida ainda é a antiga)
+  const g = groups.get(tab.group)!;
+  const reveal = () => g.tabsEl.querySelector<HTMLElement>(`.tab[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  reveal();
+  requestAnimationFrame(reveal);
 }
 
 /**
@@ -1191,9 +1196,14 @@ async function closeMany(targets: TabState[]) {
       { title: "Fullpad", kind: "warning", buttons: { yes: "Salvar", no: "Não salvar", cancel: "Cancelar" } },
     );
     if (r === "Cancelar") return;
-    if (r === "Salvar") for (const t of dirty) if (!(await save(t))) return;
+    try {
+      if (r === "Salvar") for (const t of dirty) if (!(await save(t))) return;
+    } catch (e) {
+      await message(String(e), { title: "Erro ao salvar", kind: "error" });
+      return;
+    }
   }
-  for (const t of targets) await closeTab(t.id, false);
+  for (const t of [...targets]) await closeTab(t.id, false);
 }
 
 /** Grava todas as abas desta janela que têm alterações em arquivo. */
@@ -2155,7 +2165,7 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
   }
   const showing = groupShowing(tab.id);
   if (showing) snapshotGroup(showing);
-  const text = states.get(tab.id)!.doc.toString();
+  const text = await textOf(tab.id); // aba que ainda não foi aberta nesta execução não tem estado
   try {
     await enqueue(() => api.saveFile(tab.id, path, text, tab.encoding, tab.eol));
   } catch (e) {

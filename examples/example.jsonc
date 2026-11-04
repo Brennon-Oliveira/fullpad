@@ -1,0 +1,51 @@
+// Arquivo JSON com comentários (JSONC), como o tsconfig.json e o settings.json do VS Code.
+// O Fullpad entende comentários e vírgulas sobrando; "Formatar" recusa mexer aqui
+// para não apagar os seus comentários.
+{
+  /* ---------- Compilador ---------- */
+  "compilerOptions": {
+    "target": "ES2022",          // versão do JavaScript gerado
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["./src/*"],        // atalho para a pasta src
+      "@core/*": ["./src/core/*"],
+    },
+    "types": ["vite/client", "node",], // vírgula sobrando: tolerada
+    "jsx": "react-jsx",
+    "sourceMap": true,
+    "skipLibCheck": true
+  },
+
+  /* ---------- Arquivos ---------- */
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    // "src/legado",            // desligado temporariamente
+  ],
+
+  /* ---------- Editor ---------- */
+  "editor.fontSize": 14,
+  "editor.fontFamily": "JetBrains Mono, Consolas, monospace",
+  "editor.rulers": [80, 120],
+  "files.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+  },
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.quickSuggestions": { "other": false },
+  },
+  "workbench.colorCustomizations": {
+    "editor.background": "#1e1e2e",
+    "statusBar.background": "rgb(137, 180, 250)",
+  },
+  "tarefas": [
+    { "nome": "testar", "comando": "pnpm test", "ativo": true },
+    { "nome": "build",  "comando": "pnpm build", "ativo": false },
+  ],
+}

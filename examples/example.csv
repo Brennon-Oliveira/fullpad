@@ -1,0 +1,202 @@
+id,data,cliente,categoria,sku,quantidade,preco_unitario,desconto_pct,total,pago,nota,observacao
+1,25/06/2026,Júlia Campos,Brinquedos,BRI-422,3,313.24,0,939.72,sim,1,
+2,09/05/2026,João Álvares,Papelaria,PAP-340,1,202.88,0,202.88,não,1,
+3,10/02/2026,Tiago Müller,Papelaria,PAP-138,11,273.31,0,3006.41,sim,5,"Endereço alternativo: Rua A, 10 — fundos"
+4,11/10/2026,Júlia Campos,Casa,CAS-498,10,226.92,15,1928.82,sim,5,"Entrega no período da manhã, ligar antes"
+5,27/06/2026,João Álvares,Papelaria,PAP-404,12,345.85,0,4150.2,sim,3,"Endereço alternativo: Rua A, 10 — fundos"
+6,11/10/2026,Mariana Costa,Papelaria,PAP-733,9,459.65,0,4136.85,sim,1,
+7,04/01/2026,Tiago Müller,Casa,CAS-229,9,175.75,15,1344.49,sim,,"Disse: ""urgente, por favor"""
+8,14/07/2026,Beatriz Dias,Acessórios,ACE-129,4,374.78,15,1274.25,sim,2,Cupom BEMVINDO10 aplicado
+9,22/09/2026,Beatriz Dias,Acessórios,ACE-590,5,379.49,0,1897.45,sim,,"Endereço alternativo: Rua A, 10 — fundos"
+10,09/06/2026,Júlia Campos,Casa,CAS-448,11,288.61,0,3174.71,sim,5,Cupom BEMVINDO10 aplicado
+11,25/06/2026,Beatriz Dias,Papelaria,PAP-982,11,404.95,15,3786.28,sim,2,
+12,24/07/2026,Carlos Lima,Brinquedos,BRI-467,6,456.92,0,2741.52,sim,2,"Troca solicitada;
+produto com defeito na caixa"
+13,21/08/2026,Fernanda Rocha,Livros,LIV-257,8,431.5,15,2934.2,sim,,"Troca solicitada;
+produto com defeito na caixa"
+14,01/06/2026,Carlos Lima,Livros,LIV-659,12,201.32,0,2415.84,sim,,"Entrega no período da manhã, ligar antes"
+15,05/02/2026,Fernanda Rocha,Papelaria,PAP-651,9,111.26,15,851.14,sim,4,Cupom BEMVINDO10 aplicado
+16,26/03/2026,Júlia Campos,Livros,LIV-142,2,49.29,15,83.79,não,3,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+17,22/04/2026,Fernanda Rocha,Casa,CAS-293,5,148.08,0,740.4,sim,,
+18,28/10/2026,Mariana Costa,Brinquedos,BRI-422,8,451.37,0,3610.96,sim,1,Cupom BEMVINDO10 aplicado
+19,05/03/2026,Carlos Lima,Papelaria,PAP-409,2,251.56,15,427.65,sim,1,Cliente pediu embalagem de presente
+20,18/03/2026,Fernanda Rocha,Livros,LIV-368,10,125.88,0,1258.8,sim,1,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+21,10/02/2026,Tiago Müller,Eletrônicos,ELE-453,8,437.37,0,3498.96,sim,4,
+22,03/02/2026,Fernanda Rocha,Acessórios,ACE-618,5,133.96,15,569.33,sim,,Cupom BEMVINDO10 aplicado
+23,11/06/2026,Ricardo Gomes,Brinquedos,BRI-325,11,412.77,5,4313.45,sim,,"Disse: ""urgente, por favor"""
+24,25/06/2026,Fernanda Rocha,Acessórios,ACE-374,10,188.75,0,1887.5,não,2,"Disse: ""urgente, por favor"""
+25,27/02/2026,Júlia Campos,Eletrônicos,ELE-339,5,405.2,5,1924.7,sim,,"Disse: ""urgente, por favor"""
+26,05/09/2026,Carlos Lima,Papelaria,PAP-790,5,147.22,5,699.29,não,5,"Endereço alternativo: Rua A, 10 — fundos"
+27,11/02/2026,Ana Souza,Brinquedos,BRI-509,8,436.92,15,2971.06,sim,3,
+28,01/05/2026,Ricardo Gomes,Livros,LIV-446,12,127.77,0,1533.24,não,4,
+29,02/04/2026,Luiz Ñandú,Brinquedos,BRI-909,2,320.18,0,640.36,sim,,"Troca solicitada;
+produto com defeito na caixa"
+30,17/05/2026,João Álvares,Livros,LIV-259,11,183.0,10,1811.7,sim,1,"Disse: ""urgente, por favor"""
+31,08/08/2026,Fernanda Rocha,Casa,CAS-828,10,326.05,15,2771.42,sim,,Cupom BEMVINDO10 aplicado
+32,22/10/2026,Beatriz Dias,Livros,LIV-851,3,59.89,0,179.67,não,,Cupom BEMVINDO10 aplicado
+33,08/08/2026,Ricardo Gomes,Brinquedos,BRI-434,11,169.74,0,1867.14,sim,3,"Entrega no período da manhã, ligar antes"
+34,02/08/2026,Luiz Ñandú,Casa,CAS-476,1,235.4,0,235.4,sim,4,"Entrega no período da manhã, ligar antes"
+35,17/07/2026,Beatriz Dias,Eletrônicos,ELE-884,4,283.0,5,1075.4,sim,5,"Entrega no período da manhã, ligar antes"
+36,16/10/2026,Carlos Lima,Papelaria,PAP-285,9,467.97,10,3790.56,sim,3,
+37,18/03/2026,Ana Souza,Eletrônicos,ELE-574,9,254.18,5,2173.24,sim,2,Cliente pediu embalagem de presente
+38,07/07/2026,Mariana Costa,Livros,LIV-672,9,68.57,0,617.13,sim,4,"Disse: ""urgente, por favor"""
+39,12/07/2026,Mariana Costa,Livros,LIV-234,10,351.02,0,3510.2,sim,2,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+40,02/01/2026,Carlos Lima,Eletrônicos,ELE-231,5,452.2,0,2261.0,sim,5,"Troca solicitada;
+produto com defeito na caixa"
+41,06/03/2026,Ricardo Gomes,Brinquedos,BRI-659,1,362.89,15,308.46,sim,5,
+42,10/04/2026,Mariana Costa,Livros,LIV-432,6,427.26,0,2563.56,não,4,
+43,23/09/2026,Carlos Lima,Papelaria,PAP-874,8,12.56,0,100.48,sim,3,
+44,06/09/2026,Luiz Ñandú,Casa,CAS-330,2,208.16,5,395.5,sim,2,"Troca solicitada;
+produto com defeito na caixa"
+45,07/06/2026,Luiz Ñandú,Casa,CAS-416,9,476.17,5,4071.25,não,3,"Troca solicitada;
+produto com defeito na caixa"
+46,18/10/2026,João Álvares,Acessórios,ACE-462,2,422.87,0,845.74,sim,,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+47,23/03/2026,Ana Souza,Papelaria,PAP-660,3,104.88,5,298.91,sim,4,
+48,21/05/2026,Carlos Lima,Eletrônicos,ELE-599,12,181.02,0,2172.24,não,3,
+49,04/03/2026,Ana Souza,Livros,LIV-814,4,465.72,5,1769.74,não,5,Cupom BEMVINDO10 aplicado
+50,11/05/2026,Ana Souza,Brinquedos,BRI-182,2,226.13,0,452.26,sim,3,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+51,02/02/2026,Ana Souza,Livros,LIV-256,8,274.82,5,2088.63,não,5,"Disse: ""urgente, por favor"""
+52,05/01/2026,Ana Souza,Papelaria,PAP-866,7,52.27,10,329.3,sim,,
+53,25/10/2026,Luiz Ñandú,Livros,LIV-429,2,353.98,0,707.96,sim,4,"Troca solicitada;
+produto com defeito na caixa"
+54,23/04/2026,Luiz Ñandú,Acessórios,ACE-709,4,251.14,0,1004.56,não,,
+55,15/04/2026,Luiz Ñandú,Papelaria,PAP-493,10,233.34,5,2216.73,não,4,
+56,17/08/2026,Tiago Müller,Casa,CAS-126,5,122.53,10,551.38,sim,4,"Disse: ""urgente, por favor"""
+57,20/09/2026,Mariana Costa,Casa,CAS-568,9,66.54,0,598.86,sim,5,"Endereço alternativo: Rua A, 10 — fundos"
+58,26/02/2026,Júlia Campos,Papelaria,PAP-869,7,197.83,0,1384.81,sim,,
+59,17/05/2026,João Álvares,Eletrônicos,ELE-558,2,129.27,0,258.54,sim,5,Cupom BEMVINDO10 aplicado
+60,22/01/2026,Ricardo Gomes,Eletrônicos,ELE-148,12,228.95,10,2472.66,sim,2,"Entrega no período da manhã, ligar antes"
+61,03/03/2026,Ricardo Gomes,Brinquedos,BRI-365,2,140.47,0,280.94,sim,1,
+62,23/09/2026,Beatriz Dias,Casa,CAS-460,9,308.41,10,2498.12,sim,1,Cliente pediu embalagem de presente
+63,18/07/2026,Ricardo Gomes,Acessórios,ACE-791,2,123.12,0,246.24,não,1,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+64,06/03/2026,Ricardo Gomes,Casa,CAS-194,3,272.37,10,735.4,sim,2,
+65,12/02/2026,Mariana Costa,Brinquedos,BRI-803,3,471.04,10,1271.81,sim,4,"Disse: ""urgente, por favor"""
+66,06/08/2026,Fernanda Rocha,Livros,LIV-786,2,74.32,5,141.21,sim,4,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+67,11/09/2026,João Álvares,Eletrônicos,ELE-486,2,358.76,10,645.77,sim,2,Cliente pediu embalagem de presente
+68,10/10/2026,Ana Souza,Brinquedos,BRI-129,10,329.35,10,2964.15,sim,5,"Disse: ""urgente, por favor"""
+69,24/03/2026,Tiago Müller,Brinquedos,BRI-614,8,286.85,0,2294.8,não,2,"Troca solicitada;
+produto com defeito na caixa"
+70,04/02/2026,Ana Souza,Casa,CAS-554,1,297.72,0,297.72,sim,3,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+71,10/03/2026,Carlos Lima,Acessórios,ACE-554,11,303.54,5,3171.99,sim,,
+72,28/07/2026,Fernanda Rocha,Eletrônicos,ELE-580,8,371.35,15,2525.18,sim,5,"Entrega no período da manhã, ligar antes"
+73,28/06/2026,Júlia Campos,Casa,CAS-829,2,297.45,0,594.9,sim,,"Endereço alternativo: Rua A, 10 — fundos"
+74,08/06/2026,Luiz Ñandú,Casa,CAS-731,2,117.26,0,234.52,sim,4,Cupom BEMVINDO10 aplicado
+75,10/09/2026,Beatriz Dias,Livros,LIV-409,7,335.69,0,2349.83,não,,
+76,24/10/2026,Ricardo Gomes,Casa,CAS-797,5,88.99,5,422.7,sim,4,
+77,20/05/2026,Luiz Ñandú,Brinquedos,BRI-807,1,385.62,10,347.06,sim,4,Cupom BEMVINDO10 aplicado
+78,27/09/2026,Fernanda Rocha,Eletrônicos,ELE-638,11,400.43,10,3964.26,sim,3,Cliente pediu embalagem de presente
+79,01/07/2026,Carlos Lima,Livros,LIV-984,7,191.47,0,1340.29,sim,4,
+80,04/04/2026,Fernanda Rocha,Casa,CAS-625,3,240.04,5,684.11,não,2,Cliente pediu embalagem de presente
+81,12/01/2026,Tiago Müller,Livros,LIV-455,2,471.45,0,942.9,sim,4,Cupom BEMVINDO10 aplicado
+82,21/02/2026,Mariana Costa,Acessórios,ACE-571,4,160.28,0,641.12,sim,3,"Endereço alternativo: Rua A, 10 — fundos"
+83,04/02/2026,Carlos Lima,Casa,CAS-342,9,414.0,0,3726.0,sim,,
+84,15/08/2026,Ricardo Gomes,Papelaria,PAP-533,9,383.76,5,3281.15,sim,,
+85,15/08/2026,Mariana Costa,Papelaria,PAP-538,8,233.0,15,1584.4,sim,4,
+86,09/09/2026,Mariana Costa,Livros,LIV-716,4,208.99,0,835.96,sim,,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+87,26/05/2026,Fernanda Rocha,Eletrônicos,ELE-997,7,379.16,15,2256.0,sim,1,
+88,19/10/2026,Tiago Müller,Eletrônicos,ELE-636,6,210.08,10,1134.43,sim,,
+89,17/07/2026,Luiz Ñandú,Eletrônicos,ELE-824,1,270.65,0,270.65,não,3,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+90,15/03/2026,Tiago Müller,Eletrônicos,ELE-352,9,154.52,0,1390.68,sim,,
+91,07/10/2026,Fernanda Rocha,Livros,LIV-726,6,337.37,15,1720.59,sim,4,"Troca solicitada;
+produto com defeito na caixa"
+92,20/07/2026,Fernanda Rocha,Brinquedos,BRI-466,2,468.55,5,890.25,não,5,
+93,25/06/2026,Fernanda Rocha,Acessórios,ACE-577,12,174.19,0,2090.28,não,,
+94,20/01/2026,Carlos Lima,Brinquedos,BRI-542,5,263.52,10,1185.84,sim,,"Entrega no período da manhã, ligar antes"
+95,13/05/2026,Mariana Costa,Brinquedos,BRI-150,5,10.05,0,50.25,sim,,"Disse: ""urgente, por favor"""
+96,28/10/2026,Fernanda Rocha,Livros,LIV-334,8,57.57,10,414.5,sim,1,
+97,23/02/2026,Ricardo Gomes,Papelaria,PAP-953,2,479.47,15,815.1,não,,Cupom BEMVINDO10 aplicado
+98,24/01/2026,Ana Souza,Eletrônicos,ELE-524,7,443.38,10,2793.29,não,,"Entrega no período da manhã, ligar antes"
+99,05/05/2026,Tiago Müller,Brinquedos,BRI-522,9,86.71,5,741.37,sim,,"Troca solicitada;
+produto com defeito na caixa"
+100,15/03/2026,Ricardo Gomes,Papelaria,PAP-636,5,375.56,0,1877.8,sim,3,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+101,05/04/2026,João Álvares,Eletrônicos,ELE-297,3,368.36,15,939.32,sim,,"Troca solicitada;
+produto com defeito na caixa"
+102,13/02/2026,Júlia Campos,Eletrônicos,ELE-665,7,464.53,0,3251.71,sim,1,Cliente pediu embalagem de presente
+103,07/06/2026,Luiz Ñandú,Eletrônicos,ELE-575,2,152.01,10,273.62,sim,1,Cupom BEMVINDO10 aplicado
+104,12/03/2026,Ricardo Gomes,Casa,CAS-471,3,100.46,0,301.38,sim,5,Cliente pediu embalagem de presente
+105,07/03/2026,Beatriz Dias,Eletrônicos,ELE-150,8,39.42,15,268.06,sim,3,Cupom BEMVINDO10 aplicado
+106,12/04/2026,Ricardo Gomes,Brinquedos,BRI-502,5,232.13,0,1160.65,sim,,
+107,07/05/2026,Júlia Campos,Papelaria,PAP-234,5,464.75,5,2207.56,sim,3,
+108,03/05/2026,Ana Souza,Acessórios,ACE-422,2,421.65,15,716.8,sim,1,Cliente pediu embalagem de presente
+109,01/06/2026,Tiago Müller,Papelaria,PAP-324,5,243.99,10,1097.96,não,5,
+110,12/10/2026,Carlos Lima,Brinquedos,BRI-994,8,450.09,5,3420.68,não,,"Disse: ""urgente, por favor"""
+111,07/09/2026,Ana Souza,Eletrônicos,ELE-543,9,307.61,0,2768.49,não,1,"Troca solicitada;
+produto com defeito na caixa"
+112,22/01/2026,João Álvares,Brinquedos,BRI-370,10,27.61,0,276.1,não,3,
+113,08/07/2026,João Álvares,Casa,CAS-139,11,106.78,0,1174.58,não,1,Cupom BEMVINDO10 aplicado
+114,16/06/2026,Júlia Campos,Casa,CAS-283,7,433.93,15,2581.88,sim,5,"Entrega no período da manhã, ligar antes"
+115,25/07/2026,Fernanda Rocha,Eletrônicos,ELE-484,7,395.76,10,2493.29,não,,"Disse: ""urgente, por favor"""
+116,28/04/2026,Luiz Ñandú,Livros,LIV-849,9,356.81,10,2890.16,não,3,"Disse: ""urgente, por favor"""
+117,18/02/2026,Luiz Ñandú,Casa,CAS-416,12,135.22,0,1622.64,não,,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+118,14/08/2026,Júlia Campos,Acessórios,ACE-953,1,454.34,15,386.19,sim,1,"Troca solicitada;
+produto com defeito na caixa"
+119,11/02/2026,Júlia Campos,Acessórios,ACE-222,9,249.72,15,1910.36,sim,1,
+120,17/03/2026,Ana Souza,Casa,CAS-795,6,390.46,0,2342.76,sim,3,"Entrega no período da manhã, ligar antes"
+121,06/10/2026,Júlia Campos,Eletrônicos,ELE-923,8,140.15,10,1009.08,sim,2,"Entrega no período da manhã, ligar antes"
+122,13/01/2026,Ana Souza,Casa,CAS-856,7,462.66,10,2914.76,sim,5,Cupom BEMVINDO10 aplicado
+123,01/02/2026,Ana Souza,Papelaria,PAP-601,1,470.65,0,470.65,sim,1,
+124,25/01/2026,Mariana Costa,Livros,LIV-604,2,217.98,0,435.96,sim,5,Cliente pediu embalagem de presente
+125,08/01/2026,Ricardo Gomes,Eletrônicos,ELE-559,8,24.49,0,195.92,sim,5,Cupom BEMVINDO10 aplicado
+126,23/02/2026,Carlos Lima,Acessórios,ACE-185,12,197.3,0,2367.6,sim,2,
+127,01/03/2026,Luiz Ñandú,Papelaria,PAP-103,4,250.02,0,1000.08,sim,1,
+128,10/03/2026,Carlos Lima,Acessórios,ACE-282,4,364.7,0,1458.8,não,3,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+129,08/01/2026,Ricardo Gomes,Papelaria,PAP-585,3,206.2,0,618.6,sim,5,
+130,28/06/2026,Beatriz Dias,Acessórios,ACE-169,10,349.18,10,3142.62,sim,,Cliente pediu embalagem de presente
+131,07/08/2026,Carlos Lima,Papelaria,PAP-671,3,475.25,15,1211.89,sim,1,
+132,05/10/2026,Ricardo Gomes,Livros,LIV-943,10,59.02,0,590.2,não,4,"Disse: ""urgente, por favor"""
+133,11/05/2026,Fernanda Rocha,Livros,LIV-610,6,35.63,5,203.09,sim,1,"Endereço alternativo: Rua A, 10 — fundos"
+134,26/09/2026,Mariana Costa,Casa,CAS-372,6,283.02,0,1698.12,sim,1,
+135,15/03/2026,Beatriz Dias,Acessórios,ACE-931,5,114.59,15,487.01,não,2,
+136,19/01/2026,Júlia Campos,Brinquedos,BRI-258,10,382.34,0,3823.4,sim,2,
+137,01/05/2026,Tiago Müller,Casa,CAS-748,7,85.84,0,600.88,não,1,"Disse: ""urgente, por favor"""
+138,02/07/2026,João Álvares,Papelaria,PAP-420,11,65.56,10,649.04,não,,
+139,15/09/2026,Fernanda Rocha,Papelaria,PAP-705,2,118.9,15,202.13,sim,2,"Disse: ""urgente, por favor"""
+140,24/07/2026,Ana Souza,Brinquedos,BRI-758,4,474.03,5,1801.31,sim,4,Cupom BEMVINDO10 aplicado
+141,05/02/2026,Beatriz Dias,Brinquedos,BRI-453,10,198.72,0,1987.2,sim,,"Endereço alternativo: Rua A, 10 — fundos"
+142,02/08/2026,Fernanda Rocha,Papelaria,PAP-715,1,87.4,0,87.4,não,5,"Disse: ""urgente, por favor"""
+143,07/05/2026,João Álvares,Casa,CAS-306,3,240.13,5,684.37,sim,1,"Disse: ""urgente, por favor"""
+144,04/01/2026,Ricardo Gomes,Brinquedos,BRI-172,12,470.99,0,5651.88,não,,"Troca solicitada;
+produto com defeito na caixa"
+145,03/02/2026,Carlos Lima,Casa,CAS-667,5,115.65,15,491.51,sim,,"Disse: ""urgente, por favor"""
+146,02/10/2026,Júlia Campos,Livros,LIV-322,11,200.42,10,1984.16,sim,3,
+147,13/02/2026,Ana Souza,Papelaria,PAP-260,4,441.48,0,1765.92,sim,,
+148,12/03/2026,Tiago Müller,Papelaria,PAP-767,6,469.54,0,2817.24,sim,2,"Entrega no período da manhã, ligar antes"
+149,27/02/2026,Luiz Ñandú,Livros,LIV-621,4,145.07,10,522.25,sim,2,"Endereço alternativo: Rua A, 10 — fundos"
+150,24/02/2026,Mariana Costa,Casa,CAS-279,6,385.61,15,1966.61,sim,2,Cliente pediu embalagem de presente
+151,23/09/2026,Júlia Campos,Brinquedos,BRI-830,12,186.81,5,2129.63,não,1,
+152,12/05/2026,Júlia Campos,Casa,CAS-243,5,406.1,10,1827.45,sim,2,"Troca solicitada;
+produto com defeito na caixa"
+153,14/05/2026,Fernanda Rocha,Papelaria,PAP-510,11,341.18,10,3377.68,não,4,
+154,09/08/2026,Ana Souza,Papelaria,PAP-391,4,297.81,5,1131.68,sim,3,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+155,13/06/2026,Luiz Ñandú,Acessórios,ACE-308,1,277.86,0,277.86,sim,2,Cupom BEMVINDO10 aplicado
+156,15/10/2026,Tiago Müller,Casa,CAS-874,7,265.12,5,1763.05,não,,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+157,13/05/2026,Luiz Ñandú,Eletrônicos,ELE-570,5,197.17,10,887.26,sim,1,
+158,01/06/2026,Ricardo Gomes,Acessórios,ACE-447,9,124.0,0,1116.0,não,1,"Endereço alternativo: Rua A, 10 — fundos"
+159,17/10/2026,Beatriz Dias,Acessórios,ACE-636,6,46.58,15,237.56,sim,4,
+160,02/04/2026,Ricardo Gomes,Livros,LIV-519,7,89.5,0,626.5,sim,5,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+161,11/04/2026,Tiago Müller,Brinquedos,BRI-630,12,299.38,0,3592.56,sim,,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+162,26/08/2026,Ana Souza,Acessórios,ACE-973,11,19.55,0,215.05,sim,,"Troca solicitada;
+produto com defeito na caixa"
+163,01/02/2026,Beatriz Dias,Brinquedos,BRI-246,7,460.78,0,3225.46,sim,4,
+164,23/07/2026,Ricardo Gomes,Brinquedos,BRI-894,3,139.24,0,417.72,sim,,"Troca solicitada;
+produto com defeito na caixa"
+165,09/07/2026,Ricardo Gomes,Acessórios,ACE-550,5,107.92,15,458.66,sim,,"Troca solicitada;
+produto com defeito na caixa"
+166,20/03/2026,Júlia Campos,Papelaria,PAP-552,5,52.2,0,261.0,sim,3,"Pagamento dividido em 3x sem juros, parcelas de R$ 49,97 cada, com vencimento todo dia 10 — verificar com o financeiro antes de liberar o envio"
+167,22/07/2026,Tiago Müller,Acessórios,ACE-136,3,311.15,0,933.45,sim,5,Cliente pediu embalagem de presente
+168,07/03/2026,Mariana Costa,Papelaria,PAP-999,3,352.51,15,898.9,não,5,
+169,15/02/2026,Ricardo Gomes,Casa,CAS-192,9,97.8,0,880.2,sim,3,"Disse: ""urgente, por favor"""
+170,22/01/2026,Mariana Costa,Brinquedos,BRI-157,3,309.64,10,836.03,sim,,"Troca solicitada;
+produto com defeito na caixa"
+171,10/03/2026,Fernanda Rocha,Eletrônicos,ELE-322,7,459.83,5,3057.87,sim,4,"Entrega no período da manhã, ligar antes"
+172,11/03/2026,João Álvares,Acessórios,ACE-399,1,342.42,15,291.06,sim,1,"Disse: ""urgente, por favor"""
+173,20/05/2026,Júlia Campos,Acessórios,ACE-437,1,399.04,10,359.14,não,5,
+174,01/08/2026,João Álvares,Brinquedos,BRI-100,5,344.48,0,1722.4,sim,5,
+175,07/04/2026,Ricardo Gomes,Papelaria,PAP-623,6,210.81,0,1264.86,sim,2,
+176,20/06/2026,João Álvares,Brinquedos,BRI-163,12,446.78,5,5093.29,sim,1,
+177,19/06/2026,João Álvares,Brinquedos,BRI-463,5,451.17,0,2255.85,não,,"Troca solicitada;
+produto com defeito na caixa"
+178,12/04/2026,Júlia Campos,Livros,LIV-685,11,308.1,0,3389.1,sim,3,
+179,28/10/2026,Carlos Lima,Casa,CAS-355,11,405.5,10,4014.45,sim,5,
+180,26/05/2026,Ricardo Gomes,Casa,CAS-679,4,237.75,0,951.0,sim,5,"Disse: ""urgente, por favor"""
+181,31/10/2026,"Teste, com vírgula",Livros,LIV-000,1,0.0,0,0.0,não,,"Linha final com ""aspas"" e, vírgula"
