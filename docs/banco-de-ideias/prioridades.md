@@ -9,31 +9,31 @@ Este arquivo é só a visão por prioridade; o índice com `feita` e `versao` co
 | # | Ideia | Por que está aqui | Depende de |
 |---|---|---|---|
 | 1 | [Changelog completo](changelog-completo.md) | "Muito importante": ver tudo que mudou entre versões, com intervalo e o geral | `gerar-versao` passa a acumular um `CHANGELOG.md` |
-| 2 | [Edição avançada de texto](edicao-avancada.md) | "Fenomenal"; o CodeMirror já traz quase tudo, o custo é baixo para o ganho | atalhos sem conflito |
-| 3 | [Notas rápidas (post-it)](notas-rapidas.md) | "Genial"; janela sempre no topo e captura global | plugin de atalho global |
-| 4 | [Arquivos gigantes](arquivos-gigantes.md) | "Muito interessante, muito útil"; combina com a promessa de ser rápido | leitura por faixas (já existe no CSV/PDF) |
-| 5 | [Atalhos personalizáveis](atalhos-personalizaveis.md) | "Importante"; também limpa a arquitetura (registro único de comandos) | registro único de comandos |
+| 2 | [Suporte a LaTeX](latex.md) | Subiu para as melhores a pedido; completa a barra de formatação (botão √x) | escolher KaTeX ou MathJax |
+| 3 | [Suporte a Mermaid](mermaid.md) | Subiu para as melhores a pedido; mesmo molde do DBML, que já existe | carga sob demanda |
+| 4 | [Edição avançada de texto](edicao-avancada.md) | "Fenomenal"; o CodeMirror já traz quase tudo. Ficou atrás de LaTeX e Mermaid por escolha | atalhos sem conflito |
+| 5 | [Notas rápidas (post-it)](notas-rapidas.md) | "Genial"; janela sempre no topo e captura global | plugin de atalho global |
+| 6 | [Arquivos gigantes](arquivos-gigantes.md) | "Muito interessante, muito útil"; combina com a promessa de ser rápido | leitura por faixas (já existe no CSV/PDF) |
+| 7 | [Atalhos personalizáveis](atalhos-personalizaveis.md) | "Importante"; também limpa a arquitetura (registro único de comandos) | registro único de comandos |
+| 8 | [Mapas mentais](mapas-mentais.md) | Subiu para as melhores: "vai ser muito útil"; o formato fica para decidir na hora | painel de diagramas (DBML), talvez Mermaid |
 
 ## Boas (vale muito, depois das melhores)
 
 | # | Ideia | Por que está aqui | Depende de |
 |---|---|---|---|
-| 6 | [Seguir log (tail)](seguir-log.md) | Ideia do usuário; "muito útil" para quem lê logs | [Arquivos gigantes](arquivos-gigantes.md) |
-| 7 | [Colar imagem no markdown](colar-imagem.md) | "Parece legal"; falta para anotar com prints | decidir onde guardar as imagens |
-| 8 | [Ver HTML, SVG e imagens](visualizar-html-svg-imagens.md) | "Seria bom, se for seguro"; o modelo do EPUB já resolve a segurança | `ammonia` e `css::sanitize` (já existem) |
-| 9 | [Suporte a LaTeX](latex.md) | "Logo teremos"; completa a barra de formatação (botão √x) | escolher KaTeX ou MathJax |
-| 10 | [Suporte a Mermaid](mermaid.md) | Mesmo molde do DBML, que já existe | carga sob demanda |
+| 9 | [Colar imagem no markdown](colar-imagem.md) | "Parece legal"; falta para anotar com prints | decidir onde guardar as imagens |
+| 10 | [Ver HTML, SVG e imagens](visualizar-html-svg-imagens.md) | "Seria bom, se for seguro"; o modelo do EPUB já resolve a segurança | `ammonia` e `css::sanitize` (já existem) |
 | 11 | [Tabelas de markdown](tabelas-markdown.md) | Fecha um buraco do live preview; reaproveita a tabela do CSV | painel do CSV |
-| 12 | [Comparar (diff)](comparar-diff.md) | Útil com arquivos alterados por fora e com o seguir log | algoritmo de diff |
+| 12 | [Comparar (diff)](comparar-diff.md) | Útil com arquivos alterados por fora | algoritmo de diff |
 | 13 | [Links entre notas](links-entre-notas.md) | Vira rede de notas; usa a paleta e a busca global | índice de backlinks |
 
 ## Médias (interessantes, sem urgência)
 
 | # | Ideia | Por que está aqui |
 |---|---|---|
-| 14 | [Temas e aparência](temas-e-aparencia.md) | "Interessante, menos essencial" |
-| 15 | [Ferramentas de texto](ferramentas-de-texto.md) | Muitas ideias soltas; precisa ser planejada e fatiada antes |
-| 16 | [Mapas mentais](mapas-mentais.md) | Formato ainda a decidir; grande |
+| 14 | [Seguir log (tail)](seguir-log.md) | Desceu para as médias a pedido; depende de [Arquivos gigantes](arquivos-gigantes.md), então vem depois dele |
+| 15 | [Temas e aparência](temas-e-aparencia.md) | "Interessante, menos essencial" |
+| 16 | [Ferramentas de texto](ferramentas-de-texto.md) | Muitas ideias soltas; precisa ser planejada e fatiada antes |
 | 17 | [Nota ao lado do leitor](nota-ao-lado-do-leitor.md) | Pequena, mas só interessa a quem lê PDF/EPUB |
 | 18 | [Referência com volta](referencia-com-volta.md) | Idem; mexe em `links.ts` e na identidade do arquivo |
 
