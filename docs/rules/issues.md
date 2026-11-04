@@ -2,8 +2,6 @@
 
 As ideias, melhorias e bugs do Fullpad vivem nas **Issues** do repositório (`Brennon-Oliveira/fullpad`), não em arquivos do projeto. Skills: criar [criar-issue](../skills/criar-issue/SKILL.md), editar [editar-issue](../skills/editar-issue/SKILL.md) (labels, prioridade, milestone, refinar rascunhos) e implementar [implementar-issue](../skills/implementar-issue/SKILL.md).
 
-> Enquanto a migração não termina, as ideias antigas ainda estão em [../banco-de-ideias/](../banco-de-ideias/README.md). Ideia nova vai direto para uma issue.
-
 ## Tipos (label obrigatória, uma só)
 
 | Label | O que é | Exemplo |

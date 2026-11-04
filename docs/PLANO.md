@@ -154,11 +154,11 @@ O desenho e as defesas ficam em `docs/AGENTS.md` (abas de leitura). O app abre e
 
 As quatro PARADAs da fase (base e PDF, integração com as notas, EPUB, busca e citação no EPUB) foram validadas.
 
-Fica para depois: links internos do PDF (sumário clicável, "ver página 12"), tema escuro do documento do PDF, lista de resultados da busca; EPUB com paginação e rolagem contínua entre capítulos, opção "usar o estilo do livro" (hoje o CSS é filtrado: sem fontes nem imagens de fundo) e capas em SVG; testar no Linux (WebKitGTK); associar `.pdf`/`.epub` no instalador; assinatura de código do instalador e do executável (o Smart App Control e o SmartScreen barram o que não é assinado). As ideias [referência com volta](banco-de-ideias/referencia-com-volta.md) e [nota ao lado do leitor](banco-de-ideias/nota-ao-lado-do-leitor.md) estão no banco de ideias.
+Fica para depois: links internos do PDF (sumário clicável, "ver página 12"), tema escuro do documento do PDF, lista de resultados da busca; EPUB com paginação e rolagem contínua entre capítulos, opção "usar o estilo do livro" (hoje o CSS é filtrado: sem fontes nem imagens de fundo) e capas em SVG; testar no Linux (WebKitGTK); associar `.pdf`/`.epub` no instalador; assinatura de código do instalador e do executável (o Smart App Control e o SmartScreen barram o que não é assinado). As ideias "referência com volta" (issue #4) e "nota ao lado do leitor" (issue #3) estão nas issues do repositório.
 
 ## Fase 11 — Visão de CSV (tabela editável)
 
-Arquivos `.csv`/`.tsv` (ou a linguagem "CSV" no menu) ganham uma tabela, no molde do markdown: três visões, a padrão é **só a tabela editável**. O texto continua sendo a única fonte: editar uma célula reescreve só o trecho dela. Desenho, decisões e escopo em [csv.md](banco-de-ideias/csv.md). Fórmulas ficam de fora.
+Arquivos `.csv`/`.tsv` (ou a linguagem "CSV" no menu) ganham uma tabela, no molde do markdown: três visões, a padrão é **só a tabela editável**. O texto continua sendo a única fonte: editar uma célula reescreve só o trecho dela. Desenho, decisões e escopo na issue #29. Fórmulas ficam de fora.
 
 | Milestone | Entrega | Critério de aceite |
 |---|---|---|

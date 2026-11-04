@@ -4,7 +4,7 @@ Editor de notas e markdown rápido, estilo Notepad++: nada se perde ao fechar. M
 
 O roteiro de entrega por fases está em [PLANO.md](PLANO.md). Siga-o: cada fase termina numa PARADA em que o usuário valida antes de seguir.
 
-Ideias futuras ainda sem fase ficam em [banco-de-ideias/](banco-de-ideias/README.md) (um arquivo por ideia, com cabeçalho `titulo`/`feita`/`versao`). Ao entregar uma, atualize o cabeçalho e o índice.
+Ideias futuras, melhorias e bugs ficam nas **issues** do GitHub, não em arquivos do projeto: padrão em [rules/issues.md](rules/issues.md), ranking na issue fixada #35. Ao entregar uma, a `gerar-versao` a fecha com o milestone da versão.
 
 ## Arquitetura
 
