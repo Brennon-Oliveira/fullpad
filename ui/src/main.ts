@@ -1175,6 +1175,7 @@ function setPinned(id: string, pinned: boolean) {
   sessionDirty = true;
   scheduleSave();
   renderTabs();
+  if (pinned && session.active !== id) void activate(id); // fixar também seleciona a aba
   // a aba mudou de lugar: leva a barra até ela (depois do desenho, senão a medida ainda é a antiga)
   const g = groups.get(tab.group)!;
   const reveal = () => g.tabsEl.querySelector<HTMLElement>(`.tab[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
