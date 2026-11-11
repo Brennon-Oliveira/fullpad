@@ -7,8 +7,8 @@ description: "Gera e publica uma versão do Fullpad: lê os commits desde a últ
 
 Publica uma versão nova do Fullpad. Quem já tem o app instalado recebe a versão pela atualização automática (o app lê o `latest.json` do release mais recente). Detalhes do instalador, da chave e do `scripts/release.sh`: [../../rules/build-windows.md](../../rules/build-windows.md).
 
-- Código: este repositório (privado). Tag `v<versão>` no commit que gerou a versão.
-- Releases: `Brennon-Oliveira/fullpad-releases` (público, só instaladores e `latest.json`).
+- Código: este repositório (público, aberto a contribuições). Tag `v<versão>` no commit que gerou a versão.
+- Releases: `Brennon-Oliveira/fullpad-releases` (público para ler, mas só o mantenedor publica: instaladores e `latest.json`, sem código). É de lá que o app instalado se atualiza, então ninguém além do mantenedor deve ter permissão de escrita nele.
 - Versão: `version` em `crates/app/Cargo.toml` (o `tauri.conf.json` não tem versão).
 
 ## Argumentos
@@ -97,7 +97,7 @@ Escreva em `crates/app/release-notes.md` (substituindo o conteúdo da versão an
 - Fonte: o resumo e o corpo dos commits. **Entra tudo o que muda algo para quem usa, tenha ou não issue**: uma correção feita na conversa, sem `Refs`, entra como qualquer outra. Issue não é critério para a nota. Reescreva para o efeito visível ("Abas arrastadas entre janelas caem no lugar exato"), sem jargão (nada de "refatora", nomes de função ou arquivo).
 - Junte commits que tratam da mesma coisa. Omita seções vazias.
 - `docs`, `test`, `build`, `ci`, `chore` ficam de fora, a não ser que mudem algo para o usuário (ex.: o instalador).
-- **Não cite números de issue** (`#12`) nem links do repositório de código nas notas: elas aparecem no diálogo de atualização e na página do release público, e o repositório de código é privado.
+- **Não cite números de issue** (`#12`) nem links do repositório de código nas notas: elas aparecem como texto puro no diálogo de atualização e na página do release, que fica em **outro repositório** (`fullpad-releases`), onde `#12` apontaria para uma issue que não existe ou para outra.
 - Mudança incompatível: diga o que muda e o que a pessoa precisa fazer.
 
 **Histórico (`crates/app/CHANGELOG.md`)**: depois de escrever a nota, acrescente a mesma nota **no topo** do `crates/app/CHANGELOG.md`, logo abaixo do texto de abertura e acima da versão anterior, com o cabeçalho `## <nova> · <aaaa-mm-dd>` (data de hoje) e as seções rebaixadas para `###` (`### Novidades`, `### Correções`, `### Melhorias`). O app separa as versões pelo cabeçalho `## x.y.z`, então **nenhum outro `##` pode começar por um número de versão**, e as versões ficam da mais nova para a mais antiga, sem repetir. O arquivo vai embutido no app (Ajuda > "Histórico de versões…") e a nota que abre depois de atualizar mostra tudo o que entrou desde a versão que a pessoa tinha.
