@@ -34,6 +34,9 @@
       "icons/icon.ico"
     ],
     "shortDescription": "Editor de notas e markdown rápido",
+    "resources": {
+      "../../THIRD_PARTY_LICENSES.md": "THIRD_PARTY_LICENSES.md"
+    },
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
