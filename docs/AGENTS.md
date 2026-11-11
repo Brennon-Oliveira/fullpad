@@ -14,6 +14,8 @@ crates/app    Tauri 2: comandos IPC (load_startup, read_note, save_note, save_wi
 crates/app/windows/  template e ganchos do instalador NSIS (integração com o Windows); ver rules/build-windows.md.
 crates/app/icons/  ícone do app: `fullpad.svg` é a fonte; os PNG/ICO/ICNS saem dele por `cargo tauri icon`; `original/` guarda os ícones provisórios antigos.
 scripts/release.sh  gera o instalador assinado e publica a versão nos Releases públicos (atualização automática).
+scripts/gerar-licencas.py  gera o `THIRD_PARTY_LICENSES.md` (licenças e avisos de tudo que viaja no app; vai no instalador) e falha se entrar licença fora da lista permitida; textos de apoio em `scripts/licencas/`. Ver rules/licencas.md.
+scripts/gifs/  grava os GIFs do README com o Fullpad aberto no Windows (`gravar.sh`, atalhos por scancode, só navega e seleciona; `montar.py` monta o GIF); saída em `docs/img/`. Ver o cabeçalho do `gravar.sh`.
 ui/           TypeScript + CodeMirror 6 + Vite (abas, editor, live preview, menus, barra de status).
 ui/src/codelangs.ts  linguagens de destaque: dos blocos de código do markdown e dos arquivos de texto (JS, TS, JSON, SQL, Python, CSS, HTML, Rust, YAML, Shell, C#, C, C++, Java, Kotlin, Go, Ruby, TOML, PowerShell, Dockerfile, Lua, Perl, Swift, Diff, INI, XML, DBML; carga sob demanda; para acrescentar uma, é só mais uma entrada, `legacy(...)` para as de `legacy-modes`). **Lang**: um arquivo de texto puro (`.py`, `.rs`, `.sh`…) é colorido pela linguagem da extensão (`codeLanguageFor`) ou pela escolhida à mão (`TabState.code_lang`; `none` = sem destaque), mas continua sendo "Texto simples": **não vira tipo de arquivo** (não entra no menu Linguagem nem no botão de linguagem da barra de status, não tem visão nem menu próprio). Onde o arquivo não tem visão renderizada, o botão "Visão" da barra de status vira "Lang: Python ▾" (lista: Automático, Texto puro e as demais) e o menu "Texto" ganha o submenu "Lang". DBML e JSON são tipos próprios e ficam fora do seletor.
 examples/  arquivos de exemplo (`example.<ext>`) para mostrar o app: md, json, jsonc, dbml, csv, tsv, pdf, epub, texto e código. Os gerados saem dos scripts em `examples/_gerar/`; ver `examples/README.md`.
@@ -88,6 +90,8 @@ Não há pipeline de CI por enquanto (nenhum workflow do GitHub); testes e build
 - Commits: [rules/commits.md](rules/commits.md).
 - Persistência (`crates/core`): [rules/persistencia.md](rules/persistencia.md).
 - Arquivos de exemplo (`examples/`): [rules/exemplos.md](rules/exemplos.md).
+- Licenças e dependências (nada de copyleft forte; `THIRD_PARTY_LICENSES.md` é gerado por `scripts/gerar-licencas.py`): [rules/licencas.md](rules/licencas.md).
+- Contribuições externas: [CONTRIBUTING.md](../CONTRIBUTING.md).
 - Publicar uma versão (tag, notas, instalador, release): skill [gerar-versao](skills/gerar-versao/SKILL.md).
 - Bugs, melhorias e novidades: issues do GitHub, no padrão de [rules/issues.md](rules/issues.md); skills [criar-issue](skills/criar-issue/SKILL.md) (`--bug`, `--improvement`, `--feature`, `--draft`, `--milestone=`), [editar-issue](skills/editar-issue/SKILL.md) (`--milestone=`, `--label=+x,-y`, `--priority=`, `--refinar`) e [implementar-issue](skills/implementar-issue/SKILL.md) (`--approve`, `--commit`; os commits levam `Refs #n` e a `gerar-versao` fecha a issue).
 - Ao terminar qualquer ajuste, gere o build de Windows e reporte o resultado: [rules/build-windows.md](rules/build-windows.md).
