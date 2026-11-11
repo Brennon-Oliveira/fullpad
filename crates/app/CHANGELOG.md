@@ -2,6 +2,16 @@
 
 Uma seção por versão, da mais nova para a mais antiga. A skill `gerar-versao` acrescenta a versão nova no topo; o app embute este arquivo (Ajuda > "Histórico de versões…"). As versões até a 2.0.0 foram reconstruídas das mensagens das tags.
 
+## 3.0.0 · 2026-11-11
+
+### Novidades
+
+- **O Fullpad agora é código aberto**, sob a licença MIT: qualquer pessoa pode ver o código, usar, modificar e contribuir.
+
+### Melhorias
+
+- O instalador agora traz a licença do Fullpad e os avisos de licença das bibliotecas que ele usa, na pasta de instalação.
+
 ## 2.1.0 · 2026-11-04
 
 ### Novidades
