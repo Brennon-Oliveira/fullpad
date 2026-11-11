@@ -35,6 +35,7 @@
     ],
     "shortDescription": "Editor de notas e markdown rápido",
     "resources": {
+      "../../LICENSE": "LICENSE",
       "../../THIRD_PARTY_LICENSES.md": "THIRD_PARTY_LICENSES.md"
     },
     "windows": {
