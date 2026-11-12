@@ -164,7 +164,9 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     scheduleView();
   };
   svg.addEventListener("dblclick", (e) => {
-    const target = e.target as Element;
+    // o pan prende o ponteiro no <svg> (pointer capture), então `e.target` vem sempre como o próprio
+    // <svg>: o elemento de verdade é o que está sob o ponto do clique
+    const target = document.elementFromPoint(e.clientX, e.clientY) ?? (e.target as Element);
     const named = target.closest?.("[data-off], [data-col]");
     if (named && hooks.onRename) {
       const r = named.getBoundingClientRect();
