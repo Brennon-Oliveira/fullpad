@@ -176,4 +176,19 @@ describe("peças", () => {
     expect(lineChanges("igual", "igual")).toEqual([]);
     expect(applyChanges("a\nb", [])).toBe("a\nb");
   });
+
+  it("tabela com esquema: o nome completo troca esquema e tabela, e só o nome mantém o esquema", () => {
+    const text = "Table catalogo.idiomas { id int }\nTable t { i int [ref: > catalogo.idiomas.id] }\n";
+    const d = parseDbml(service.interpret, text).diagram!;
+    const t = targetAt(service, d, text, 20)!;
+    const go = (name: string) => {
+      const r = renameChanges(service, d, text, t, name);
+      return "error" in r ? r : applyChanges(text, r.changes);
+    };
+    expect(go("catalogo.linguas")).toContain("Table catalogo.linguas");
+    expect(go("catalogo.linguas")).toContain("catalogo.linguas.id");
+    expect(go("outro.idiomas")).toContain("Table outro.idiomas");
+    expect(go("linguas")).toContain("Table catalogo.linguas");
+    expect(go("catalogo.idiomas")).toMatchObject({ error: "O nome é o mesmo." });
+  });
 });

@@ -177,18 +177,25 @@ export function applyChanges(text: string, changes: TextChange[]): string {
 export function renameChanges(svc: DbmlService, d: Diagram, text: string, target: RenameTarget, newName: string): RenameResult | { error: string } {
   const bad = checkName(newName);
   if (bad) return { error: bad };
-  if (newName === target.name) return { error: "O nome é o mesmo." };
   const t = target.table;
   let result: RenameResult;
 
   if (target.kind === "table") {
     if (!t) return { error: "Tabela não encontrada." };
-    const schema = t.schema ?? undefined;
-    if (d.tables.some((x) => x !== t && x.id === tableId(t.schema, newName))) return { error: `Já existe a tabela "${newName}".` };
-    const next = svc.renameTable(text, { schema, table: t.name }, { schema, table: newName });
+    // o campo mostra o nome completo (`esquema.tabela`): escrever outro esquema também o troca
+    // (só o nome, sem ponto, mantém o esquema de agora)
+    const fromSchema = t.schema ?? undefined;
+    const parts = new RegExp(String.raw`^(${IDENT})\s*\.\s*(${IDENT})$`).exec(newName.trim());
+    if (!parts && newName.includes(".") && !newName.trim().startsWith('"')) return { error: "Nome inválido: use `tabela` ou `esquema.tabela`." };
+    const toSchema = parts ? unquote(parts[1]) : fromSchema;
+    const toTable = parts ? unquote(parts[2]) : unquote(newName.trim());
+    if (toSchema === fromSchema && toTable === t.name) return { error: "O nome é o mesmo." };
+    if (d.tables.some((x) => x !== t && x.id === tableId(toSchema, toTable))) return { error: `Já existe a tabela "${newName.trim()}".` };
+    const next = svc.renameTable(text, { schema: fromSchema, table: t.name }, { schema: toSchema, table: toTable });
     if (next === null) return { error: "Não foi possível renomear a tabela." };
-    result = { changes: lineChanges(text, next), renamedTable: { from: t.id, to: tableId(t.schema, newName) } };
+    result = { changes: lineChanges(text, next), renamedTable: { from: t.id, to: tableId(toSchema, toTable) } };
   } else {
+    if (newName === target.name) return { error: "O nome é o mesmo." };
     if (target.kind === "column" && t?.columns.some((c) => c.name === newName)) return { error: `Já existe a coluna "${newName}" nesta tabela.` };
     if (target.kind === "enum" && d.enums.some((e) => e.name === newName)) return { error: `Já existe o enum "${newName}".` };
     if (target.kind === "value") {

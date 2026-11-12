@@ -743,10 +743,12 @@ async function renameSymbolAt(g: Group, offset: number, mode: "at" | "decl", at:
   const target = mode === "decl" ? rn.targetForDecl(diagram, text, offset) : rn.targetAt(svc, diagram, text, offset);
   if (!target) return flashDiskInfo(tab, "Não há um nome para renomear aqui (tabela, coluna, enum, valor ou grupo).");
   const { promptRename } = await import("./renamebox");
+  // a tabela mostra o nome completo (`esquema.tabela`); escrever outro esquema também o troca
+  const shown = target.kind === "table" && target.table?.schema ? `${target.table.schema}.${target.name}` : target.name;
   promptRename({
     ...at,
-    value: target.name,
-    title: `Renomear ${SYMBOL_LABEL[target.kind]} — ${target.name}`,
+    value: shown,
+    title: `Renomear ${SYMBOL_LABEL[target.kind]} — ${shown}`,
     onClose: () => g.view.focus(),
     submit: async (name) => {
       if (g.rev !== rev && mode === "decl") return "O texto mudou; tente de novo.";
