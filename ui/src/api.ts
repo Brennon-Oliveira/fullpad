@@ -320,18 +320,21 @@ export const api = {
   fileReload: (id: string) => invoke<Reloaded>("file_reload", { id }),
   /** Ficar com o texto da aba: o arquivo de agora vira a referência e o próximo Salvar não pergunta. */
   fileKeep: (id: string) => invoke<DiskStamp | null>("file_keep", { id }),
-  /** Layout do diagrama (`.dbmlx`): lê o do disco (ao lado do arquivo ou em `layouts/`). */
+  /** Layout do diagrama (`.dbmlx`): a cópia de trabalho (alterações não salvas) ou o arquivo ao lado. */
   layoutLoad: (id: string) => invoke<LayoutState>("layout_load", { id }),
   /** Entende um texto de layout sem tocar no disco. */
   layoutParse: (text: string) => invoke<LayoutState>("layout_parse", { text }),
   /** Aplica uma edição a um texto de layout sem gravar (o JSON acompanha o arrasto). */
   layoutApply: (text: string, edit: LayoutEdit) => invoke<string>("layout_apply", { text, edit }),
-  /** Grava o texto do layout como está; sem `force`, recusa com `conflito:` se mudou fora. */
-  layoutWrite: (id: string, text: string, known: DiskStamp | null, force: boolean) =>
-    invoke<DiskStamp>("layout_write", { id, text, known, force }),
-  /** Aplica tabelas arrastadas e a vista ao layout do disco e grava. */
-  layoutEdit: (id: string, edit: LayoutEdit, known: DiskStamp | null, force: boolean) =>
-    invoke<LayoutState>("layout_edit", { id, edit, known, force }),
+  /** Grava o texto do layout como está, na cópia de trabalho (o Salvar consolida). */
+  layoutWrite: (id: string, text: string) => invoke<void>("layout_write", { id, text }),
+  /** Aplica tabelas arrastadas, vista e renomes ao layout e grava na cópia de trabalho. */
+  layoutEdit: (id: string, edit: LayoutEdit) => invoke<LayoutState>("layout_edit", { id, edit }),
+  /** Salvar: a cópia de trabalho passa para o arquivo ao lado de `path`; sem `force`, recusa com `conflito:` se ele mudou fora. */
+  layoutCommit: (id: string, path: string, base: DiskStamp | null, force: boolean) =>
+    invoke<DiskStamp | null>("layout_commit", { id, path, base, force }),
+  /** Joga fora as alterações do layout (volta o arquivo ao lado). */
+  layoutDiscard: (id: string) => invoke<void>("layout_discard", { id }),
 };
 
 export interface LayoutViewport {
@@ -351,7 +354,10 @@ export interface LayoutGroupRect {
 }
 export interface LayoutState {
   text: string | null;
-  stamp: DiskStamp | null;
+  /** Carimbo do arquivo de layout ao lado (para o Salvar conferir mudança externa). */
+  base: DiskStamp | null;
+  /** O texto é a cópia de trabalho: há alterações não salvas. */
+  draft: boolean;
   viewport: LayoutViewport | null;
   tables: Record<string, LayoutPos>;
   /** Molduras de grupo guardadas (por nome do grupo). */
@@ -363,4 +369,7 @@ export interface LayoutEdit {
   viewport?: LayoutViewport;
   tables?: Record<string, LayoutPos>;
   groups?: Record<string, LayoutGroupRect>;
+  /** Tabelas renomeadas no DBML (id antigo → novo): a posição acompanha. */
+  rename_tables?: Record<string, string>;
+  rename_groups?: Record<string, string>;
 }

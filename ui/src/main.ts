@@ -752,35 +752,41 @@ function loadLayout(id: string): Promise<LayoutState> {
   return p;
 }
 
-/** Escreve no layout; se o arquivo mudou fora do Fullpad, pergunta antes de sobrescrever. */
-async function writeLayout<T>(tab: TabState | undefined, attempt: (force: boolean) => Promise<T>): Promise<T | null> {
+/**
+ * Salvar: consolida as alterações do layout (a cópia de trabalho) no arquivo ao lado do `.dbmlx` que
+ * acabou de ser gravado. Se o arquivo de layout mudou fora do Fullpad, pergunta; "Descartar as minhas"
+ * fica com o do disco. Devolve `false` se a pessoa cancelou (as alterações do layout continuam pendentes).
+ */
+async function commitLayoutOnSave(tab: TabState, path: string): Promise<boolean> {
+  if (effectiveLang(tab) !== "dbml") return true;
+  let l: LayoutState | null | undefined = layouts.get(tab.id);
+  if (!l) l = await loadLayout(tab.id).catch(() => null); // rascunho de uma sessão anterior
+  if (!l?.draft) return true; // nada pendente
+  const attempt = (force: boolean) => api.layoutCommit(tab.id, path, l?.base ?? null, force);
   try {
-    return await attempt(false);
+    await attempt(false);
   } catch (e) {
     if (!isConflict(e)) {
-      await message(`Não foi possível gravar o layout: ${e}`, { title: "Layout do diagrama", kind: "error" });
-      return null;
+      await message(`O arquivo foi salvo, mas o layout do diagrama não: ${e}`, { title: "Layout do diagrama", kind: "error" });
+      return false;
     }
-    const r = await message(`O layout de "${tab?.title ?? "este diagrama"}" foi alterado fora do Fullpad. Gravar por cima apaga essa mudança.`, {
+    const r = await message(`O layout de "${tab.title}" foi alterado fora do Fullpad. Gravar por cima apaga essa mudança.`, {
       title: "Layout alterado",
       kind: "warning",
-      buttons: { yes: "Sobrescrever", no: "Recarregar do disco", cancel: "Cancelar" },
+      buttons: { yes: "Sobrescrever", no: "Descartar as minhas", cancel: "Cancelar" },
     });
-    if (r === "Sobrescrever") {
-      try {
-        return await attempt(true);
-      } catch (e2) {
-        await message(`Não foi possível gravar o layout: ${e2}`, { title: "Layout do diagrama", kind: "error" });
-        return null;
-      }
+    try {
+      if (r === "Sobrescrever") await attempt(true);
+      else if (r === "Descartar as minhas") await api.layoutDiscard(tab.id);
+      else return false;
+    } catch (e2) {
+      await message(`Não foi possível gravar o layout: ${e2}`, { title: "Layout do diagrama", kind: "error" });
+      return false;
     }
-    if (tab && r === "Recarregar do disco") {
-      layouts.delete(tab.id);
-      await loadLayout(tab.id).catch(() => {});
-      refreshLayoutUi(tab.id);
-    }
-    return null;
   }
+  layouts.delete(tab.id); // relido na próxima vez (o arquivo ao lado agora é o que vale)
+  refreshLayoutUi(tab.id);
+  return true;
 }
 
 /** O diagrama (ou o JSON) da aba mudou de dono dos dados: redesenha onde ela está à vista. */
@@ -792,8 +798,8 @@ function refreshLayoutUi(id: string, rereadJson = true) {
 }
 
 /**
- * As gravações do layout de uma aba andam **uma de cada vez**: cada uma precisa do carimbo que a
- * anterior deixou (senão a segunda, saindo antes de a primeira terminar, parece uma mudança externa).
+ * As gravações do layout de uma aba andam **uma de cada vez**: cada uma parte do texto que a anterior
+ * deixou na cópia de trabalho (senão duas edições seguidas, arrasto e vista, se atropelariam).
  */
 const layoutQueue = new Map<string, Promise<unknown>>();
 function queueLayout(id: string, job: () => Promise<void>): Promise<void> {
@@ -803,36 +809,45 @@ function queueLayout(id: string, job: () => Promise<void>): Promise<void> {
   return run;
 }
 
-/** Tabelas arrastadas e/ou vista mexida no diagrama: aplica ao layout e grava. */
+/** Mexer no layout é uma alteração não salva da aba de arquivo (a bolinha na aba); só a vista não conta. */
+function layoutChanged(tab: TabState) {
+  if (tab.path) markModified(tab);
+}
+
+/** Tabelas, grupos e/ou vista mexidos no diagrama: aplica ao layout e grava na cópia de trabalho (o Salvar consolida). */
 function saveLayoutEdit(id: string, edit: LayoutEdit): Promise<void> {
   return queueLayout(id, async () => {
     const tab = session.tabs.find((t) => t.id === id);
     if (!tab) return;
-    const known = layouts.get(id)?.stamp ?? null; // lido já na vez dele, depois da gravação anterior
     groupShowing(id)?.layoutView?.flush(); // o que se digitou no JSON entra antes (na fila)
-    const next = await writeLayout(tab, (force) => api.layoutEdit(id, edit, known, force));
-    if (next) {
+    try {
+      const next = await api.layoutEdit(id, edit);
       layouts.set(id, next);
       if (next.text !== null) groupShowing(id)?.layoutView?.setText(id, next.text); // o JSON ao lado acompanha o arrasto
+      if (edit.tables || edit.groups || edit.rename_tables || edit.rename_groups) layoutChanged(tab);
+    } catch (e) {
+      await message(`Não foi possível gravar o layout: ${e}`, { title: "Layout do diagrama", kind: "error" });
     }
   });
 }
 
-/** O JSON do "Ver layout" foi editado: grava como está (a pessoa pode estar no meio de uma edição inválida). */
+/** O JSON do "Ver layout" foi editado: grava como está na cópia de trabalho (pode estar no meio de uma edição inválida). */
 function commitLayoutText(id: string, text: string): Promise<void> {
   return queueLayout(id, async () => {
     const tab = session.tabs.find((t) => t.id === id);
     if (!tab) return;
-    const known = layouts.get(id)?.stamp ?? null;
     const g = groupShowing(id);
-    const stamp = await writeLayout(tab, (force) => api.layoutWrite(id, text, known, force));
-    if (stamp === null) {
+    try {
+      await api.layoutWrite(id, text);
+    } catch (e) {
       g?.layoutView?.setState("Não gravado");
+      await message(`Não foi possível gravar o layout: ${e}`, { title: "Layout do diagrama", kind: "error" });
       return;
     }
     const parsed = await api.layoutParse(text);
-    layouts.set(id, { ...parsed, text, stamp });
-    g?.layoutView?.setState(parsed.error ? `Gravado, mas inválido: ${parsed.error}` : "Gravado");
+    layouts.set(id, { ...parsed, text, base: layouts.get(id)?.base ?? null, draft: true });
+    layoutChanged(tab);
+    g?.layoutView?.setState(parsed.error ? `Alterado, mas inválido: ${parsed.error}` : "Alterado, não salvo");
   });
 }
 
@@ -841,7 +856,7 @@ async function previewLayoutText(id: string, text: string) {
   const parsed = await api.layoutParse(text);
   const cached = layouts.get(id);
   if (!layoutOpen.has(id)) return;
-  layouts.set(id, { ...parsed, text: cached?.text ?? null, stamp: cached?.stamp ?? null });
+  layouts.set(id, { ...parsed, text: cached?.text ?? null, base: cached?.base ?? null, draft: cached?.draft ?? false });
   refreshLayoutUi(id, false);
 }
 
@@ -2802,6 +2817,12 @@ async function reloadFromDisk(tab: TabState, automatic = false): Promise<boolean
     });
   });
   dirtyNotes.delete(tab.id); // o buffer em notas/ já é o do arquivo (o Rust o trocou)
+  if (layouts.get(tab.id)?.draft) {
+    // recarregar do disco joga fora as minhas alterações: as do layout também
+    await api.layoutDiscard(tab.id).catch(() => {});
+    layouts.delete(tab.id);
+    refreshLayoutUi(tab.id);
+  }
   tab.dirty = false;
   diskIssue.delete(tab.id);
   diskDismissed.delete(tab.id);
@@ -2882,15 +2903,17 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
     await message(String(e), { title: "Erro ao salvar", kind: "error" });
     return false;
   }
+  // o layout do diagrama (.dbmlx) é salvo junto: a cópia de trabalho passa para o arquivo ao lado
+  const layoutSaved = await commitLayoutOnSave(tab, path);
   diskIssue.delete(tab.id);
   diskDismissed.delete(tab.id);
   dirtyNotes.delete(tab.id);
-  if (tab.path !== path) layouts.delete(tab.id); // salvar como: o layout pode ter ido para o lado do arquivo (outro carimbo)
+  if (tab.path !== path) layouts.delete(tab.id); // salvar como: o arquivo de layout é outro (outro carimbo)
   tab.path = path;
   rememberPath(path);
   tab.release_notes = false; // virou arquivo do usuário: fechar volta a passar pelo histórico
   tab.title = baseName(path);
-  tab.dirty = false;
+  tab.dirty = !layoutSaved; // o layout cancelado ou recusado continua pendente
   if (tab.id === session.active) {
     redetect(tab);
     applyTabConfig();

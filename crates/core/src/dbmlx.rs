@@ -73,6 +73,12 @@ pub struct Edit {
     pub tables: BTreeMap<String, Pos>,
     #[serde(default)]
     pub groups: BTreeMap<String, GroupRect>,
+    /// Tabelas renomeadas no DBML (id antigo → id novo): a posição acompanha o novo nome.
+    #[serde(default)]
+    pub rename_tables: BTreeMap<String, String>,
+    /// Grupos renomeados (nome antigo → novo): a moldura acompanha.
+    #[serde(default)]
+    pub rename_groups: BTreeMap<String, String>,
 }
 
 fn coord(v: &Value, what: &str) -> Result<i64, String> {
@@ -195,6 +201,21 @@ pub fn to_text(l: &Layout) -> String {
 /// atual é inválido: não se reescreve por cima de algo que a pessoa editou à mão e que não se entende.
 pub fn apply(text: &str, edit: &Edit) -> Result<String, String> {
     let mut l = parse(text)?;
+    // renomes primeiro: as posições do mesmo pedido já vêm com o nome novo
+    for (from, to) in &edit.rename_tables {
+        if from != to {
+            if let Some(p) = l.tables.remove(from) {
+                l.tables.insert(to.clone(), p);
+            }
+        }
+    }
+    for (from, to) in &edit.rename_groups {
+        if from != to {
+            if let Some(v) = l.groups.remove(from) {
+                l.groups.insert(to.clone(), v);
+            }
+        }
+    }
     if let Some(v) = edit.viewport {
         if !v.zoom.is_finite() || !(MIN_ZOOM..=MAX_ZOOM).contains(&v.zoom) || v.x.unsigned_abs() as f64 > MAX_COORD || v.y.unsigned_abs() as f64 > MAX_COORD {
             return Err("vista fora do limite".into());
@@ -283,6 +304,20 @@ mod tests {
         assert!(!r.contains_key("lixo"));
         e.groups.insert("g".into(), GroupRect { x: 0, y: 0, width: 0, height: 10 });
         assert!(apply(src, &e).is_err());
+    }
+
+    #[test]
+    fn renamed_tables_and_groups_keep_their_layout() {
+        let src = r#"{"version":1,"tables":{"a":{"x":1,"y":2},"b":{"x":3,"y":4}},"groups":{"g":{"x":0,"y":0,"width":9,"height":9}}}"#;
+        let mut e = Edit::default();
+        e.rename_tables.insert("a".into(), "novo".into());
+        e.rename_tables.insert("fantasma".into(), "x".into()); // não existe: ignorado
+        e.rename_groups.insert("g".into(), "h".into());
+        let l = parse(&apply(src, &e).unwrap()).unwrap();
+        assert_eq!(l.tables["novo"], Pos { x: 1, y: 2 });
+        assert!(!l.tables.contains_key("a") && !l.tables.contains_key("x"));
+        assert_eq!(l.tables["b"], Pos { x: 3, y: 4 });
+        assert!(l.groups.contains_key("h") && !l.groups.contains_key("g"));
     }
 
     #[test]
