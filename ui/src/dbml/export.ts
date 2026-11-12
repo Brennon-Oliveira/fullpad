@@ -44,7 +44,7 @@ export function buildSvg(live: SVGGElement, layout: Layout, background: string) 
   inlineStyles(live, clone);
   clone.removeAttribute("transform");
   clone.removeAttribute("class");
-  clone.querySelectorAll(".dbml-row, .dbml-hit").forEach((e) => e.remove());
+  clone.querySelectorAll(".dbml-row, .dbml-hit, .dbml-group-move, .dbml-group-resize").forEach((e) => e.remove());
   const body = new XMLSerializer().serializeToString(clone);
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${b.w}" height="${b.h}" viewBox="${b.x} ${b.y} ${b.w} ${b.h}">` +

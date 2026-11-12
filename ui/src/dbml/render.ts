@@ -1,6 +1,9 @@
 import { type Box, HEADER_H, type Layout, ROW_H, enumKey, groupKey } from "./layout";
 import { type DEnum, type DGroup, type DRef, type DTable, type Diagram, type Endpoint, type Span, enumOf } from "./model";
 
+/** Altura da faixa do título do grupo que serve de alça para movê-lo. */
+const GROUP_HANDLE_H = 26;
+
 const NS = "http://www.w3.org/2000/svg";
 
 function el<K extends keyof SVGElementTagNameMap>(
@@ -120,11 +123,16 @@ function enumNode(e: DEnum, x: number, y: number, w: number, h: number): SVGGEle
 }
 
 function groupFrame(grp: DGroup, b: { x: number; y: number; w: number; h: number }): SVGGElement {
-  const g = el("g", { class: "dbml-group" });
+  const g = el("g", { class: "dbml-group", "data-grp": grp.name });
   const color = grp.color && contrastOn(grp.color) ? grp.color : null;
   const rect = el("rect", { x: b.x, y: b.y, width: b.w, height: b.h, rx: 10 });
   if (color) rect.setAttribute("style", `fill:${color}1f;stroke:${color}`);
   g.append(rect, el("text", { x: b.x + 12, y: b.y + 17 }, grp.name));
+  // alças: a faixa do título move o grupo (e as tabelas dele); o canto de baixo à direita aumenta a moldura
+  g.append(
+    el("rect", { class: "dbml-group-move", x: b.x, y: b.y, width: b.w, height: GROUP_HANDLE_H }),
+    el("path", { class: "dbml-group-resize", d: `M${b.x + b.w - 2},${b.y + b.h - 16} L${b.x + b.w - 2},${b.y + b.h - 2} L${b.x + b.w - 16},${b.y + b.h - 2} Z` }),
+  );
   return g;
 }
 

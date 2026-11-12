@@ -31,15 +31,32 @@ export interface Layout {
 /** Posição salva de uma tabela (canto de cima à esquerda), por id de tabela. */
 export type SavedPositions = Record<string, { x: number; y: number }>;
 
+/** Moldura guardada de um grupo (por nome), em coordenadas do diagrama. */
+export type SavedGroups = Record<string, { x: number; y: number; width: number; height: number }>;
+
 const MARGIN = 24;
 
-/** Recalcula as molduras dos grupos pelas caixas das tabelas (uma tabela em vários grupos fica só no primeiro). */
-export function frameGroups(d: Diagram, boxes: Map<string, Box>): void {
+/** Tabelas de cada grupo, por nome (uma tabela em vários grupos fica só no primeiro). */
+export function groupMembers(d: Diagram, boxes: Map<string, Box>): Map<string, string[]> {
   const grouped = new Set<string>();
+  const out = new Map<string, string[]>();
   for (const grp of d.groups) {
     const members = grp.tables.filter((id) => !grouped.has(id) && boxes.has(id));
     for (const id of grp.tables) grouped.add(id);
-    if (members.length === 0) continue;
+    if (members.length > 0) out.set(grp.name, members);
+  }
+  return out;
+}
+
+const validRect = (r: SavedGroups[string] | undefined): r is SavedGroups[string] =>
+  !!r && [r.x, r.y, r.width, r.height].every(Number.isFinite) && r.width > 0 && r.height > 0;
+
+/**
+ * Recalcula as molduras dos grupos pelas caixas das tabelas. Uma moldura guardada só **aumenta** a
+ * calculada (a união das duas): o grupo nunca fica menor que as tabelas que tem dentro.
+ */
+export function frameGroups(d: Diagram, boxes: Map<string, Box>, saved: SavedGroups = {}): void {
+  for (const [name, members] of groupMembers(d, boxes)) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const id of members) {
       const b = boxes.get(id)!;
@@ -48,12 +65,18 @@ export function frameGroups(d: Diagram, boxes: Map<string, Box>): void {
       x1 = Math.max(x1, b.x + b.w);
       y1 = Math.max(y1, b.y + b.h);
     }
-    boxes.set(groupKey(grp.name), {
-      x: x0 - GROUP_PAD,
-      y: y0 - GROUP_PAD - GROUP_LABEL_H,
-      w: x1 - x0 + GROUP_PAD * 2,
-      h: y1 - y0 + GROUP_PAD * 2 + GROUP_LABEL_H,
-    });
+    x0 -= GROUP_PAD;
+    y0 -= GROUP_PAD + GROUP_LABEL_H;
+    x1 += GROUP_PAD;
+    y1 += GROUP_PAD;
+    const r = Object.hasOwn(saved, name) ? saved[name] : undefined;
+    if (validRect(r)) {
+      x0 = Math.min(x0, r.x);
+      y0 = Math.min(y0, r.y);
+      x1 = Math.max(x1, r.x + r.width);
+      y1 = Math.max(y1, r.y + r.height);
+    }
+    boxes.set(groupKey(name), { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) });
   }
 }
 
@@ -99,7 +122,7 @@ export function enumSize(e: Diagram["enums"][number]): { w: number; h: number } 
   return { w: Math.max(MIN_W - 40, Math.ceil(chars * CHAR_W) + PAD_X), h: HEADER_H + Math.max(1, e.values.length) * ROW_H };
 }
 
-export function layoutDiagram(d: Diagram, dagre: DagreLike, saved: SavedPositions = {}): Layout {
+export function layoutDiagram(d: Diagram, dagre: DagreLike, saved: SavedPositions = {}, savedGroups: SavedGroups = {}): Layout {
   const g = new dagre.graphlib.Graph({ compound: true });
   g.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 110, marginx: 24, marginy: 24 });
   g.setDefaultEdgeLabel(() => ({}));
@@ -168,8 +191,8 @@ export function layoutDiagram(d: Diagram, dagre: DagreLike, saved: SavedPosition
     boxes.set(t.id, { ...b, x: Math.round(p.x), y: Math.round(p.y) });
     moved = true;
   }
-  if (moved) {
-    frameGroups(d, boxes);
+  if (moved || Object.values(savedGroups).some(validRect)) {
+    frameGroups(d, boxes, savedGroups);
     fitExtent(layout);
   }
   return layout;

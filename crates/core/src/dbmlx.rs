@@ -45,11 +45,20 @@ pub struct Pos {
     pub y: i64,
 }
 
+/// Moldura de um grupo de tabelas (canto de cima à esquerda, largura e altura), em coordenadas do diagrama.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GroupRect {
+    pub x: i64,
+    pub y: i64,
+    pub width: i64,
+    pub height: i64,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Layout {
     pub viewport: Viewport,
     pub tables: BTreeMap<String, Pos>,
-    /// Grupos como vieram: o Fullpad ainda não os edita.
+    /// Grupos como vieram (o que o Fullpad não edita neles volta intacto); `group_rects` lê as molduras.
     pub groups: Map<String, Value>,
     /// Chaves de primeiro nível que esta versão não conhece.
     pub extra: Map<String, Value>,
@@ -62,6 +71,8 @@ pub struct Edit {
     pub viewport: Option<Viewport>,
     #[serde(default)]
     pub tables: BTreeMap<String, Pos>,
+    #[serde(default)]
+    pub groups: BTreeMap<String, GroupRect>,
 }
 
 fn coord(v: &Value, what: &str) -> Result<i64, String> {
@@ -123,6 +134,24 @@ fn int(n: i64) -> Value {
     Value::Number(n.into())
 }
 
+impl Layout {
+    /// As molduras de grupo guardadas (`x`, `y`, `width`, `height` numéricos e finitos; o resto é ignorado
+    /// aqui, mas continua no arquivo).
+    pub fn group_rects(&self) -> BTreeMap<String, GroupRect> {
+        let mut out = BTreeMap::new();
+        for (name, v) in &self.groups {
+            let Some(o) = v.as_object() else { continue };
+            let get = |k: &str| o.get(k).and_then(|v| coord(v, k).ok());
+            if let (Some(x), Some(y), Some(width), Some(height)) = (get("x"), get("y"), get("width"), get("height")) {
+                if width > 0 && height > 0 {
+                    out.insert(name.clone(), GroupRect { x, y, width, height });
+                }
+            }
+        }
+        out
+    }
+}
+
 /// O texto canônico do layout (2 espaços, chaves em ordem alfabética, quebra de linha no fim).
 pub fn to_text(l: &Layout) -> String {
     let mut root = l.extra.clone();
@@ -178,6 +207,19 @@ pub fn apply(text: &str, edit: &Edit) -> Result<String, String> {
         }
         l.tables.insert(name.clone(), *p);
     }
+    for (name, r) in &edit.groups {
+        let in_bounds = |v: i64| (v.unsigned_abs() as f64) <= MAX_COORD;
+        if !(in_bounds(r.x) && in_bounds(r.y) && in_bounds(r.width) && in_bounds(r.height)) || r.width <= 0 || r.height <= 0 {
+            return Err(format!("moldura do grupo {name} fora do limite"));
+        }
+        // só os quatro campos mudam: outros que o arquivo tenha no grupo ficam
+        let mut o = l.groups.get(name).and_then(Value::as_object).cloned().unwrap_or_default();
+        o.insert("x".into(), int(r.x));
+        o.insert("y".into(), int(r.y));
+        o.insert("width".into(), int(r.width));
+        o.insert("height".into(), int(r.height));
+        l.groups.insert(name.clone(), Value::Object(o));
+    }
     Ok(to_text(&l))
 }
 
@@ -224,6 +266,23 @@ mod tests {
         assert_eq!(l.groups["g"]["collapsed"], Value::Bool(true));
         assert_eq!(l.extra["extra"], serde_json::json!([1, 2]));
         assert_eq!(to_text(&l), t, "gravar de novo não muda nada");
+    }
+
+    #[test]
+    fn group_frames_are_edited_without_losing_other_group_fields() {
+        let src = r#"{"version":1,"groups":{"g":{"x":1,"y":2,"width":3,"height":4,"collapsed":true},"lixo":5}}"#;
+        let mut e = Edit::default();
+        e.groups.insert("g".into(), GroupRect { x: 10, y: 20, width: 300, height: 200 });
+        e.groups.insert("novo".into(), GroupRect { x: -5, y: 0, width: 50, height: 60 });
+        let l = parse(&apply(src, &e).unwrap()).unwrap();
+        let r = l.group_rects();
+        assert_eq!(r["g"], GroupRect { x: 10, y: 20, width: 300, height: 200 });
+        assert_eq!(r["novo"], GroupRect { x: -5, y: 0, width: 50, height: 60 });
+        assert_eq!(l.groups["g"]["collapsed"], Value::Bool(true));
+        assert_eq!(l.groups["lixo"], serde_json::json!(5), "o que não se entende fica como está");
+        assert!(!r.contains_key("lixo"));
+        e.groups.insert("g".into(), GroupRect { x: 0, y: 0, width: 0, height: 10 });
+        assert!(apply(src, &e).is_err());
     }
 
     #[test]

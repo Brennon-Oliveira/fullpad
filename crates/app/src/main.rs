@@ -923,15 +923,19 @@ struct LayoutState {
     stamp: Option<DiskStamp>,
     viewport: Option<dbmlx::Viewport>,
     tables: std::collections::BTreeMap<String, dbmlx::Pos>,
+    groups: std::collections::BTreeMap<String, dbmlx::GroupRect>,
     error: Option<String>,
 }
 
 fn layout_state(text: Option<String>, stamp: Option<DiskStamp>) -> LayoutState {
-    let (viewport, tables, error) = match dbmlx::parse(text.as_deref().unwrap_or("")) {
-        Ok(l) => (Some(l.viewport).filter(|_| text.is_some()), l.tables, None),
-        Err(e) => (None, Default::default(), Some(e)),
+    let (viewport, tables, groups, error) = match dbmlx::parse(text.as_deref().unwrap_or("")) {
+        Ok(l) => {
+            let groups = l.group_rects();
+            (Some(l.viewport).filter(|_| text.is_some()), l.tables, groups, None)
+        }
+        Err(e) => (None, Default::default(), Default::default(), Some(e)),
     };
-    LayoutState { text, stamp, viewport, tables, error }
+    LayoutState { text, stamp, viewport, tables, groups, error }
 }
 
 /// Lê o layout do diagrama da aba (`.dbmlx` ao lado do arquivo, ou `layouts/<id>.json` numa nota avulsa).

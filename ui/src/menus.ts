@@ -105,7 +105,8 @@ export const isTree = (l: Lang) => l === "json" || l === "yaml" || l === "toml";
 export const sideOnly = (l: Lang) => l === "dbml" || l === "mermaid" || l === "latex" || isTree(l);
 
 /** Opções de visão do arquivo (menu Visualizar e botão da barra de status). */
-export function viewItems(a: MenuActions): MenuItem[] {
+/** `withLayout`: inclui "Ver layout"/"Ver diagrama" (só o menu Visualizar; o botão da barra de status já o tem ao lado). */
+export function viewItems(a: MenuActions, withLayout = false): MenuItem[] {
   const c = a.current();
   const off = !c.previewAvailable;
   const item = (label: string, mode: ViewMode, shortcut?: string): MenuItem => ({
@@ -115,7 +116,7 @@ export function viewItems(a: MenuActions): MenuItem[] {
     disabled: off,
     action: () => a.setView(mode),
   });
-  const layout: MenuItem[] = c.layout ? [{ label: c.layout === "open" ? "Ver diagrama" : "Ver layout", action: a.toggleLayoutView }, "sep"] : [];
+  const layout: MenuItem[] = withLayout && c.layout ? [{ label: c.layout === "open" ? "Ver diagrama" : "Ver layout", action: a.toggleLayoutView }, "sep"] : [];
   const detach: MenuItem[] = [
     "sep",
     { label: c.lang === "dbml" || c.lang === "mermaid" ? "Diagrama em janela separada" : c.lang === "latex" ? "Equações em janela separada" : isTree(c.lang) ? "Árvore em janela separada" : "Preview em janela separada", checked: c.detached, disabled: off, action: a.toggleDetached },
@@ -407,7 +408,7 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
       items: () => {
         const c = a.current();
         return [
-          ...viewItems(a),
+          ...viewItems(a, true),
           "sep",
           { label: "Dividir à direita", shortcut: "Ctrl+\\", action: a.splitRight },
           { label: "Dividir abaixo", shortcut: "Ctrl+Shift+\\", action: a.splitDown },

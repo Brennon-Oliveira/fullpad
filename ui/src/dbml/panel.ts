@@ -1,7 +1,7 @@
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { buildSvg, svgToPng } from "./export";
-import { type DagreLike, type Layout, type SavedPositions, fitExtent, frameGroups, layoutDiagram } from "./layout";
+import { type Box, type DagreLike, type Layout, type SavedGroups, type SavedPositions, fitExtent, frameGroups, groupKey, groupMembers, layoutDiagram } from "./layout";
 import { type Diagram, type Interpreter, type Span, parseDbml } from "./model";
 import { loadDbmlService } from "./service";
 import { type Rendered, renderDiagram } from "./render";
@@ -42,6 +42,8 @@ function div(cls: string, text = ""): HTMLDivElement {
 /** O layout guardado da aba (do `.dbmlx` ou da nota avulsa); `null` = a aba não guarda layout. */
 export interface PanelLayout {
   tables: SavedPositions;
+  /** Molduras de grupo guardadas (por nome); ausente = só o que as tabelas pedem. */
+  groups?: SavedGroups;
   viewport: { x: number; y: number; zoom: number } | null;
   /** Layout que não se entende: o diagrama usa o posicionamento automático e avisa. */
   error: string | null;
@@ -50,6 +52,7 @@ export interface PanelLayout {
 export interface LayoutEdit {
   viewport?: { x: number; y: number; zoom: number };
   tables?: SavedPositions;
+  groups?: SavedGroups;
 }
 
 export interface PanelHooks {
@@ -97,12 +100,14 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
 
   // ---- layout guardado ----
   let positions: SavedPositions = {};
+  let groupRects: SavedGroups = {};
   let savedView: { x: number; y: number; zoom: number } | null = null;
   let layoutOn = false; // a aba guarda layout (senão não se arrasta: nada seria lembrado)
   let layoutError: string | null = null;
   let layoutKey = "";
   let diagram: Diagram | null = null;
   let pendingMoves: SavedPositions = {};
+  let pendingGroups: SavedGroups = {};
   let pendingView = false;
   let saveTimer: number | undefined;
   let frame = 0;
@@ -111,15 +116,18 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     window.clearTimeout(saveTimer);
     if (!layoutOn || layoutError) {
       pendingMoves = {};
+      pendingGroups = {};
       pendingView = false;
       return;
     }
     const edit: LayoutEdit = {};
     if (Object.keys(pendingMoves).length) edit.tables = pendingMoves;
+    if (Object.keys(pendingGroups).length) edit.groups = pendingGroups;
     if (pendingView) edit.viewport = viewport.get();
     pendingMoves = {};
+    pendingGroups = {};
     pendingView = false;
-    if (edit.tables || edit.viewport) hooks.onLayoutEdit?.(edit);
+    if (edit.tables || edit.groups || edit.viewport) hooks.onLayoutEdit?.(edit);
   };
   const scheduleSave = () => {
     window.clearTimeout(saveTimer);
@@ -139,7 +147,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     scheduleView();
   };
   svg.addEventListener("dblclick", (e) => {
-    if ((e.target as Element).closest?.(".dbml-table")) return; // duplo clique na tabela não enquadra
+    if ((e.target as Element).closest?.(".dbml-table, .dbml-group-move, .dbml-group-resize")) return; // duplo clique numa alça não enquadra
     fitByUser();
   });
 
@@ -148,26 +156,65 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     rendered = renderDiagram(diagram, layout, g, { onHover: (spans) => hooks.onHover?.(spans, renderedRev) });
     applyFocus(false);
   };
+  // ---- arrastar: tabela, grupo (move as tabelas dele) e moldura do grupo (aumenta) ----
+  let snap: { boxes: Map<string, Box>; members: string[]; frame: Box } | null = null;
+  const redraw = () => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      draw();
+    });
+  };
+  const place = (id: string, x: number, y: number) => {
+    const b = layout?.boxes.get(id);
+    if (!layout || !b) return;
+    layout.boxes.set(id, { ...b, x, y });
+    positions = { ...positions, [id]: { x, y } };
+  };
+  const groupRect = (b: Box) => ({ x: b.x, y: b.y, width: b.w, height: b.h });
   attachTableDrag(svg, g, {
     scale: () => viewport.scale(),
     enabled: () => layoutOn && !layoutError && !!layout,
-    box: (id) => layout?.boxes.get(id) ?? null,
-    move(id, x, y) {
-      const b = layout?.boxes.get(id);
-      if (!layout || !diagram || !b) return;
-      layout.boxes.set(id, { ...b, x, y });
-      frameGroups(diagram, layout.boxes);
-      positions = { ...positions, [id]: { x, y } };
-      if (!frame) {
-        frame = requestAnimationFrame(() => {
-          frame = 0;
-          draw();
-        });
+    start(kind, id) {
+      if (!layout || !diagram) return false;
+      if (kind === "table") {
+        const b = layout.boxes.get(id);
+        if (!b) return false;
+        snap = { boxes: new Map([[id, b]]), members: [id], frame: b };
+        return true;
       }
+      const frameBox = layout.boxes.get(groupKey(id));
+      if (!frameBox) return false;
+      const members = groupMembers(diagram, layout.boxes).get(id) ?? [];
+      snap = { boxes: new Map(members.map((m) => [m, layout!.boxes.get(m)!])), members, frame: frameBox };
+      return true;
     },
-    end(id, x, y) {
-      positions = { ...positions, [id]: { x, y } };
-      pendingMoves[id] = { x, y };
+    move(kind, id, dx, dy) {
+      if (!layout || !diagram || !snap) return;
+      if (kind === "table") {
+        const b = snap.boxes.get(id)!;
+        place(id, b.x + dx, b.y + dy);
+        frameGroups(diagram, layout.boxes, groupRects);
+      } else if (kind === "group") {
+        for (const [m, b] of snap.boxes) place(m, b.x + dx, b.y + dy);
+        groupRects = { ...groupRects, [id]: groupRect({ ...snap.frame, x: snap.frame.x + dx, y: snap.frame.y + dy }) };
+        frameGroups(diagram, layout.boxes, groupRects);
+      } else {
+        const f = snap.frame;
+        groupRects = { ...groupRects, [id]: groupRect({ x: f.x, y: f.y, w: Math.max(40, f.w + dx), h: Math.max(40, f.h + dy) }) };
+        frameGroups(diagram, layout.boxes, groupRects);
+      }
+      redraw();
+    },
+    end(kind, id) {
+      if (!snap) return;
+      if (kind === "table") {
+        pendingMoves[id] = positions[id];
+      } else {
+        for (const m of snap.members) pendingMoves[m] = positions[m];
+        pendingGroups[id] = groupRects[id];
+      }
+      snap = null;
       if (layout) fitExtent(layout);
       scheduleSave();
     },
@@ -230,7 +277,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     }
     message.textContent = "";
     diagram = d;
-    layout = layoutDiagram(d, libs.dagre, layoutError ? {} : positions);
+    layout = layoutDiagram(d, libs.dagre, layoutError ? {} : positions, layoutError ? {} : groupRects);
     renderedText = text;
     if (lastText === text) renderedRev = latestRev;
     draw();
@@ -262,10 +309,11 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
      */
     setLayout(l: PanelLayout | null) {
       flush();
-      const key = JSON.stringify(l && [l.tables, l.error]);
+      const key = JSON.stringify(l && [l.tables, l.groups, l.error]);
       layoutOn = l !== null;
       layoutError = l?.error ?? null;
       positions = l?.tables ?? {};
+      groupRects = l?.groups ?? {};
       savedView = l?.viewport ?? null;
       svg.classList.toggle("can-drag", layoutOn && !layoutError);
       warn.hidden = !layoutError;

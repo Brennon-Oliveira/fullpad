@@ -21,7 +21,7 @@ interface DiagramPanel {
   setCursor(offset: number | null, rev: number): void;
   hide(): void;
   /** Só o diagrama DBML: o layout guardado da aba (chamar antes de `show`) e gravar o que está pendente. */
-  setLayout?(l: { tables: LayoutState["tables"]; viewport: LayoutState["viewport"]; error: string | null } | null): void;
+  setLayout?(l: { tables: LayoutState["tables"]; groups?: LayoutState["groups"]; viewport: LayoutState["viewport"]; error: string | null } | null): void;
   flush?(): void;
 }
 import type { CsvPanel } from "./csv/panel";
@@ -733,7 +733,7 @@ function layoutAvailable(tab: TabState): boolean {
   return effectiveLang(tab) === "dbml" && !tab.detached && !isReader(tab) && !tab.release_notes && (!tab.path || /\.dbmlx$/i.test(tab.path));
 }
 
-const layoutShown = (tab: TabState) => layoutOpen.has(tab.id) && layoutAvailable(tab);
+const layoutShown = (tab: TabState) => layoutOpen.has(tab.id) && layoutAvailable(tab) && previewOn(tab);
 
 const layoutFileName = (tab: TabState) => (tab.path ? `${baseName(tab.path)}.layout.json` : "Layout (guardado pelo Fullpad)");
 
@@ -784,10 +784,10 @@ async function writeLayout<T>(tab: TabState | undefined, attempt: (force: boolea
 }
 
 /** O diagrama (ou o JSON) da aba mudou de dono dos dados: redesenha onde ela está à vista. */
-function refreshLayoutUi(id: string) {
+function refreshLayoutUi(id: string, rereadJson = true) {
   const g = groupShowing(id);
   if (!g || g !== cur) return;
-  g.layoutTab = null; // força o "Ver layout" a reler o texto
+  if (rereadJson) g.layoutTab = null; // força o "Ver layout" a reler o texto
   syncDiagram();
 }
 
@@ -809,8 +809,12 @@ function saveLayoutEdit(id: string, edit: LayoutEdit): Promise<void> {
     const tab = session.tabs.find((t) => t.id === id);
     if (!tab) return;
     const known = layouts.get(id)?.stamp ?? null; // lido já na vez dele, depois da gravação anterior
+    groupShowing(id)?.layoutView?.flush(); // o que se digitou no JSON entra antes (na fila)
     const next = await writeLayout(tab, (force) => api.layoutEdit(id, edit, known, force));
-    if (next) layouts.set(id, next);
+    if (next) {
+      layouts.set(id, next);
+      if (next.text !== null) groupShowing(id)?.layoutView?.setText(id, next.text); // o JSON ao lado acompanha o arrasto
+    }
   });
 }
 
@@ -832,18 +836,34 @@ function commitLayoutText(id: string, text: string): Promise<void> {
   });
 }
 
-function hideLayoutView(g: Group) {
-  if (g.layoutTab !== null || g.layoutEl.classList.contains("on")) g.layoutView?.hide();
-  g.layoutTab = null;
-  g.layoutEl.classList.remove("on");
+/** O texto do JSON está sendo digitado: o diagrama ao lado já o mostra (sem gravar; a gravação vem depois). */
+async function previewLayoutText(id: string, text: string) {
+  const parsed = await api.layoutParse(text);
+  const cached = layouts.get(id);
+  if (!layoutOpen.has(id)) return;
+  layouts.set(id, { ...parsed, text: cached?.text ?? null, stamp: cached?.stamp ?? null });
+  refreshLayoutUi(id, false);
 }
 
-async function showLayoutView(g: Group, tab: TabState) {
+function hideLayoutPane(g: Group) {
+  if (g.layoutTab !== null) g.layoutView?.hide();
+  g.layoutTab = null;
+  g.layoutEl.classList.remove("on");
+  g.bodyEl.classList.remove("layoutjson");
+}
+
+/** "Ver layout": o JSON do layout toma o lugar do código DBML (que continua sendo o documento da aba). */
+async function syncLayoutPane(g: Group, tab: TabState) {
+  if (!layoutShown(tab)) return hideLayoutPane(g);
   g.layoutEl.classList.add("on");
+  g.bodyEl.classList.add("layoutjson");
   const l = layouts.get(tab.id) ?? (await loadLayout(tab.id).catch(() => null));
   if (!l || tabOf(g)?.id !== tab.id || !layoutShown(tab)) return;
   g.layoutLoading ??= import("./dbml/layoutview").then((m) => {
-    g.layoutView = m.createLayoutView(g.layoutEl, { onChange: (id, text) => void commitLayoutText(id, text) });
+    g.layoutView = m.createLayoutView(g.layoutEl, {
+      onChange: (id, text) => void commitLayoutText(id, text),
+      onLive: (id, text) => void previewLayoutText(id, text),
+    });
   });
   await g.layoutLoading;
   if (tabOf(g)?.id !== tab.id || !layoutShown(tab)) return;
@@ -851,13 +871,14 @@ async function showLayoutView(g: Group, tab: TabState) {
   g.layoutTab = tab.id;
   const { EMPTY_LAYOUT } = await import("./dbml/layoutview");
   await g.layoutView!.show(tab.id, l.text ?? EMPTY_LAYOUT, layoutFileName(tab));
+  g.layoutView!.focus();
 }
 
 /** "Ver layout" / "Ver diagrama": troca o diagrama pelo JSON do layout e volta. */
 function toggleLayoutView() {
   const tab = activeTab();
   if (!layoutAvailable(tab)) return;
-  if (layoutOpen.has(tab.id)) {
+  if (layoutShown(tab)) {
     cur.layoutView?.flush();
     layoutOpen.delete(tab.id);
   } else {
@@ -883,18 +904,10 @@ function syncDiagram(textChanged = false) {
   if (!diagramWanted(tab)) {
     g.diagram?.hide();
     g.diagramTab = null;
-    hideLayoutView(g);
+    void syncLayoutPane(g, tab);
     return;
   }
-  if (layoutShown(tab)) {
-    // "Ver layout": o JSON do layout ocupa o lugar do diagrama (o painel do diagrama descansa)
-    g.diagram?.hide();
-    g.diagramTab = null;
-    g.diagramEl.classList.remove("on");
-    void showLayoutView(g, tab);
-    return;
-  }
-  hideLayoutView(g);
+  void syncLayoutPane(g, tab); // "Ver layout": o JSON no lugar do código; o diagrama segue ao lado
   const kind = effectiveLang(tab) as "dbml" | "mermaid" | "latex";
   if (g.diagram && g.diagramKind !== kind) {
     // a aba mudou de DBML para Mermaid (ou ao contrário): o painel de antes não serve
@@ -914,7 +927,7 @@ function syncDiagram(textChanged = false) {
         void loadLayout(t.id).then(() => syncDiagram());
         return;
       }
-      g.diagram.setLayout(l ? { tables: l.tables, viewport: l.viewport, error: l.error } : null);
+      g.diagram.setLayout(l ? { tables: l.tables, groups: l.groups, viewport: l.viewport, error: l.error } : null);
     }
     if (textChanged && g.diagramTab === tab.id) g.diagram.update(text, g.rev);
     else g.diagram.show(text, g.diagramTab !== tab.id, g.rev);
@@ -1008,7 +1021,7 @@ function refreshStatus(recomputeSize = true) {
     languageLabel: langLabel(tab),
     viewLabel: viewLabel(tab),
     viewAvailable: previewAvailable(tab),
-    layoutLabel: layoutAvailable(tab) ? (layoutOpen.has(tab.id) ? "Ver diagrama" : "Ver layout") : null,
+    layoutLabel: layoutAvailable(tab) ? (layoutShown(tab) ? "Ver diagrama" : "Ver layout") : null,
     codeLang: effectiveLang(tab) === "plain" ? (codeLangOf(tab)?.name ?? null) : undefined,
     size: lastSize,
     lines: st.doc.lines,
@@ -1743,12 +1756,12 @@ function createGroup(id: number): Group {
   const editorEl = div("editor");
   const mdEl = div("mdview");
   const diagramEl = div("diagram");
-  const layoutEl = div("diagram layoutview");
+  const layoutEl = div("layoutview");
   const jsonEl = div("jsonview");
   const csvEl = div("csvview");
   const readerEl = div("reader");
   const outlineEl = div("outline");
-  bodyEl.append(editorEl, mdEl, diagramEl, layoutEl, jsonEl, csvEl, readerEl, outlineEl);
+  bodyEl.append(editorEl, layoutEl, mdEl, diagramEl, jsonEl, csvEl, readerEl, outlineEl);
   const noteEl = div("note");
   noteEl.hidden = true;
   const diskEl = div("diskbar");
@@ -3040,7 +3053,7 @@ const menuActions = {
       view: tab.mode,
       detached: tab.detached,
       previewAvailable: previewAvailable(tab),
-      layout: layoutAvailable(tab) ? (layoutOpen.has(tab.id) ? ("open" as const) : ("closed" as const)) : null,
+      layout: layoutAvailable(tab) ? (layoutShown(tab) ? ("open" as const) : ("closed" as const)) : null,
       canSave: !isReadOnlyText(tab) && !isReader(tab),
       canReload: hasDiskFile(tab),
       wrap,

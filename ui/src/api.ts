@@ -341,15 +341,24 @@ export interface LayoutPos {
   x: number;
   y: number;
 }
+export interface LayoutGroupRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 export interface LayoutState {
   text: string | null;
   stamp: DiskStamp | null;
   viewport: LayoutViewport | null;
   tables: Record<string, LayoutPos>;
+  /** Molduras de grupo guardadas (por nome do grupo). */
+  groups: Record<string, LayoutGroupRect>;
   /** Layout que não se entende (JSON inválido etc.): o diagrama usa o posicionamento automático. */
   error: string | null;
 }
 export interface LayoutEdit {
   viewport?: LayoutViewport;
   tables?: Record<string, LayoutPos>;
+  groups?: Record<string, LayoutGroupRect>;
 }

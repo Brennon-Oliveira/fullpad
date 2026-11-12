@@ -640,12 +640,18 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .cm-md-math.err { color: #d9534f; font-family: var(--mono); font-size: 0.9em; text-align: left; background: color-mix(in srgb, #d33 12%, transparent); border-radius: 3px; padding: 0 3px; }
 .cm-md-math-block.err { display: block; padding: 8px 12px; white-space: pre-wrap; }
 
-/* "Ver layout": o JSON do layout do diagrama (.dbmlx) no lugar do diagrama */
+/* "Ver layout": o JSON do layout do diagrama (.dbmlx) no lugar do código DBML */
+.layoutview { display: none; flex: 1; min-width: 0; position: relative; }
 .layoutview.on { display: flex; flex-direction: column; }
+.body.layoutjson > .editor { display: none !important; }
 .layoutview-head { display: flex; gap: 12px; align-items: baseline; padding: 6px 12px; background: var(--bar); border-bottom: 1px solid var(--border); font-size: 12px; }
 .layoutview-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .layoutview-state { margin-left: auto; opacity: 0.7; white-space: nowrap; }
-.layoutview-editor { flex: 3 1 0; min-height: 0; overflow: hidden; }
+.layoutview-editor { flex: 1 1 0; min-height: 0; overflow: hidden; }
 .layoutview-editor .cm-editor { height: 100%; }
 .layoutview-editor .cm-scroller { overflow: auto; }
-.layoutview-tree.jsonview { flex: 2 1 0; min-height: 0; border-left: 0; border-top: 1px solid var(--border); overflow: hidden; }
+.dbml-group rect.dbml-group-move { fill: transparent; stroke: none; }
+.dbml-group .dbml-group-resize { fill: var(--muted); stroke: none; opacity: 0.55; }
+.dbml-svg.can-drag .dbml-group-move { cursor: move; }
+.dbml-svg.can-drag .dbml-group-resize { cursor: nwse-resize; }
+.dbml-svg.can-drag .dbml-group-resize:hover { opacity: 1; }
