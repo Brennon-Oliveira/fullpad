@@ -717,6 +717,65 @@ function followScroll(g: Group = cur) {
   g.mdPane.scrollToFraction(room > 0 ? s.scrollTop / room : 0);
 }
 
+// ---- renomear símbolos do DBML -------------------------------------------------------
+//
+// F2 no editor (ou botão direito > "Renomear símbolo…") e duplo clique no nome, no diagrama. A conta é
+// de `dbml/rename.ts` (a tabela pela biblioteca, o resto pelas referências dela): o resultado são trocas
+// de texto aplicadas numa transação só (um passo no Ctrl+Z), e a aba fica com alterações não salvas
+// como em qualquer edição. No `.dbmlx`, a posição guardada acompanha o nome novo.
+
+const SYMBOL_LABEL: Record<string, string> = { table: "tabela", column: "coluna", enum: "enum", value: "valor do enum", group: "grupo" };
+
+/**
+ * Pede o novo nome e renomeia. `mode`: "at" = `offset` é onde está o cursor (um uso ou o nome na
+ * declaração); "decl" = `offset` é onde a declaração começa (vem do diagrama). `at` = onde abrir a caixa.
+ */
+async function renameSymbolAt(g: Group, offset: number, mode: "at" | "decl", at: { x: number; y: number; width?: number }, rev = g.rev) {
+  const tab = tabOf(g);
+  if (!tab || effectiveLang(tab) !== "dbml" || isReadOnlyText(tab)) return;
+  if (rev !== g.rev) return flashDiskInfo(tab, "O texto mudou depois de o diagrama ser desenhado; tente de novo.");
+  const [{ loadDbmlService }, model, rn] = await Promise.all([import("./dbml/service"), import("./dbml/model"), import("./dbml/rename")]);
+  const svc = await loadDbmlService();
+  const text = g.view.state.doc.toString();
+  const parsed = model.parseDbml(svc.interpret, text);
+  if (!parsed.diagram) return flashDiskInfo(tab, "Corrija o erro de sintaxe antes de renomear.");
+  const diagram = parsed.diagram;
+  const target = mode === "decl" ? rn.targetForDecl(diagram, text, offset) : rn.targetAt(svc, diagram, text, offset);
+  if (!target) return flashDiskInfo(tab, "Não há um nome para renomear aqui (tabela, coluna, enum, valor ou grupo).");
+  const { promptRename } = await import("./renamebox");
+  promptRename({
+    ...at,
+    value: target.name,
+    title: `Renomear ${SYMBOL_LABEL[target.kind]} — ${target.name}`,
+    onClose: () => g.view.focus(),
+    submit: async (name) => {
+      if (g.rev !== rev && mode === "decl") return "O texto mudou; tente de novo.";
+      const r = rn.renameChanges(svc, diagram, text, target, name);
+      if ("error" in r) return r.error;
+      if (g.view.state.doc.toString() !== text) return "O texto mudou; tente de novo.";
+      withGroup(g, () => g.view.dispatch({ changes: r.changes, userEvent: "input.rename", scrollIntoView: false }));
+      if (layoutAvailable(tab) && (r.renamedTable || r.renamedGroup)) {
+        await saveLayoutEdit(tab.id, {
+          rename_tables: r.renamedTable ? { [r.renamedTable.from]: r.renamedTable.to } : undefined,
+          rename_groups: r.renamedGroup ? { [r.renamedGroup.from]: r.renamedGroup.to } : undefined,
+        });
+        refreshLayoutUi(tab.id, false);
+      }
+      return null;
+    },
+  });
+}
+
+/** F2 / menu: renomeia o símbolo sob o cursor do editor do painel atual. */
+function renameSymbolAtCursor() {
+  const g = cur;
+  const tab = tabOf(g);
+  if (!tab || effectiveLang(tab) !== "dbml") return;
+  const head = g.view.state.selection.main.head;
+  const c = g.view.coordsAtPos(head);
+  void renameSymbolAt(g, head, "at", { x: c?.left ?? 120, y: (c?.bottom ?? 120) + 4 });
+}
+
 // ---- layout do diagrama (.dbmlx) ----------------------------------------------------
 //
 // Posições das tabelas e enquadramento da vista ficam num JSON ao lado do arquivo (`.dbmlx`) ou, numa
@@ -1002,6 +1061,8 @@ function syncDiagram(textChanged = false) {
             // tabela arrastada ou vista mexida → grava no layout da aba que está na tela
             onLayoutEdit: (edit) => g.diagramTab && void saveLayoutEdit(g.diagramTab, edit),
             onLayoutLive: (edit) => g.diagramTab && previewDragInJson(g.diagramTab, edit),
+            // duplo clique no nome (tabela, coluna, enum, valor, grupo) → renomear
+            onRename: (decl, at, rev) => void renameSymbolAt(g, decl, "decl", at, rev),
           });
           g.diagramKind = "dbml";
         });
@@ -1827,10 +1888,10 @@ function createGroup(id: number): Group {
   el.addEventListener("contextmenu", (e) => {
     const t = tabOf(g);
     const lang = t ? effectiveLang(t) : "plain";
-    if (!t || (lang !== "markdown" && lang !== "json") || (e.target as HTMLElement).closest(".tabs")) return;
+    const inEditor = e.target instanceof HTMLElement && editorEl.contains(e.target);
+    if (!t || (lang !== "markdown" && lang !== "json" && !(lang === "dbml" && inEditor)) || (e.target as HTMLElement).closest(".tabs")) return;
     e.preventDefault();
     enterGroup(g);
-    const inEditor = e.target instanceof HTMLElement && editorEl.contains(e.target);
     const sel = g.view.state.selection.main;
     const items: MenuItem[] = [];
     if (inEditor) {
@@ -1852,7 +1913,20 @@ function createGroup(id: number): Group {
       items.push({ label: "Copiar", shortcut: "Ctrl+C", disabled: !window.getSelection()?.toString(), action: () => document.execCommand("copy") });
     }
     if (lang === "markdown") items.push("sep", exportItem(menuActions, true));
-    else if (inEditor) {
+    else if (lang === "dbml") {
+      // o cursor não anda no botão direito: o símbolo é o que está sob o ponteiro
+      const pos = g.view.posAtCoords({ x: e.clientX, y: e.clientY });
+      items.push("sep", {
+        label: "Renomear símbolo…",
+        shortcut: "F2",
+        disabled: pos === null || isReadOnlyText(t),
+        action: () => {
+          if (pos === null) return;
+          g.view.dispatch({ selection: { anchor: pos } });
+          void renameSymbolAt(g, pos, "at", { x: e.clientX, y: e.clientY });
+        },
+      });
+    } else if (inEditor) {
       items.push(
         "sep",
         { label: "Formatar documento", shortcut: "Alt+Shift+F", action: menuActions.formatJson },
@@ -3069,6 +3143,7 @@ const menuActions = {
   toggleSplit,
   setView,
   toggleDetached,
+  renameSymbol: renameSymbolAtCursor,
   toggleLayoutView,
   toggleWrap,
   toggleLineNumbers,
@@ -3126,6 +3201,10 @@ window.addEventListener(
     if (e.key === "F5" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
       e.preventDefault(); // sem isto o WebView recarrega a interface, e nada muda no texto
       return void reloadActive();
+    }
+    if (e.key === "F2" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && effectiveLang(activeTab()) === "dbml" && !(e.target as HTMLElement | null)?.closest?.(".renamebox")) {
+      e.preventDefault();
+      return renameSymbolAtCursor();
     }
     if (e.key === "Insert" && !e.ctrlKey && !e.altKey && !e.shiftKey) {
       e.preventDefault();

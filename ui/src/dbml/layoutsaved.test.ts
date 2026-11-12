@@ -167,3 +167,19 @@ describe("arrastar tabela, grupo e moldura", () => {
     expect(log).toEqual(["start table users", "move table users 10,0", "move table users 0,0"]);
   });
 });
+
+describe("nomes que o diagrama deixa renomear", () => {
+  it("título da tabela, coluna, enum, valor e faixa do grupo levam onde a declaração começa", async () => {
+    const { renderDiagram } = await import("./render");
+    const src = `Table users { id int [pk] }\nEnum st { ativo }\nTableGroup blog { users }`;
+    const d = parseDbml(interpret, src).diagram!;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g") as SVGGElement;
+    renderDiagram(d, layoutDiagram(d, D), g);
+    const offs = (sel: string) => [...g.querySelectorAll(sel)].map((e) => Number(e.getAttribute("data-off")));
+    expect(offs(".dbml-table .dbml-title")).toEqual([src.indexOf("Table users")]);
+    expect(offs(".dbml-table .dbml-col")).toEqual([src.indexOf("id int")]);
+    expect(offs(".dbml-enum .dbml-title")).toEqual([src.indexOf("Enum st")]);
+    expect(offs(".dbml-enum .dbml-col")).toEqual([src.indexOf("ativo")]);
+    expect(offs(".dbml-group-move")).toEqual([src.indexOf("TableGroup")]);
+  });
+});

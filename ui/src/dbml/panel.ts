@@ -61,6 +61,11 @@ export interface PanelHooks {
   /** Durante o arrasto (a cada quadro): o que mudou até agora, sem gravar. */
   onLayoutLive?(edit: LayoutEdit): void;
   /**
+   * Duplo clique no nome de uma tabela, coluna, enum, valor ou grupo: renomear. `decl` é onde a
+   * declaração começa no texto da versão `rev`; `at` é onde abrir a caixa (coordenadas da tela).
+   */
+  onRename?(decl: number, at: { x: number; y: number; width: number }, rev: number): void;
+  /**
    * Mouse sobre um elemento do diagrama. `rev` diz de qual versão do texto vêm os trechos; quem
    * recebe só deve usá-los se o texto ainda for essa versão (senão apontariam para o lugar errado).
    */
@@ -149,7 +154,14 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     scheduleView();
   };
   svg.addEventListener("dblclick", (e) => {
-    if ((e.target as Element).closest?.(".dbml-table, .dbml-group-move, .dbml-group-resize")) return; // duplo clique numa alça não enquadra
+    const target = e.target as Element;
+    const named = target.closest?.("[data-off]");
+    if (named && hooks.onRename) {
+      const r = named.getBoundingClientRect();
+      hooks.onRename(Number(named.getAttribute("data-off")), { x: r.left, y: r.bottom + 4, width: Math.max(220, r.width + 40) }, renderedRev);
+      return;
+    }
+    if (target.closest?.(".dbml-table, .dbml-group-move, .dbml-group-resize")) return; // duplo clique numa alça não enquadra
     fitByUser();
   });
 

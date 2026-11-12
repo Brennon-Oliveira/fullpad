@@ -99,12 +99,15 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
   if (t.color && ink) head.setAttribute("style", `fill:${t.color}`);
   g.append(head);
   const title = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, t.schema ? `${t.schema}.${t.name}` : t.name);
+  if (t.span) title.setAttribute("data-off", String(t.span.from)); // duplo clique: renomear (onde a declaração começa)
   if (ink) title.setAttribute("style", `fill:${ink}`);
   g.append(withNote(title, t.note));
   t.columns.forEach((c, i) => {
     const cy = HEADER_H + i * ROW_H + ROW_H / 2 + 4;
     g.append(el("rect", { class: "dbml-row", "data-k": colKey(t.id, c.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H }));
-    g.append(withNote(el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name), c.note));
+    const colName = el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name);
+    if (c.span) colName.setAttribute("data-off", String(c.span.from));
+    g.append(withNote(colName, c.note));
     g.append(el("text", { class: "dbml-type", x: w - 10, y: cy, "text-anchor": "end" }, c.type));
   });
   return g;
@@ -114,10 +117,14 @@ function enumNode(e: DEnum, x: number, y: number, w: number, h: number): SVGGEle
   const g = el("g", { class: "dbml-enum", "data-e": enumKey(e.id), transform: `translate(${x} ${y})` });
   g.append(el("rect", { class: "dbml-box", width: w, height: h, rx: 6 }));
   g.append(el("path", { class: "dbml-head dbml-enum-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` }));
-  g.append(el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, `enum ${e.schema ? `${e.schema}.` : ""}${e.name}`));
+  const enumTitle = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, `enum ${e.schema ? `${e.schema}.` : ""}${e.name}`);
+  if (e.span) enumTitle.setAttribute("data-off", String(e.span.from));
+  g.append(enumTitle);
   e.values.forEach((v, i) => {
     g.append(el("rect", { class: "dbml-vrow", "data-v": colKey(enumKey(e.id), v.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H }));
-    g.append(withNote(el("text", { class: "dbml-col", x: 10, y: HEADER_H + i * ROW_H + ROW_H / 2 + 4 }, v.name), v.note));
+    const valName = el("text", { class: "dbml-col", x: 10, y: HEADER_H + i * ROW_H + ROW_H / 2 + 4 }, v.name);
+    if (v.span) valName.setAttribute("data-off", String(v.span.from));
+    g.append(withNote(valName, v.note));
   });
   return g;
 }
@@ -130,7 +137,7 @@ function groupFrame(grp: DGroup, b: { x: number; y: number; w: number; h: number
   g.append(rect, el("text", { x: b.x + 12, y: b.y + 17 }, grp.name));
   // alças: a faixa do título move o grupo (e as tabelas dele); o canto de baixo à direita aumenta a moldura
   g.append(
-    el("rect", { class: "dbml-group-move", x: b.x, y: b.y, width: b.w, height: GROUP_HANDLE_H }),
+    el("rect", { class: "dbml-group-move", x: b.x, y: b.y, width: b.w, height: GROUP_HANDLE_H, ...(grp.span ? { "data-off": grp.span.from } : {}) }),
     el("path", { class: "dbml-group-resize", d: `M${b.x + b.w - 2},${b.y + b.h - 16} L${b.x + b.w - 2},${b.y + b.h - 2} L${b.x + b.w - 16},${b.y + b.h - 2} Z` }),
   );
   return g;

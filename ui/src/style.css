@@ -655,3 +655,9 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .dbml-svg.can-drag .dbml-group-move { cursor: move; }
 .dbml-svg.can-drag .dbml-group-resize { cursor: nwse-resize; }
 .dbml-svg.can-drag .dbml-group-resize:hover { opacity: 1; }
+
+/* caixinha de renomear (F2 no editor, duplo clique no diagrama) */
+.renamebox { position: fixed; z-index: 1000; padding: 8px 10px 10px; background: var(--bar); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); font: 12px var(--sans); }
+.renamebox-title { margin-bottom: 4px; color: var(--muted); font-size: 11px; }
+.renamebox-input { box-sizing: border-box; width: 100%; padding: 4px 6px; background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 4px; font: 13px var(--mono); outline: none; }
+.renamebox-error { margin-top: 5px; color: #e5534b; font-size: 11px; }

@@ -41,6 +41,8 @@ export interface MenuActions {
   toggleSplit(): void;
   setView(m: ViewMode): void;
   toggleDetached(): void;
+  /** F2 no DBML: renomeia o símbolo sob o cursor (tabela, coluna, enum, valor, grupo) com as referências. */
+  renameSymbol(): void;
   /** "Ver layout" / "Ver diagrama" do `.dbmlx`. */
   toggleLayoutView(): void;
   toggleWrap(): void;
@@ -293,6 +295,7 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
         ...viewItems(a),
       ];
     case "dbml":
+      return [{ label: "Renomear símbolo…", shortcut: "F2", action: a.renameSymbol }, "sep", ...viewItems(a)];
     case "mermaid":
     case "latex":
       return viewItems(a);
