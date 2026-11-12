@@ -791,29 +791,45 @@ function refreshLayoutUi(id: string) {
   syncDiagram();
 }
 
+/**
+ * As gravações do layout de uma aba andam **uma de cada vez**: cada uma precisa do carimbo que a
+ * anterior deixou (senão a segunda, saindo antes de a primeira terminar, parece uma mudança externa).
+ */
+const layoutQueue = new Map<string, Promise<unknown>>();
+function queueLayout(id: string, job: () => Promise<void>): Promise<void> {
+  const run = (layoutQueue.get(id) ?? Promise.resolve()).catch(() => {}).then(job);
+  layoutQueue.set(id, run);
+  void run.finally(() => layoutQueue.get(id) === run && layoutQueue.delete(id));
+  return run;
+}
+
 /** Tabelas arrastadas e/ou vista mexida no diagrama: aplica ao layout e grava. */
-async function saveLayoutEdit(id: string, edit: LayoutEdit) {
-  const tab = session.tabs.find((t) => t.id === id);
-  if (!tab) return;
-  const known = layouts.get(id)?.stamp ?? null;
-  const next = await writeLayout(tab, (force) => api.layoutEdit(id, edit, known, force));
-  if (next) layouts.set(id, next);
+function saveLayoutEdit(id: string, edit: LayoutEdit): Promise<void> {
+  return queueLayout(id, async () => {
+    const tab = session.tabs.find((t) => t.id === id);
+    if (!tab) return;
+    const known = layouts.get(id)?.stamp ?? null; // lido já na vez dele, depois da gravação anterior
+    const next = await writeLayout(tab, (force) => api.layoutEdit(id, edit, known, force));
+    if (next) layouts.set(id, next);
+  });
 }
 
 /** O JSON do "Ver layout" foi editado: grava como está (a pessoa pode estar no meio de uma edição inválida). */
-async function commitLayoutText(id: string, text: string) {
-  const tab = session.tabs.find((t) => t.id === id);
-  if (!tab) return;
-  const known = layouts.get(id)?.stamp ?? null;
-  const g = groupShowing(id);
-  const stamp = await writeLayout(tab, (force) => api.layoutWrite(id, text, known, force));
-  if (stamp === null) {
-    g?.layoutView?.setState("Não gravado");
-    return;
-  }
-  const parsed = await api.layoutParse(text);
-  layouts.set(id, { ...parsed, text, stamp });
-  g?.layoutView?.setState(parsed.error ? `Gravado, mas inválido: ${parsed.error}` : "Gravado");
+function commitLayoutText(id: string, text: string): Promise<void> {
+  return queueLayout(id, async () => {
+    const tab = session.tabs.find((t) => t.id === id);
+    if (!tab) return;
+    const known = layouts.get(id)?.stamp ?? null;
+    const g = groupShowing(id);
+    const stamp = await writeLayout(tab, (force) => api.layoutWrite(id, text, known, force));
+    if (stamp === null) {
+      g?.layoutView?.setState("Não gravado");
+      return;
+    }
+    const parsed = await api.layoutParse(text);
+    layouts.set(id, { ...parsed, text, stamp });
+    g?.layoutView?.setState(parsed.error ? `Gravado, mas inválido: ${parsed.error}` : "Gravado");
+  });
 }
 
 function hideLayoutView(g: Group) {
