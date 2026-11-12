@@ -10,6 +10,7 @@ Arquivos para abrir no app (Ctrl+O, ou arraste-os para a janela) e ver o que ele
 | `example.json` | Árvore ao lado do código, links, cores, miniatura de imagem, números enormes preservados, chaves repetidas; `Alt+Shift+F` formata |
 | `example.jsonc` | JSON com comentários e vírgulas sobrando (o formatador recusa para não apagar comentários) |
 | `example.dbml` | Diagrama do banco de uma escola de idiomas: esquemas, enums, relações, índices, grupos, `Records` |
+| `example.dbmlx` + `example.dbmlx.layout.json` | O mesmo banco em `.dbmlx`, com o layout salvo ao lado (formato da extensão dbmlx): as tabelas já vêm arrumadas em colunas por esquema. **Arraste uma tabela pelo cabeçalho**: a posição (e o zoom/posição da vista) são gravadas no JSON, sem tocar no texto do DBML. O botão **Ver layout** da barra de status mostra o JSON (código e árvore) e vira **Ver diagrama**; apague uma tabela do layout para ela voltar ao posicionamento automático, ou quebre o JSON para ver o aviso |
 | `example.csv` | Tabela editável: ordenar, filtrar, estatísticas no rodapé, colar, estrutura; células com aspas, vírgulas e quebras de linha |
 | `example.tsv` | Separador tab e decimal com vírgula (escolha em CSV ▸ Decimal) |
 | `example.pdf` | Aba de leitura: sumário clicável, gráficos, tabelas, busca (`Ctrl+F`), citação (`Ctrl+Shift+C`) |

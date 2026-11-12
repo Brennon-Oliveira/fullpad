@@ -3,6 +3,8 @@ export interface StatusInfo {
   /** Rótulo da visão atual ("Código", "Preview", "Lado a lado"...). */
   viewLabel: string;
   viewAvailable: boolean;
+  /** "Ver layout" / "Ver diagrama" (`.dbmlx`); `null` esconde o botão. */
+  layoutLabel?: string | null;
   /** Arquivo de texto sem visão renderizada: o botão "Visão" vira "Lang" (destaque de sintaxe). */
   codeLang?: string | null;
   size: number;
@@ -22,6 +24,7 @@ export interface StatusInfo {
 export interface StatusHandlers {
   onLanguage(anchor: HTMLElement): void;
   onView(anchor: HTMLElement): void;
+  onLayout(): void;
   onCodeLang(anchor: HTMLElement): void;
   onEol(anchor: HTMLElement): void;
   onEncoding(anchor: HTMLElement): void;
@@ -47,6 +50,8 @@ function button(cls: string, title: string): HTMLButtonElement {
 export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   const lang = button("lang", "Linguagem");
   const view = button("view", "Como mostrar o arquivo: código, renderizado ou lado a lado (Ctrl+E)");
+  const layoutBtn = button("layoutbtn", "Alterna entre o diagrama e o JSON do layout (posições das tabelas)");
+  layoutBtn.hidden = true;
   const spacer = document.createElement("div");
   spacer.className = "spacer";
   const path = document.createElement("span");
@@ -79,7 +84,9 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   enc.addEventListener("click", () => h.onEncoding(enc));
   ins.addEventListener("click", () => h.onOverwrite());
 
-  root.append(lang, view, path, spacer, size, cursor, eol, enc, ins, zoomBox);
+  layoutBtn.addEventListener("click", () => h.onLayout());
+
+  root.append(lang, layoutBtn, view, path, spacer, size, cursor, eol, enc, ins, zoomBox);
 
   return {
     setZoom(percent: number) {
@@ -91,6 +98,8 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
       view.textContent = langMode ? `Lang: ${i.codeLang ?? "Texto"} ▾` : `Visão: ${i.viewLabel} ▾`;
       view.title = langMode ? "Linguagem do destaque de sintaxe (pela extensão, ou escolhida)" : "Como mostrar o arquivo: código, renderizado ou lado a lado (Ctrl+E)";
       view.disabled = langMode ? false : !i.viewAvailable;
+      layoutBtn.textContent = i.layoutLabel ?? "";
+      layoutBtn.hidden = !i.layoutLabel || i.reader !== undefined;
       const reading = i.reader !== undefined;
       for (const e of [view, size, cursor, eol, enc, ins]) e.hidden = reading;
       path.textContent = (reading ? i.reader : i.path) ?? "";

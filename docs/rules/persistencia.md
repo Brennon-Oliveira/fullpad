@@ -8,6 +8,7 @@ A promessa do produto é **nunca perder texto**. Por isso:
 - Fechar uma nota a move para `trash/`; não apaga. Única exceção: a nota de versão (`TabState.release_notes`), cujo texto vem embutido no app e é refeito em Ajuda > "Ver nota de versão"; ela é apagada ao fechar e não vai para o histórico.
 - Abas de leitura (PDF/EPUB) nunca gravam no arquivo: `save_file` as recusa e o leitor só lê por `reader::read_range` (teto por chamada), sempre pelo id de uma aba que o usuário abriu.
 - Gravar num arquivo real **nunca sobrescreve uma mudança feita por outro programa** sem a pessoa confirmar: a aba guarda o carimbo do arquivo (`disk.rs`) e `save_file` sem `force` devolve `Error::Conflict` se ele mudou desde a última leitura ou gravação. `force` só vem de uma escolha explícita ("Sobrescrever").
+- O layout de diagrama (`.dbmlx`, `dbmlx.rs`) segue a mesma regra de um arquivo do usuário: `write_atomic`, `Error::Conflict` se mudou fora do Fullpad desde a última leitura (`write_layout` com o carimbo conhecido, `force` só por escolha explícita) e o texto que vem do disco é validado, nunca confiado; arquivo inválido não é reescrito. O de nota avulsa fica em `layouts/<id>.json` e acompanha a nota (lixeira e "salvar como").
 - Arquivos reais preservam encoding (UTF-8, UTF-8 BOM, CP1252) e quebras de linha (CRLF/LF) ao salvar.
 - `core` não conhece UI nem Tauri: sem dependência de `tauri` e testável com `FULLPAD_DATA_DIR`/diretório temporário.
 - Mudança aqui exige teste em `cargo test -p fullpad-core`.

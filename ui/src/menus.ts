@@ -41,6 +41,8 @@ export interface MenuActions {
   toggleSplit(): void;
   setView(m: ViewMode): void;
   toggleDetached(): void;
+  /** "Ver layout" / "Ver diagrama" do `.dbmlx`. */
+  toggleLayoutView(): void;
   toggleWrap(): void;
   toggleLineNumbers(): void;
   toggleOutline(): void;
@@ -76,6 +78,8 @@ export interface MenuActions {
     view: ViewMode;
     detached: boolean;
     previewAvailable: boolean;
+    /** Layout do diagrama (`.dbmlx` e DBML avulso): `null` se a aba não guarda layout; senão se o JSON está à vista. */
+    layout: "open" | "closed" | null;
     /** Falso na nota de versão e nas abas de leitura: Salvar e Salvar como ficam desabilitados. */
     canSave: boolean;
     /** A aba está ligada a um arquivo de texto: dá para recarregá-lo do disco. */
@@ -111,11 +115,12 @@ export function viewItems(a: MenuActions): MenuItem[] {
     disabled: off,
     action: () => a.setView(mode),
   });
+  const layout: MenuItem[] = c.layout ? [{ label: c.layout === "open" ? "Ver diagrama" : "Ver layout", action: a.toggleLayoutView }, "sep"] : [];
   const detach: MenuItem[] = [
     "sep",
     { label: c.lang === "dbml" || c.lang === "mermaid" ? "Diagrama em janela separada" : c.lang === "latex" ? "Equações em janela separada" : isTree(c.lang) ? "Árvore em janela separada" : "Preview em janela separada", checked: c.detached, disabled: off, action: a.toggleDetached },
   ];
-  if (c.lang === "dbml" || c.lang === "mermaid") return [item("Somente código", "source"), item("Código e diagrama lado a lado", "split", "Ctrl+E"), ...detach];
+  if (c.lang === "dbml" || c.lang === "mermaid") return [...layout, item("Somente código", "source"), item("Código e diagrama lado a lado", "split", "Ctrl+E"), ...detach];
   if (c.lang === "latex") return [item("Somente código", "source"), item("Código e equações lado a lado", "split", "Ctrl+E"), ...detach];
   if (c.lang === "json") return [item("Somente código", "source"), item("Código e árvore lado a lado", "split", "Ctrl+E"), ...detach];
   if (isTree(c.lang)) return [item("Somente código", "source"), item("Código e árvore lado a lado", "split", "Ctrl+E")];

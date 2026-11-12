@@ -254,6 +254,14 @@ mod tests {
     }
 
     #[test]
+    fn the_example_layout_is_valid_and_canonical() {
+        let text = include_str!("../../../examples/example.dbmlx.layout.json");
+        let l = parse(text).unwrap();
+        assert!(l.tables.len() > 10);
+        assert_eq!(to_text(&l), text, "o exemplo tem de estar no formato que o Fullpad grava");
+    }
+
+    #[test]
     fn apply_refuses_to_rewrite_an_invalid_file() {
         assert!(apply("{ quebrado", &Edit::default()).is_err());
     }

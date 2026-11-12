@@ -1,0 +1,317 @@
+// Fullpad — exemplo de DBML: sistema de uma escola de idiomas online.
+// Abra o diagrama ao lado (Ctrl+E ou Ctrl+Shift+E), arraste para mover e use a roda para dar zoom.
+// Passe o mouse numa tabela do diagrama para ver a linha dela pintar aqui no código.
+
+Project escola_idiomas {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # Escola de Idiomas
+    Modelo de dados de uma escola online: alunos, professores, cursos, turmas,
+    aulas, avaliações, pagamentos e certificados.
+
+    **Convenções**
+    - chaves primárias `id` (bigint, identity)
+    - `criado_em` / `atualizado_em` em todas as tabelas de negócio
+  '''
+}
+
+// ---------- Tipos enumerados ----------
+
+enum nivel_cefr {
+  A1 [note: 'Iniciante']
+  A2 [note: 'Básico']
+  B1 [note: 'Intermediário']
+  B2 [note: 'Intermediário superior']
+  C1 [note: 'Avançado']
+  C2 [note: 'Proficiente']
+}
+
+enum status_matricula {
+  pendente
+  ativa
+  trancada
+  concluida
+  cancelada
+}
+
+enum forma_pagamento {
+  pix
+  cartao_credito
+  boleto
+  transferencia
+}
+
+enum status_pagamento {
+  aguardando
+  pago
+  atrasado
+  estornado
+}
+
+enum dia_semana {
+  seg
+  ter
+  qua
+  qui
+  sex
+  sab
+}
+
+// ---------- Esquema "pessoas" ----------
+
+Table pessoas.usuarios [headercolor: #3498db] {
+  id bigint [pk, increment]
+  nome varchar(120) [not null]
+  email varchar(160) [not null, unique, note: 'Usado para login']
+  senha_hash varchar(255) [not null]
+  telefone varchar(20)
+  nascimento date
+  ativo boolean [not null, default: true]
+  criado_em timestamptz [not null, default: `now()`]
+  atualizado_em timestamptz [not null, default: `now()`]
+
+  indexes {
+    email [unique, name: 'idx_usuarios_email']
+    (nome, ativo) [name: 'idx_usuarios_nome_ativo']
+    `lower(nome)` [name: 'idx_usuarios_nome_lower']
+  }
+
+  Note: 'Base de contas. Alunos e professores são papéis de um usuário.'
+}
+
+Table pessoas.alunos [headercolor: #3498db] {
+  id bigint [pk, increment]
+  usuario_id bigint [not null, unique, ref: - pessoas.usuarios.id]
+  objetivo text [note: 'Por que quer aprender o idioma']
+  nivel_inicial nivel_cefr [default: 'A1']
+  responsavel_id bigint [ref: >? pessoas.usuarios.id, note: 'Para menores de idade']
+}
+
+Table pessoas.professores [headercolor: #3498db] {
+  id bigint [pk, increment]
+  usuario_id bigint [not null, unique, ref: - pessoas.usuarios.id]
+  biografia text
+  valor_hora numeric(10, 2) [not null, default: 0]
+  nota_media numeric(3, 2) [note: 'Média das avaliações recebidas']
+  contratado_em date [not null]
+}
+
+// ---------- Esquema "catalogo" ----------
+
+Table catalogo.idiomas [headercolor: #e67e22] {
+  id smallint [pk, increment]
+  codigo char(2) [not null, unique, note: 'ISO 639-1']
+  nome varchar(60) [not null]
+}
+
+Table catalogo.cursos [headercolor: #e67e22] {
+  id bigint [pk, increment]
+  idioma_id smallint [not null, ref: > catalogo.idiomas.id]
+  nome varchar(120) [not null]
+  nivel nivel_cefr [not null]
+  carga_horaria integer [not null, note: 'Em horas']
+  preco numeric(10, 2) [not null]
+  publicado boolean [not null, default: false]
+
+  indexes {
+    (idioma_id, nivel) [unique, name: 'uq_curso_idioma_nivel']
+  }
+}
+
+Table catalogo.modulos [headercolor: #e67e22] {
+  id bigint [pk, increment]
+  curso_id bigint [not null, ref: > catalogo.cursos.id]
+  ordem smallint [not null]
+  titulo varchar(120) [not null]
+
+  indexes {
+    (curso_id, ordem) [unique]
+  }
+}
+
+Table catalogo.materiais [headercolor: #e67e22] {
+  id bigint [pk, increment]
+  modulo_id bigint [not null, ref: > catalogo.modulos.id]
+  titulo varchar(160) [not null]
+  tipo varchar(20) [not null, note: 'pdf, video, audio ou exercicio']
+  url varchar(500) [not null]
+}
+
+// Muitos-para-muitos: um professor ensina vários idiomas e um idioma tem vários professores
+Table catalogo.professores_idiomas [headercolor: #e67e22] {
+  professor_id bigint [not null, ref: > pessoas.professores.id]
+  idioma_id smallint [not null, ref: > catalogo.idiomas.id]
+  fluencia nivel_cefr [not null, default: 'C1']
+
+  indexes {
+    (professor_id, idioma_id) [pk]
+  }
+}
+
+// ---------- Esquema "ensino" ----------
+
+Table ensino.turmas [headercolor: #27ae60] {
+  id bigint [pk, increment]
+  curso_id bigint [not null, ref: > catalogo.cursos.id]
+  professor_id bigint [not null]
+  codigo varchar(20) [not null, unique]
+  inicio date [not null]
+  fim date
+  vagas smallint [not null, default: 12]
+}
+
+Table ensino.horarios_turma [headercolor: #27ae60] {
+  turma_id bigint [not null, ref: > ensino.turmas.id]
+  dia dia_semana [not null]
+  hora_inicio time [not null]
+  hora_fim time [not null]
+
+  indexes {
+    (turma_id, dia, hora_inicio) [pk]
+  }
+}
+
+Table ensino.matriculas [headercolor: #27ae60] {
+  id bigint [pk, increment]
+  aluno_id bigint [not null]
+  turma_id bigint [not null, ref: > ensino.turmas.id]
+  status status_matricula [not null, default: 'pendente']
+  matriculado_em timestamptz [not null, default: `now()`]
+  concluida_em timestamptz
+
+  indexes {
+    (aluno_id, turma_id) [unique]
+    status
+  }
+}
+
+Table ensino.aulas [headercolor: #27ae60] {
+  id bigint [pk, increment]
+  turma_id bigint [not null, ref: > ensino.turmas.id]
+  modulo_id bigint
+  realizada_em timestamptz [not null]
+  duracao_min smallint [not null, default: 60]
+  resumo text
+}
+
+Table ensino.presencas {
+  aula_id bigint [not null, ref: > ensino.aulas.id]
+  matricula_id bigint [not null, ref: > ensino.matriculas.id]
+  presente boolean [not null, default: true]
+  justificativa varchar(200)
+
+  indexes {
+    (aula_id, matricula_id) [pk]
+  }
+}
+
+Table ensino.avaliacoes {
+  id bigint [pk, increment]
+  matricula_id bigint [not null, ref: > ensino.matriculas.id]
+  modulo_id bigint [ref: >? catalogo.modulos.id]
+  nota numeric(4, 2) [not null, note: 'De 0 a 10']
+  aplicada_em date [not null]
+  comentario text
+}
+
+Table ensino.certificados {
+  id bigint [pk, increment]
+  matricula_id bigint [not null, unique, ref: - ensino.matriculas.id]
+  codigo_validacao varchar(40) [not null, unique]
+  nivel_atingido nivel_cefr [not null]
+  emitido_em date [not null]
+}
+
+// ---------- Esquema "financeiro" ----------
+
+Table financeiro.pagamentos [headercolor: #c0392b] {
+  id bigint [pk, increment]
+  matricula_id bigint [not null, ref: > ensino.matriculas.id]
+  parcela smallint [not null, default: 1]
+  valor numeric(10, 2) [not null]
+  forma forma_pagamento [not null]
+  status status_pagamento [not null, default: 'aguardando']
+  vencimento date [not null]
+  pago_em timestamptz
+
+  indexes {
+    (matricula_id, parcela) [unique]
+    (status, vencimento) [name: 'idx_pagamentos_cobranca']
+  }
+}
+
+Table financeiro.cupons {
+  id integer [pk, increment]
+  codigo varchar(30) [not null, unique]
+  percentual numeric(5, 2) [not null]
+  valido_ate date
+}
+
+Table financeiro.pagamentos_cupons {
+  pagamento_id bigint [not null, ref: > financeiro.pagamentos.id]
+  cupom_id integer [not null, ref: > financeiro.cupons.id]
+
+  indexes {
+    (pagamento_id, cupom_id) [pk]
+  }
+}
+
+// ---------- Relações declaradas à parte ----------
+
+Ref fk_turma_prof: ensino.turmas.professor_id > pessoas.professores.id [delete: restrict, update: cascade]
+Ref: ensino.matriculas.aluno_id > pessoas.alunos.id [delete: cascade]
+Ref: ensino.aulas.modulo_id >? catalogo.modulos.id // relação opcional (a aula pode não ter módulo)
+
+// ---------- Dados de exemplo (Records) ----------
+
+Records catalogo.idiomas(id, codigo, nome) {
+  1, 'en', 'Inglês'
+  2, 'es', 'Espanhol'
+  3, 'fr', 'Francês'
+  4, 'de', 'Alemão'
+}
+
+Records financeiro.cupons(id, codigo, percentual, valido_ate) {
+  1, 'BEMVINDO10', 10.00, '2026-12-31'
+  2, 'FRETE5', 5.00, null
+}
+
+// ---------- Grupos ----------
+
+TableGroup pessoas {
+  pessoas.usuarios
+  pessoas.alunos
+  pessoas.professores
+}
+
+TableGroup conteudo {
+  catalogo.idiomas
+  catalogo.cursos
+  catalogo.modulos
+  catalogo.materiais
+}
+
+TableGroup sala_de_aula {
+  ensino.turmas
+  ensino.horarios_turma
+  ensino.aulas
+  ensino.presencas
+}
+
+TableGroup dinheiro {
+  financeiro.pagamentos
+  financeiro.cupons
+  financeiro.pagamentos_cupons
+}
+
+// ---------- Anotação solta ----------
+
+Note legenda {
+  '''
+  **Cores dos cabeçalhos**
+  - azul: pessoas
+  - laranja: catálogo
+  - verde: ensino
+  - vermelho: financeiro
+  '''
+}

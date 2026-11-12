@@ -10,7 +10,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { createFileDrop } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
-import { api, type ClosedTab, type Encoding, type Eol, type Language, type Session, type TabState, type ViewMode } from "./api";
+import { api, type ClosedTab, type Encoding, type Eol, type Language, type LayoutEdit, type LayoutState, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import { mermaidLanguage } from "./mermaidlang";
 
@@ -20,8 +20,12 @@ interface DiagramPanel {
   update(text: string, rev?: number): void;
   setCursor(offset: number | null, rev: number): void;
   hide(): void;
+  /** Só o diagrama DBML: o layout guardado da aba (chamar antes de `show`) e gravar o que está pendente. */
+  setLayout?(l: { tables: LayoutState["tables"]; viewport: LayoutState["viewport"]; error: string | null } | null): void;
+  flush?(): void;
 }
 import type { CsvPanel } from "./csv/panel";
+import type { LayoutView } from "./dbml/layoutview";
 import type { JsonPanel, TreeFormat } from "./json/panel";
 import { mapCursor } from "./json/format";
 import type { MarkdownPane } from "./mdpreview";
@@ -103,6 +107,11 @@ interface Group {
   diagramKind?: "dbml" | "mermaid" | "latex"; // de qual linguagem é o painel que está em `diagram`
   diagramLoading?: Promise<void>;
   diagramTab: string | null; // aba cujo diagrama está na tela
+  /** "Ver layout" do `.dbmlx`: o JSON do layout no lugar do diagrama. */
+  layoutEl: HTMLElement;
+  layoutView?: LayoutView;
+  layoutLoading?: Promise<void>;
+  layoutTab: string | null; // aba cujo layout está na tela
   mdPane?: MarkdownPane;
   mdLoading?: Promise<void>;
   jsonEl: HTMLElement;
@@ -708,6 +717,144 @@ function followScroll(g: Group = cur) {
   g.mdPane.scrollToFraction(room > 0 ? s.scrollTop / room : 0);
 }
 
+// ---- layout do diagrama (.dbmlx) ----------------------------------------------------
+//
+// Posições das tabelas e enquadramento da vista ficam num JSON ao lado do arquivo (`.dbmlx`) ou, numa
+// nota avulsa, numa pasta interna do app (o Rust decide onde). O texto do DBML nunca é tocado. O que
+// a UI guarda por aba é a leitura mais recente (`layouts`), com o carimbo do arquivo para o Rust
+// recusar gravar por cima de uma mudança feita fora do Fullpad.
+
+const layouts = new Map<string, LayoutState>();
+const layoutOpen = new Set<string>(); // abas que estão em "Ver layout"
+const layoutLoads = new Map<string, Promise<LayoutState>>();
+
+/** A aba guarda layout: DBML em nota avulsa ou em arquivo `.dbmlx` (um `.dbml` comum fica no automático). */
+function layoutAvailable(tab: TabState): boolean {
+  return effectiveLang(tab) === "dbml" && !tab.detached && !isReader(tab) && !tab.release_notes && (!tab.path || /\.dbmlx$/i.test(tab.path));
+}
+
+const layoutShown = (tab: TabState) => layoutOpen.has(tab.id) && layoutAvailable(tab);
+
+const layoutFileName = (tab: TabState) => (tab.path ? `${baseName(tab.path)}.layout.json` : "Layout (guardado pelo Fullpad)");
+
+function loadLayout(id: string): Promise<LayoutState> {
+  let p = layoutLoads.get(id);
+  if (!p) {
+    p = api
+      .layoutLoad(id)
+      .then((l) => {
+        layouts.set(id, l);
+        return l;
+      })
+      .finally(() => layoutLoads.delete(id));
+    layoutLoads.set(id, p);
+  }
+  return p;
+}
+
+/** Escreve no layout; se o arquivo mudou fora do Fullpad, pergunta antes de sobrescrever. */
+async function writeLayout<T>(tab: TabState | undefined, attempt: (force: boolean) => Promise<T>): Promise<T | null> {
+  try {
+    return await attempt(false);
+  } catch (e) {
+    if (!isConflict(e)) {
+      await message(`Não foi possível gravar o layout: ${e}`, { title: "Layout do diagrama", kind: "error" });
+      return null;
+    }
+    const r = await message(`O layout de "${tab?.title ?? "este diagrama"}" foi alterado fora do Fullpad. Gravar por cima apaga essa mudança.`, {
+      title: "Layout alterado",
+      kind: "warning",
+      buttons: { yes: "Sobrescrever", no: "Recarregar do disco", cancel: "Cancelar" },
+    });
+    if (r === "Sobrescrever") {
+      try {
+        return await attempt(true);
+      } catch (e2) {
+        await message(`Não foi possível gravar o layout: ${e2}`, { title: "Layout do diagrama", kind: "error" });
+        return null;
+      }
+    }
+    if (tab && r === "Recarregar do disco") {
+      layouts.delete(tab.id);
+      await loadLayout(tab.id).catch(() => {});
+      refreshLayoutUi(tab.id);
+    }
+    return null;
+  }
+}
+
+/** O diagrama (ou o JSON) da aba mudou de dono dos dados: redesenha onde ela está à vista. */
+function refreshLayoutUi(id: string) {
+  const g = groupShowing(id);
+  if (!g || g !== cur) return;
+  g.layoutTab = null; // força o "Ver layout" a reler o texto
+  syncDiagram();
+}
+
+/** Tabelas arrastadas e/ou vista mexida no diagrama: aplica ao layout e grava. */
+async function saveLayoutEdit(id: string, edit: LayoutEdit) {
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const known = layouts.get(id)?.stamp ?? null;
+  const next = await writeLayout(tab, (force) => api.layoutEdit(id, edit, known, force));
+  if (next) layouts.set(id, next);
+}
+
+/** O JSON do "Ver layout" foi editado: grava como está (a pessoa pode estar no meio de uma edição inválida). */
+async function commitLayoutText(id: string, text: string) {
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const known = layouts.get(id)?.stamp ?? null;
+  const g = groupShowing(id);
+  const stamp = await writeLayout(tab, (force) => api.layoutWrite(id, text, known, force));
+  if (stamp === null) {
+    g?.layoutView?.setState("Não gravado");
+    return;
+  }
+  const parsed = await api.layoutParse(text);
+  layouts.set(id, { ...parsed, text, stamp });
+  g?.layoutView?.setState(parsed.error ? `Gravado, mas inválido: ${parsed.error}` : "Gravado");
+}
+
+function hideLayoutView(g: Group) {
+  if (g.layoutTab !== null || g.layoutEl.classList.contains("on")) g.layoutView?.hide();
+  g.layoutTab = null;
+  g.layoutEl.classList.remove("on");
+}
+
+async function showLayoutView(g: Group, tab: TabState) {
+  g.layoutEl.classList.add("on");
+  const l = layouts.get(tab.id) ?? (await loadLayout(tab.id).catch(() => null));
+  if (!l || tabOf(g)?.id !== tab.id || !layoutShown(tab)) return;
+  g.layoutLoading ??= import("./dbml/layoutview").then((m) => {
+    g.layoutView = m.createLayoutView(g.layoutEl, { onChange: (id, text) => void commitLayoutText(id, text) });
+  });
+  await g.layoutLoading;
+  if (tabOf(g)?.id !== tab.id || !layoutShown(tab)) return;
+  if (g.layoutTab === tab.id) return;
+  g.layoutTab = tab.id;
+  const { EMPTY_LAYOUT } = await import("./dbml/layoutview");
+  await g.layoutView!.show(tab.id, l.text ?? EMPTY_LAYOUT, layoutFileName(tab));
+}
+
+/** "Ver layout" / "Ver diagrama": troca o diagrama pelo JSON do layout e volta. */
+function toggleLayoutView() {
+  const tab = activeTab();
+  if (!layoutAvailable(tab)) return;
+  if (layoutOpen.has(tab.id)) {
+    cur.layoutView?.flush();
+    layoutOpen.delete(tab.id);
+  } else {
+    layoutOpen.add(tab.id);
+    if (viewKind(tab) === "source") {
+      setView("split");
+      return;
+    }
+  }
+  applyTabConfig();
+  refreshStatus(false);
+}
+
 /** Mostra/esconde o painel conforme a aba ativa. O módulo só é importado na 1ª vez que um DBML pede. */
 function syncDiagram(textChanged = false) {
   const g = cur;
@@ -720,8 +867,18 @@ function syncDiagram(textChanged = false) {
   if (!diagramWanted(tab)) {
     g.diagram?.hide();
     g.diagramTab = null;
+    hideLayoutView(g);
     return;
   }
+  if (layoutShown(tab)) {
+    // "Ver layout": o JSON do layout ocupa o lugar do diagrama (o painel do diagrama descansa)
+    g.diagram?.hide();
+    g.diagramTab = null;
+    g.diagramEl.classList.remove("on");
+    void showLayoutView(g, tab);
+    return;
+  }
+  hideLayoutView(g);
   const kind = effectiveLang(tab) as "dbml" | "mermaid" | "latex";
   if (g.diagram && g.diagramKind !== kind) {
     // a aba mudou de DBML para Mermaid (ou ao contrário): o painel de antes não serve
@@ -734,6 +891,15 @@ function syncDiagram(textChanged = false) {
   const run = () => {
     const t = tabOf(g);
     if (!g.diagram || !t || !diagramWanted(t) || g.diagramKind !== effectiveLang(t)) return;
+    if (g.diagram.setLayout) {
+      // diagrama DBML: o layout guardado da aba (lido antes de desenhar, para não piscar o automático)
+      const l = layoutAvailable(t) ? layouts.get(t.id) : undefined;
+      if (layoutAvailable(t) && !l) {
+        void loadLayout(t.id).then(() => syncDiagram());
+        return;
+      }
+      g.diagram.setLayout(l ? { tables: l.tables, viewport: l.viewport, error: l.error } : null);
+    }
     if (textChanged && g.diagramTab === tab.id) g.diagram.update(text, g.rev);
     else g.diagram.show(text, g.diagramTab !== tab.id, g.rev);
     g.diagramTab = tab.id;
@@ -763,6 +929,8 @@ function syncDiagram(textChanged = false) {
           g.diagram = m.createDiagramPanel(g.diagramEl, {
             // mouse sobre o diagrama → destaca a linha no código (sem selecionar)
             onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
+            // tabela arrastada ou vista mexida → grava no layout da aba que está na tela
+            onLayoutEdit: (edit) => g.diagramTab && void saveLayoutEdit(g.diagramTab, edit),
           });
           g.diagramKind = "dbml";
         });
@@ -824,6 +992,7 @@ function refreshStatus(recomputeSize = true) {
     languageLabel: langLabel(tab),
     viewLabel: viewLabel(tab),
     viewAvailable: previewAvailable(tab),
+    layoutLabel: layoutAvailable(tab) ? (layoutOpen.has(tab.id) ? "Ver diagrama" : "Ver layout") : null,
     codeLang: effectiveLang(tab) === "plain" ? (codeLangOf(tab)?.name ?? null) : undefined,
     size: lastSize,
     lines: st.doc.lines,
@@ -862,6 +1031,7 @@ const status = mountStatusBar(statusEl, {
   onZoomIn: () => menuActions.zoomIn(),
   onLanguage: (a) => showMenu(a, languageItems(menuActions), "above"),
   onView: (a) => showMenu(a, viewItems(menuActions), "above"),
+  onLayout: () => toggleLayoutView(),
   onCodeLang: (a) => showMenu(a, codeLangItems(menuActions), "above"),
   onEol: (a) =>
     showMenu(
@@ -1330,6 +1500,8 @@ async function closeTab(id: string, ask = true) {
     await enqueue(() => api.saveNote(id, states.get(id)!.doc.toString()));
   }
   closePreviewWindow(id);
+  layouts.delete(id);
+  layoutOpen.delete(id);
   await enqueue(() => api.closeNote(id));
   void refreshClosed();
   await dropLocalTab(id);
@@ -1555,18 +1727,19 @@ function createGroup(id: number): Group {
   const editorEl = div("editor");
   const mdEl = div("mdview");
   const diagramEl = div("diagram");
+  const layoutEl = div("diagram layoutview");
   const jsonEl = div("jsonview");
   const csvEl = div("csvview");
   const readerEl = div("reader");
   const outlineEl = div("outline");
-  bodyEl.append(editorEl, mdEl, diagramEl, jsonEl, csvEl, readerEl, outlineEl);
+  bodyEl.append(editorEl, mdEl, diagramEl, layoutEl, jsonEl, csvEl, readerEl, outlineEl);
   const noteEl = div("note");
   noteEl.hidden = true;
   const diskEl = div("diskbar");
   diskEl.hidden = true;
   el.append(tabsEl, diskEl, noteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0 };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0 };
   g.outline = createOutline(outlineEl, { goto: (pos) => gotoPosIn(g, pos), togglePinned: toggleOutlinePinned, focusEditor: () => g.view.focus() });
   g.outline.config({ enabled: outlineOn, pinned: outlinePinned, side: outlineSide });
   groups.set(id, g);
@@ -2656,6 +2829,7 @@ async function save(tab: TabState = activeTab(), forceDialog = false): Promise<b
   diskIssue.delete(tab.id);
   diskDismissed.delete(tab.id);
   dirtyNotes.delete(tab.id);
+  if (tab.path !== path) layouts.delete(tab.id); // salvar como: o layout pode ter ido para o lado do arquivo (outro carimbo)
   tab.path = path;
   rememberPath(path);
   tab.release_notes = false; // virou arquivo do usuário: fechar volta a passar pelo histórico
@@ -2816,6 +2990,7 @@ const menuActions = {
   toggleSplit,
   setView,
   toggleDetached,
+  toggleLayoutView,
   toggleWrap,
   toggleLineNumbers,
   toggleOutline,
@@ -2849,6 +3024,7 @@ const menuActions = {
       view: tab.mode,
       detached: tab.detached,
       previewAvailable: previewAvailable(tab),
+      layout: layoutAvailable(tab) ? (layoutOpen.has(tab.id) ? ("open" as const) : ("closed" as const)) : null,
       canSave: !isReadOnlyText(tab) && !isReader(tab),
       canReload: hasDiskFile(tab),
       wrap,

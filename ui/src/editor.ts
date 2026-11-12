@@ -96,7 +96,7 @@ const hintField = StateField.define<DecorationSet>({
  * valer, e a próxima verificação o recoloca.
  */
 const setJsonError = StateEffect.define<{ from: number; to: number; message: string } | null>();
-const jsonErrorField = StateField.define<DecorationSet>({
+export const jsonErrorField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update(value, tr) {
     if (tr.docChanged) value = Decoration.none;
