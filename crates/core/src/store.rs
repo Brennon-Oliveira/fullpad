@@ -25,12 +25,31 @@ struct RememberedPosition {
     at: u64,
 }
 
+/// O layout do diagrama como está no disco (`text` é `None` se o arquivo ainda não existe).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LayoutFile {
+    pub text: Option<String>,
+    pub stamp: Option<DiskStamp>,
+}
+
+/// `esquema.dbmlx` → `esquema.dbmlx.layout.json`; `None` se não é um `.dbmlx`.
+pub fn sibling_layout(file: &Path) -> Option<PathBuf> {
+    let ext = file.extension()?.to_string_lossy().to_ascii_lowercase();
+    if ext != "dbmlx" {
+        return None;
+    }
+    let mut name = file.file_name()?.to_os_string();
+    name.push(".layout.json");
+    Some(file.with_file_name(name))
+}
+
 /// Persistência em disco:
 ///
 /// ```text
 /// <root>/session.json      ordem das abas, aba ativa, cursor, modo…
 /// <root>/notes/<id>.md     conteúdo de cada nota
 /// <root>/trash/<id>.md     notas fechadas (recuperáveis)
+/// <root>/layouts/<id>.json layout do diagrama de uma nota avulsa em DBML (de arquivo `.dbmlx`, fica ao lado dele)
 /// <root>/reader-positions.json   última posição de leitura por arquivo PDF/EPUB
 /// ```
 #[derive(Debug, Clone)]
@@ -65,6 +84,14 @@ impl Store {
     }
     fn trash_path(&self, id: Uuid) -> PathBuf {
         self.root.join("trash").join(format!("{id}.md"))
+    }
+
+    fn layout_internal_path(&self, id: Uuid) -> PathBuf {
+        self.root.join("layouts").join(format!("{id}.json"))
+    }
+
+    fn trash_layout_path(&self, id: Uuid) -> PathBuf {
+        self.root.join("trash").join(format!("{id}.layout.json"))
     }
 
     fn trash_meta_path(&self, id: Uuid) -> PathBuf {
@@ -304,7 +331,69 @@ impl Store {
         }
         fileio::write_file(path, text, encoding, eol)?;
         self.write_note(id, text)?;
+        self.adopt_layout(id, path);
         disk::stamp(path)?.ok_or_else(|| Error::Invalid("o arquivo sumiu logo depois de gravar".into()))
+    }
+
+    // ---- layout do diagrama (.dbmlx) ----------------------------------------
+
+    /// Onde fica o layout da aba: ao lado do arquivo (`esquema.dbmlx.layout.json`) se ela é de um
+    /// `.dbmlx`; em `layouts/<id>.json` se é uma nota avulsa. Aba ligada a outro tipo de arquivo não
+    /// tem layout (`.dbml` comum segue com o posicionamento automático).
+    pub fn layout_path(&self, id: Uuid) -> Result<PathBuf> {
+        let session = self.load_session()?;
+        let tab = session.tabs.iter().find(|t| t.id == id).ok_or_else(|| Error::Invalid("aba não encontrada".into()))?;
+        if tab.kind != TabKind::Text || tab.release_notes {
+            return Err(Error::Invalid("a aba não tem layout".into()));
+        }
+        match &tab.path {
+            None => Ok(self.layout_internal_path(id)),
+            Some(p) => sibling_layout(p).ok_or_else(|| Error::Invalid("só arquivos .dbmlx guardam layout".into())),
+        }
+    }
+
+    /// Lê o layout da aba: o texto (se o arquivo existe) e o carimbo dele, para conferir mudança
+    /// externa ao gravar. Não valida o conteúdo (a UI mostra o JSON como está).
+    pub fn read_layout(&self, id: Uuid) -> Result<LayoutFile> {
+        let path = self.layout_path(id)?;
+        match std::fs::read(&path) {
+            Ok(bytes) => {
+                let stamp = disk::stamp_of(&path, &bytes);
+                Ok(LayoutFile { text: Some(String::from_utf8_lossy(&bytes).into_owned()), stamp: Some(stamp) })
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(LayoutFile { text: None, stamp: None }),
+            Err(source) => Err(Error::Io { path, source }),
+        }
+    }
+
+    /// Grava o texto do layout (escrita atômica). Sem `force`, recusa (`Error::Conflict`) se o arquivo
+    /// mudou, ou apareceu, depois do carimbo `known` com que a UI o leu: gravar apagaria a mudança.
+    pub fn write_layout(&self, id: Uuid, text: &str, known: Option<DiskStamp>, force: bool) -> Result<DiskStamp> {
+        let path = self.layout_path(id)?;
+        if !force {
+            match (known, disk::stamp(&path)?) {
+                (Some(k), Some(now)) if now.hash != k.hash => return Err(Error::Conflict),
+                (Some(_), None) => return Err(Error::Conflict),
+                (None, Some(_)) => return Err(Error::Conflict),
+                _ => {}
+            }
+        }
+        write_atomic(&path, text.as_bytes())?;
+        disk::stamp(&path)?.ok_or_else(|| Error::Invalid("o layout sumiu logo depois de gravar".into()))
+    }
+
+    /// A nota avulsa foi salva como `.dbmlx`: o layout dela passa para o lado do arquivo (nunca por
+    /// cima de um layout que já esteja lá).
+    fn adopt_layout(&self, id: Uuid, file: &Path) {
+        let internal = self.layout_internal_path(id);
+        let Some(target) = sibling_layout(file) else { return };
+        let Ok(bytes) = std::fs::read(&internal) else { return };
+        if target.exists() {
+            return;
+        }
+        if write_atomic(&target, &bytes).is_ok() {
+            let _ = std::fs::remove_file(&internal);
+        }
     }
 
     /// Fecha uma nota movendo-a para `trash/` (nunca apaga de verdade).
@@ -314,6 +403,7 @@ impl Store {
         if let Some(dir) = to.parent() {
             std::fs::create_dir_all(dir).at(dir)?;
         }
+        let _ = std::fs::rename(self.layout_internal_path(id), self.trash_layout_path(id));
         match std::fs::rename(&from, &to) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -368,6 +458,11 @@ impl Store {
             std::fs::create_dir_all(dir).at(dir)?;
         }
         std::fs::rename(&from, &to).at(&from)?;
+        let layout = self.layout_internal_path(id);
+        if let Some(dir) = layout.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::rename(self.trash_layout_path(id), layout);
         let _ = std::fs::remove_file(&meta_path);
         let text = self.read_note(id)?;
         Ok((meta.tab, text))
@@ -970,5 +1065,80 @@ mod tests {
         assert_eq!(TabKind::for_path(Path::new("livros/Romance.EPUB")), Some(TabKind::Epub));
         assert_eq!(TabKind::for_path(Path::new("a/nota.md")), None);
         assert_eq!(TabKind::for_path(Path::new("pdf")), None);
+    }
+
+    fn dbml_tab(s: &Store, path: Option<&Path>) -> TabState {
+        let mut tab = s.create_note().unwrap();
+        tab.path = path.map(|p| p.to_path_buf());
+        let mut session = s.load_session().unwrap();
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        tab
+    }
+
+    #[test]
+    fn layout_of_a_loose_note_lives_in_layouts_and_follows_the_tab() {
+        let (_d, s) = store();
+        let tab = dbml_tab(&s, None);
+        assert_eq!(s.read_layout(tab.id).unwrap().text, None);
+        s.write_layout(tab.id, "{}", None, false).unwrap();
+        assert!(s.root().join("layouts").join(format!("{}.json", tab.id)).exists());
+        s.close_tab(&tab).unwrap();
+        assert!(!s.root().join("layouts").join(format!("{}.json", tab.id)).exists());
+        let (restored, _) = s.restore_note(tab.id).unwrap();
+        let mut session = s.load_session().unwrap();
+        session.tabs.push(restored);
+        s.save_session(&session).unwrap();
+        assert_eq!(s.read_layout(tab.id).unwrap().text.as_deref(), Some("{}"));
+    }
+
+    #[test]
+    fn layout_of_a_dbmlx_file_lives_next_to_it() {
+        let (d, s) = store();
+        let file = d.path().join("esquema.dbmlx");
+        std::fs::write(&file, "Table a { id int }").unwrap();
+        let tab = dbml_tab(&s, Some(&file));
+        s.write_layout(tab.id, "{\"version\":1}", None, false).unwrap();
+        assert_eq!(std::fs::read_to_string(d.path().join("esquema.dbmlx.layout.json")).unwrap(), "{\"version\":1}");
+        let other = d.path().join("esquema.dbml");
+        let tab2 = dbml_tab(&s, Some(&other));
+        assert!(s.layout_path(tab2.id).is_err(), "só .dbmlx guarda layout");
+    }
+
+    #[test]
+    fn layout_write_refuses_to_overwrite_an_external_change() {
+        let (d, s) = store();
+        let file = d.path().join("x.dbmlx");
+        let tab = dbml_tab(&s, Some(&file));
+        let first = s.write_layout(tab.id, "um", None, false).unwrap();
+        // outro programa grava
+        std::fs::write(d.path().join("x.dbmlx.layout.json"), "de fora").unwrap();
+        assert!(matches!(s.write_layout(tab.id, "dois", Some(first), false), Err(Error::Conflict)));
+        assert!(matches!(s.write_layout(tab.id, "dois", None, false), Err(Error::Conflict)), "apareceu depois de lido como vazio");
+        s.write_layout(tab.id, "dois", Some(first), true).unwrap();
+        assert_eq!(s.read_layout(tab.id).unwrap().text.as_deref(), Some("dois"));
+        // apagado fora: gravar sem force também pergunta
+        std::fs::remove_file(d.path().join("x.dbmlx.layout.json")).unwrap();
+        assert!(matches!(s.write_layout(tab.id, "tres", Some(first), false), Err(Error::Conflict)));
+    }
+
+    #[test]
+    fn saving_a_loose_note_as_dbmlx_moves_its_layout_next_to_the_file() {
+        let (d, s) = store();
+        let tab = dbml_tab(&s, None);
+        s.write_layout(tab.id, "{\"version\":1}", None, false).unwrap();
+        let file = d.path().join("novo.dbmlx");
+        s.save_file(tab.id, &file, "Table a { id int }", Encoding::Utf8, Eol::Lf, true).unwrap();
+        assert_eq!(std::fs::read_to_string(d.path().join("novo.dbmlx.layout.json")).unwrap(), "{\"version\":1}");
+        assert!(!s.root().join("layouts").join(format!("{}.json", tab.id)).exists());
+
+        // já existe um layout ao lado: não é sobrescrito, e o interno fica
+        let tab = dbml_tab(&s, None);
+        s.write_layout(tab.id, "interno", None, false).unwrap();
+        let file = d.path().join("outro.dbmlx");
+        std::fs::write(d.path().join("outro.dbmlx.layout.json"), "do disco").unwrap();
+        s.save_file(tab.id, &file, "x", Encoding::Utf8, Eol::Lf, true).unwrap();
+        assert_eq!(std::fs::read_to_string(d.path().join("outro.dbmlx.layout.json")).unwrap(), "do disco");
+        assert!(s.root().join("layouts").join(format!("{}.json", tab.id)).exists());
     }
 }

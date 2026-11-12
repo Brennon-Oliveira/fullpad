@@ -16,6 +16,7 @@
 //! valida versão, tipos e números (finitos, dentro de um teto) e arredonda as coordenadas. O que o
 //! Fullpad não edita (grupos, chaves desconhecidas) volta intacto ao gravar. Sem UI e sem disco.
 
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value};
 use std::collections::BTreeMap;
 
@@ -25,7 +26,7 @@ const MAX_COORD: f64 = 10_000_000.0;
 const MIN_ZOOM: f64 = 0.01;
 const MAX_ZOOM: f64 = 100.0;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Viewport {
     pub x: i64,
     pub y: i64,
@@ -38,7 +39,7 @@ impl Default for Viewport {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pos {
     pub x: i64,
     pub y: i64,
@@ -55,9 +56,11 @@ pub struct Layout {
 }
 
 /// O que o Fullpad muda no layout: a vista e as posições das tabelas (as que não estão aqui ficam).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct Edit {
+    #[serde(default)]
     pub viewport: Option<Viewport>,
+    #[serde(default)]
     pub tables: BTreeMap<String, Pos>,
 }
 

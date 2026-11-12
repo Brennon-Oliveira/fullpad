@@ -320,4 +320,36 @@ export const api = {
   fileReload: (id: string) => invoke<Reloaded>("file_reload", { id }),
   /** Ficar com o texto da aba: o arquivo de agora vira a referência e o próximo Salvar não pergunta. */
   fileKeep: (id: string) => invoke<DiskStamp | null>("file_keep", { id }),
+  /** Layout do diagrama (`.dbmlx`): lê o do disco (ao lado do arquivo ou em `layouts/`). */
+  layoutLoad: (id: string) => invoke<LayoutState>("layout_load", { id }),
+  /** Entende um texto de layout sem tocar no disco. */
+  layoutParse: (text: string) => invoke<LayoutState>("layout_parse", { text }),
+  /** Grava o texto do layout como está; sem `force`, recusa com `conflito:` se mudou fora. */
+  layoutWrite: (id: string, text: string, known: DiskStamp | null, force: boolean) =>
+    invoke<DiskStamp>("layout_write", { id, text, known, force }),
+  /** Aplica tabelas arrastadas e a vista ao layout do disco e grava. */
+  layoutEdit: (id: string, edit: LayoutEdit, known: DiskStamp | null, force: boolean) =>
+    invoke<LayoutState>("layout_edit", { id, edit, known, force }),
 };
+
+export interface LayoutViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+export interface LayoutPos {
+  x: number;
+  y: number;
+}
+export interface LayoutState {
+  text: string | null;
+  stamp: DiskStamp | null;
+  viewport: LayoutViewport | null;
+  tables: Record<string, LayoutPos>;
+  /** Layout que não se entende (JSON inválido etc.): o diagrama usa o posicionamento automático. */
+  error: string | null;
+}
+export interface LayoutEdit {
+  viewport?: LayoutViewport;
+  tables?: Record<string, LayoutPos>;
+}

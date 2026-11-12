@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use fullpad_core::dbmlx;
 use fullpad_core::changelog;
 use fullpad_core::json::{self, Doc, Indent, JsonError};
 use fullpad_core::reader::{FileStatus, PdfScan};
@@ -913,6 +914,59 @@ fn file_keep(state: State<AppState>, id: String) -> Result<Option<DiskStamp>, St
     Ok(Some(stamp))
 }
 
+/// O layout do diagrama como a UI usa: o texto do arquivo, o carimbo (para conferir mudança externa
+/// ao gravar) e o que dele se entendeu. Texto inválido não é erro do comando: vai em `error` e a UI
+/// desenha com o posicionamento automático, avisando.
+#[derive(Serialize)]
+struct LayoutState {
+    text: Option<String>,
+    stamp: Option<DiskStamp>,
+    viewport: Option<dbmlx::Viewport>,
+    tables: std::collections::BTreeMap<String, dbmlx::Pos>,
+    error: Option<String>,
+}
+
+fn layout_state(text: Option<String>, stamp: Option<DiskStamp>) -> LayoutState {
+    let (viewport, tables, error) = match dbmlx::parse(text.as_deref().unwrap_or("")) {
+        Ok(l) => (Some(l.viewport).filter(|_| text.is_some()), l.tables, None),
+        Err(e) => (None, Default::default(), Some(e)),
+    };
+    LayoutState { text, stamp, viewport, tables, error }
+}
+
+/// Lê o layout do diagrama da aba (`.dbmlx` ao lado do arquivo, ou `layouts/<id>.json` numa nota avulsa).
+#[tauri::command]
+fn layout_load(state: State<AppState>, id: String) -> Result<LayoutState, String> {
+    let id = parse_id(&id)?;
+    let f = state.store.read_layout(id).map_err(err)?;
+    Ok(layout_state(f.text, f.stamp))
+}
+
+/// Entende um texto de layout (o que a pessoa editou no "Ver layout") sem tocar no disco.
+#[tauri::command]
+fn layout_parse(text: String) -> LayoutState {
+    layout_state(Some(text), None)
+}
+
+/// Grava o texto do layout como está (o "Ver layout" é um editor de JSON). Sem `force`, recusa com
+/// `conflito:` se o arquivo mudou fora do Fullpad desde `known`.
+#[tauri::command]
+fn layout_write(state: State<AppState>, id: String, text: String, known: Option<DiskStamp>, force: bool) -> Result<DiskStamp, String> {
+    let id = parse_id(&id)?;
+    state.store.write_layout(id, &text, known, force).map_err(err)
+}
+
+/// Aplica uma edição do diagrama (tabelas arrastadas, vista) ao layout do disco e grava. Recusa se o
+/// arquivo atual é inválido (não reescreve o que não entende) ou mudou fora desde `known`.
+#[tauri::command]
+fn layout_edit(state: State<AppState>, id: String, edit: dbmlx::Edit, known: Option<DiskStamp>, force: bool) -> Result<LayoutState, String> {
+    let id = parse_id(&id)?;
+    let current = state.store.read_layout(id).map_err(err)?;
+    let text = dbmlx::apply(current.text.as_deref().unwrap_or(""), &edit)?;
+    let stamp = state.store.write_layout(id, &text, known, force).map_err(err)?;
+    Ok(layout_state(Some(text), Some(stamp)))
+}
+
 /// Resultado de `json_analyze`: ou a árvore ou o erro (a UI mantém a última árvore boa no erro).
 #[derive(Serialize)]
 struct JsonAnalysis {
@@ -1330,6 +1384,10 @@ fn main() {
             file_check,
             file_reload,
             file_keep,
+            layout_load,
+            layout_parse,
+            layout_write,
+            layout_edit,
             export_file,
             list_windows,
             move_tab,
