@@ -104,7 +104,9 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
   g.append(withNote(title, t.note));
   t.columns.forEach((c, i) => {
     const cy = HEADER_H + i * ROW_H + ROW_H / 2 + 4;
-    g.append(el("rect", { class: "dbml-row", "data-k": colKey(t.id, c.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H }));
+    const row = el("rect", { class: "dbml-row", "data-k": colKey(t.id, c.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H });
+    if (c.span) row.setAttribute("data-col", String(c.span.from)); // botão direito: menu da coluna
+    g.append(row);
     const colName = el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name);
     if (c.span) colName.setAttribute("data-off", String(c.span.from));
     g.append(withNote(colName, c.note));

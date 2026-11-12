@@ -204,11 +204,19 @@ export function renameChanges(svc: DbmlService, d: Diagram, text: string, target
     if (target.kind === "group") result.renamedGroup = { from: target.name, to: newName };
   }
 
-  // rede de segurança: o texto novo tem de continuar sendo um DBML válido com o mesmo conteúdo
-  const next = applyChanges(text, result.changes);
-  const parsed = parseDbml(svc.interpret, next);
-  if (!parsed.diagram) return { error: "O renome deixaria o DBML inválido; nada foi alterado." };
-  const n = (x: Diagram) => [x.tables.length, x.tables.reduce((s, y) => s + y.columns.length, 0), x.enums.length, x.groups.length, x.refs.length].join(",");
-  if (n(parsed.diagram) !== n(d)) return { error: "O renome mudaria a estrutura do esquema; nada foi alterado." };
+  const bad2 = verifyChanges(svc, d, text, result.changes);
+  if (bad2) return { error: bad2 };
   return result;
+}
+
+/**
+ * Rede de segurança de toda edição pelo diagrama ou pelo renome: o texto novo tem de continuar um DBML
+ * válido, com as mesmas tabelas, colunas, enums, grupos e relações. Devolve o motivo, ou `null` se serve.
+ */
+export function verifyChanges(svc: DbmlService, d: Diagram, text: string, changes: TextChange[]): string | null {
+  const parsed = parseDbml(svc.interpret, applyChanges(text, changes));
+  if (!parsed.diagram) return "A alteração deixaria o DBML inválido; nada foi alterado.";
+  const n = (x: Diagram) => [x.tables.length, x.tables.reduce((s, y) => s + y.columns.length, 0), x.enums.length, x.groups.length, x.refs.length].join(",");
+  if (n(parsed.diagram) !== n(d)) return "A alteração mudaria a estrutura do esquema; nada foi alterado.";
+  return null;
 }

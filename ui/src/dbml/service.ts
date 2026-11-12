@@ -24,6 +24,8 @@ export interface DbmlCompletion {
 
 type Compiler = {
   interpretFile(entry: unknown): ReturnType<Interpreter>;
+  /** Edições (offsets do texto) para mudar/pôr/tirar uma configuração de um elemento; `value` `null` tira. */
+  updateElementSettingEdit(entry: unknown, target: Record<string, unknown>, name: string, value: string | null): { start: number; end: number; newText: string }[];
   /** Renomeia a tabela e tudo o que a usa; devolve o texto novo por arquivo (vazio: não achou ou o nome já existe). */
   renameTable(entry: unknown, oldName: { schema?: string; table: string }, newName: { schema?: string; table: string }): Map<string, string>;
 };
@@ -34,6 +36,7 @@ export interface DbmlParse {
   Compiler: new (layout: Layout) => Compiler;
   MemoryProjectLayout: new (files: Record<string, string>) => Layout;
   Filepath: { from(path: string): unknown };
+  SymbolKind: { Column: string; Table: string };
   DBMLDiagnosticsProvider: new (c: Compiler) => { provideDiagnostics(entry: unknown): DbmlDiagnostic[] };
   DBMLReferencesProvider: new (c: Compiler) => {
     provideReferences(model: unknown, position: unknown): { range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number } }[] | undefined;
@@ -57,6 +60,8 @@ export interface DbmlService {
   references(text: string, offset: number): { from: number; to: number }[];
   /** Onde começa a declaração do símbolo usado em `offset` (`null` se `offset` não é um uso, ou é a própria declaração). */
   definition(text: string, offset: number): number | null;
+  /** Trocas que mudam (ou tiram, com `null`) a configuração `name` da coluna `column` da tabela; `[]` se a biblioteca não achou. */
+  columnSettingEdits(text: string, col: { schema?: string; table: string; column: string }, name: string, value: string | null): { from: number; to: number; insert: string }[];
   /** `renameTable` da biblioteca sobre o texto: o texto novo, ou `null` se não renomeou (não achou ou o nome já existe). */
   renameTable(text: string, from: { schema?: string; table: string }, to: { schema?: string; table: string }): string | null;
   /** Caracteres que, ao serem digitados, já pedem sugestões (`.`, `[`, espaço...). */
@@ -135,6 +140,11 @@ export function createDbmlService(parse: DbmlParse): DbmlService {
       if (!first?.range) return null;
       const starts = lineStarts(text);
       return (starts[first.range.startLineNumber - 1] ?? text.length) + first.range.startColumn - 1;
+    },
+    columnSettingEdits(text, col, name, value) {
+      sync(text);
+      const edits = compiler.updateElementSettingEdit(entry, { kind: parse.SymbolKind.Column, ...col }, name, value);
+      return edits.map((e) => ({ from: e.start, to: e.end, insert: e.newText }));
     },
     renameTable(text, from, to) {
       sync(text);

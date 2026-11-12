@@ -66,6 +66,11 @@ export interface PanelHooks {
    */
   onRename?(decl: number, at: { x: number; y: number; width: number }, rev: number): void;
   /**
+   * Botão direito numa coluna (`column`: a linha) ou no nome de uma tabela, enum, valor ou grupo:
+   * `decl` é onde a declaração começa no texto da versão `rev`; `at` é o ponto do clique.
+   */
+  onContext?(info: { decl: number; column: boolean }, at: { x: number; y: number }, rev: number): void;
+  /**
    * Mouse sobre um elemento do diagrama. `rev` diz de qual versão do texto vêm os trechos; quem
    * recebe só deve usá-los se o texto ainda for essa versão (senão apontariam para o lugar errado).
    */
@@ -163,6 +168,16 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     }
     if (target.closest?.(".dbml-table, .dbml-group-move, .dbml-group-resize")) return; // duplo clique numa alça não enquadra
     fitByUser();
+  });
+
+  svg.addEventListener("contextmenu", (e) => {
+    const target = e.target as Element;
+    const row = target.closest?.("[data-col]");
+    const named = row ? null : target.closest?.("[data-off]");
+    const decl = row ? Number(row.getAttribute("data-col")) : named ? Number(named.getAttribute("data-off")) : null;
+    if (decl === null || !hooks.onContext) return;
+    e.preventDefault();
+    hooks.onContext({ decl, column: !!row }, { x: e.clientX, y: e.clientY }, renderedRev);
   });
 
   const draw = () => {

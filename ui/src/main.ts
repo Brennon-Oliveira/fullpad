@@ -776,6 +776,53 @@ function renameSymbolAtCursor() {
   void renameSymbolAt(g, head, "at", { x: c?.left ?? 120, y: (c?.bottom ?? 120) + 4 });
 }
 
+/** Aplica trocas de texto vindas do diagrama, se o texto ainda é o da versão que ele desenhou. */
+function applyDiagramChanges(g: Group, text: string, changes: { from: number; to: number; insert: string }[]): string | null {
+  if (g.view.state.doc.toString() !== text) return "O texto mudou; tente de novo.";
+  withGroup(g, () => g.view.dispatch({ changes, userEvent: "input.diagram", scrollIntoView: false }));
+  return null;
+}
+
+/**
+ * Botão direito no diagrama. Numa **coluna**: renomear, tipo, chave primária, não nulo, único e nota
+ * (cada um é uma troca de texto pequena, uma transação, um passo no Ctrl+Z; a aba fica não salva).
+ * Num nome (tabela, enum, valor, grupo): renomear. Vale em `.dbml`, `.dbmlx` e nota avulsa.
+ */
+async function diagramContextMenu(g: Group, info: { decl: number; column: boolean }, at: { x: number; y: number }, rev: number) {
+  const tab = tabOf(g);
+  if (!tab || effectiveLang(tab) !== "dbml" || isReadOnlyText(tab)) return;
+  if (rev !== g.rev) return flashDiskInfo(tab, "O texto mudou depois de o diagrama ser desenhado; tente de novo.");
+  const rename: MenuItem = { label: "Renomear…", shortcut: "F2", action: () => void renameSymbolAt(g, info.decl, "decl", at, rev) };
+  if (!info.column) return void showMenuAt(at.x, at.y, [rename]);
+  const [{ loadDbmlService }, model, ed, { promptRename }] = await Promise.all([import("./dbml/service"), import("./dbml/model"), import("./dbml/edit"), import("./renamebox")]);
+  const svc = await loadDbmlService();
+  const text = g.view.state.doc.toString();
+  const parsed = model.parseDbml(svc.interpret, text);
+  if (!parsed.diagram) return flashDiskInfo(tab, "Corrija o erro de sintaxe antes de editar pelo diagrama.");
+  const d = parsed.diagram;
+  const ref = ed.columnAt(d, info.decl);
+  if (!ref) return;
+  const c = ref.column;
+  const run = (r: { changes: { from: number; to: number; insert: string }[] } | { error: string }): string | null => ("error" in r ? r.error : applyDiagramChanges(g, text, r.changes));
+  const failed = (reason: string | null) => reason !== null && flashDiskInfo(tab, reason);
+  const flag = (label: string, f: "pk" | "not null" | "unique", on: boolean): MenuItem => ({
+    label,
+    checked: on,
+    action: () => void failed(run(ed.setFlag(svc, d, text, ref, f, !on))),
+  });
+  const ask = (title: string, value: string, apply: (v: string) => ReturnType<typeof ed.setType>) =>
+    promptRename({ ...at, value, title, onClose: () => g.view.focus(), submit: (v) => run(apply(v)) });
+  showMenuAt(at.x, at.y, [
+    rename,
+    "sep",
+    { label: "Tipo…", action: () => ask(`Tipo de ${c.name}`, c.type, (v) => ed.setType(svc, d, text, ref, v)) },
+    flag("Chave primária", "pk", c.pk),
+    flag("Não nulo", "not null", c.notNull),
+    flag("Único", "unique", c.unique),
+    { label: "Nota…", action: () => ask(`Nota de ${c.name} (vazio tira)`, c.note ?? "", (v) => ed.setNote(svc, d, text, ref, v)) },
+  ]);
+}
+
 // ---- layout do diagrama (.dbmlx) ----------------------------------------------------
 //
 // Posições das tabelas e enquadramento da vista ficam num JSON ao lado do arquivo (`.dbmlx`) ou, numa
@@ -1063,6 +1110,8 @@ function syncDiagram(textChanged = false) {
             onLayoutLive: (edit) => g.diagramTab && previewDragInJson(g.diagramTab, edit),
             // duplo clique no nome (tabela, coluna, enum, valor, grupo) → renomear
             onRename: (decl, at, rev) => void renameSymbolAt(g, decl, "decl", at, rev),
+            // botão direito numa coluna (tipo, chave, não nulo, único, nota) ou num nome (renomear)
+            onContext: (info, at, rev) => void diagramContextMenu(g, info, at, rev),
           });
           g.diagramKind = "dbml";
         });
