@@ -371,11 +371,16 @@ impl Store {
     pub fn write_layout(&self, id: Uuid, text: &str, known: Option<DiskStamp>, force: bool) -> Result<DiskStamp> {
         let path = self.layout_path(id)?;
         if !force {
-            match (known, disk::stamp(&path)?) {
-                (Some(k), Some(now)) if now.hash != k.hash => return Err(Error::Conflict),
-                (Some(_), None) => return Err(Error::Conflict),
-                (None, Some(_)) => return Err(Error::Conflict),
-                _ => {}
+            match known {
+                // mesma conferência das abas (data e tamanho primeiro, o hash só se diferem): o carimbo
+                // passa pela UI como JSON, e o hash de 64 bits perde precisão num número do JavaScript
+                Some(k) => {
+                    if disk::check(&path, &k)?.0 != DiskState::Unchanged {
+                        return Err(Error::Conflict);
+                    }
+                }
+                None if path.exists() => return Err(Error::Conflict),
+                None => {}
             }
         }
         write_atomic(&path, text.as_bytes())?;
@@ -1120,6 +1125,19 @@ mod tests {
         // apagado fora: gravar sem force também pergunta
         std::fs::remove_file(d.path().join("x.dbmlx.layout.json")).unwrap();
         assert!(matches!(s.write_layout(tab.id, "tres", Some(first), false), Err(Error::Conflict)));
+    }
+
+    #[test]
+    fn layout_stamp_that_went_through_json_is_not_an_external_change() {
+        let (d, s) = store();
+        let tab = dbml_tab(&s, Some(&d.path().join("x.dbmlx")));
+        let stamp = s.write_layout(tab.id, "um", None, false).unwrap();
+        // a UI recebe o carimbo como JSON e o devolve: o hash de 64 bits vira um número de 53 bits
+        let mut v = serde_json::to_value(stamp).unwrap();
+        v["hash"] = serde_json::json!((stamp.hash as f64) as u64);
+        assert_ne!(v["hash"].as_u64(), Some(stamp.hash), "o teste só vale se a precisão se perde");
+        let back: DiskStamp = serde_json::from_value(v).unwrap();
+        s.write_layout(tab.id, "dois", Some(back), false).unwrap();
     }
 
     #[test]
