@@ -93,6 +93,7 @@ function edge(ref: DRef, byId: Map<string, DTable>, layout: Layout): SVGGElement
 
 function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGElement {
   const g = el("g", { class: "dbml-table", "data-t": t.id, transform: `translate(${x} ${y})` });
+  if (t.span) g.setAttribute("data-pick", String(t.span.from)); // clique: leva o código até aqui
   g.append(el("rect", { class: "dbml-box", width: w, height: h, rx: 6 }));
   const head = el("path", { class: "dbml-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` });
   const ink = t.color ? contrastOn(t.color) : null;
@@ -106,6 +107,7 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
     const cy = HEADER_H + i * ROW_H + ROW_H / 2 + 4;
     const row = el("rect", { class: "dbml-row", "data-k": colKey(t.id, c.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H });
     if (c.span) row.setAttribute("data-col", String(c.span.from)); // botão direito: menu da coluna
+    if (c.span) row.setAttribute("data-pick", String(c.span.from));
     g.append(row);
     const colName = el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name);
     if (c.span) colName.setAttribute("data-off", String(c.span.from));
@@ -117,13 +119,14 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
 
 function enumNode(e: DEnum, x: number, y: number, w: number, h: number): SVGGElement {
   const g = el("g", { class: "dbml-enum", "data-e": enumKey(e.id), transform: `translate(${x} ${y})` });
+  if (e.span) g.setAttribute("data-pick", String(e.span.from));
   g.append(el("rect", { class: "dbml-box", width: w, height: h, rx: 6 }));
   g.append(el("path", { class: "dbml-head dbml-enum-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` }));
   const enumTitle = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, `enum ${e.schema ? `${e.schema}.` : ""}${e.name}`);
   if (e.span) enumTitle.setAttribute("data-off", String(e.span.from));
   g.append(enumTitle);
   e.values.forEach((v, i) => {
-    g.append(el("rect", { class: "dbml-vrow", "data-v": colKey(enumKey(e.id), v.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H }));
+    g.append(el("rect", { class: "dbml-vrow", "data-v": colKey(enumKey(e.id), v.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H, ...(v.span ? { "data-pick": v.span.from } : {}) }));
     const valName = el("text", { class: "dbml-col", x: 10, y: HEADER_H + i * ROW_H + ROW_H / 2 + 4 }, v.name);
     if (v.span) valName.setAttribute("data-off", String(v.span.from));
     g.append(withNote(valName, v.note));
@@ -133,6 +136,7 @@ function enumNode(e: DEnum, x: number, y: number, w: number, h: number): SVGGEle
 
 function groupFrame(grp: DGroup, b: { x: number; y: number; w: number; h: number }): SVGGElement {
   const g = el("g", { class: "dbml-group", "data-grp": grp.name });
+  if (grp.span) g.setAttribute("data-pick", String(grp.span.from));
   const color = grp.color && contrastOn(grp.color) ? grp.color : null;
   const rect = el("rect", { x: b.x, y: b.y, width: b.w, height: b.h, rx: 10 });
   if (color) rect.setAttribute("style", `fill:${color}1f;stroke:${color}`);

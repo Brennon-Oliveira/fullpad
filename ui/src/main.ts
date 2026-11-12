@@ -1105,6 +1105,14 @@ function syncDiagram(textChanged = false) {
           g.diagram = m.createDiagramPanel(g.diagramEl, {
             // mouse sobre o diagrama → destaca a linha no código (sem selecionar)
             onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
+            // clicar ou arrastar um elemento → o código rola até a declaração e a linha fica em destaque
+            onPick: (offset, rev) => {
+              if (rev !== g.rev || offset > g.view.state.doc.length) return;
+              g.view.dispatch({
+                selection: { anchor: offset },
+                effects: [CMEditorView.scrollIntoView(offset, { y: "center" })],
+              });
+            },
             // tabela arrastada ou vista mexida → grava no layout da aba que está na tela
             onLayoutEdit: (edit) => g.diagramTab && void saveLayoutEdit(g.diagramTab, edit),
             onLayoutLive: (edit) => g.diagramTab && previewDragInJson(g.diagramTab, edit),

@@ -75,6 +75,11 @@ export interface PanelHooks {
    * recebe só deve usá-los se o texto ainda for essa versão (senão apontariam para o lugar errado).
    */
   onHover?(spans: Span[] | null, rev: number): void;
+  /**
+   * Apertou o botão sobre um elemento (clique ou começo de arrasto): `offset` é onde a declaração
+   * dele começa no texto da versão `rev`. Quem recebe leva o código até lá.
+   */
+  onPick?(offset: number, rev: number): void;
 }
 
 export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
@@ -160,15 +165,27 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   };
   svg.addEventListener("dblclick", (e) => {
     const target = e.target as Element;
-    const named = target.closest?.("[data-off]");
+    const named = target.closest?.("[data-off], [data-col]");
     if (named && hooks.onRename) {
       const r = named.getBoundingClientRect();
-      hooks.onRename(Number(named.getAttribute("data-off")), { x: r.left, y: r.bottom + 4, width: Math.max(220, r.width + 40) }, renderedRev);
+      const decl = Number(named.getAttribute("data-off") ?? named.getAttribute("data-col"));
+      hooks.onRename(decl, { x: r.left, y: r.bottom + 4, width: Math.max(220, r.width + 40) }, renderedRev);
       return;
     }
-    if (target.closest?.(".dbml-table, .dbml-group-move, .dbml-group-resize")) return; // duplo clique numa alça não enquadra
+    // só o fundo enquadra: duplo clique em tabela, enum, grupo ou seta nunca mexe no zoom
+    if (target.closest?.(".dbml-table, .dbml-enum, .dbml-group, .dbml-edge")) return;
     fitByUser();
   });
+  // clicar (ou começar a arrastar) um elemento leva o código até a declaração dele
+  svg.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (e.button !== 0) return;
+      const pick = (e.target as Element).closest?.("[data-pick]");
+      if (pick) hooks.onPick?.(Number(pick.getAttribute("data-pick")), renderedRev);
+    },
+    true,
+  );
 
   svg.addEventListener("contextmenu", (e) => {
     const target = e.target as Element;
