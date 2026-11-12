@@ -952,6 +952,13 @@ fn layout_parse(text: String) -> LayoutState {
     layout_state(Some(text), None)
 }
 
+/// Aplica uma edição a um texto de layout **sem tocar no disco** (o JSON do "Ver layout" acompanha o
+/// arrasto enquanto ele acontece). Texto que não se entende volta como erro.
+#[tauri::command]
+fn layout_apply(text: String, edit: dbmlx::Edit) -> Result<String, String> {
+    dbmlx::apply(&text, &edit)
+}
+
 /// Grava o texto do layout como está (o "Ver layout" é um editor de JSON). Sem `force`, recusa com
 /// `conflito:` se o arquivo mudou fora do Fullpad desde `known`.
 #[tauri::command]
@@ -1390,6 +1397,7 @@ fn main() {
             file_keep,
             layout_load,
             layout_parse,
+            layout_apply,
             layout_write,
             layout_edit,
             export_file,

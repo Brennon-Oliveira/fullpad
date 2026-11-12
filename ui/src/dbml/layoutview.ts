@@ -12,6 +12,16 @@ export const LIVE_MS = 250;
 /** O que se mostra no "Ver layout" de um arquivo que ainda não tem layout gravado. */
 export const EMPTY_LAYOUT = '{\n  "tables": {},\n  "version": 1\n}\n';
 
+/** O trecho que difere entre dois textos (prefixo e sufixo comuns ficam de fora): o que trocar em `old`. */
+export function changedRange(old: string, text: string): { from: number; to: number; insert: string } {
+  let from = 0;
+  const max = Math.min(old.length, text.length);
+  while (from < max && old[from] === text[from]) from++;
+  let tail = 0;
+  while (tail < max - from && old[old.length - 1 - tail] === text[text.length - 1 - tail]) tail++;
+  return { from, to: old.length - tail, insert: text.slice(from, text.length - tail) };
+}
+
 export interface LayoutViewHooks {
   /** O texto foi editado (já passou o tempo de espera, ou `flush`): quem recebe grava o arquivo. */
   onChange(tabId: string, text: string): void;
@@ -95,15 +105,27 @@ export function createLayoutView(host: HTMLElement, hooks: LayoutViewHooks) {
       title.title = "Layout do diagrama: posições das tabelas e enquadramento da vista (formato da extensão dbmlx)";
       view.setState(makeState(text)); // desfazer novo: o histórico é desta visão
     },
-    /** O arquivo mudou por outro caminho (o diagrama gravou posições): traz o texto novo, se não há nada pendente. */
+    /**
+     * O arquivo mudou por outro caminho (o diagrama gravou ou está arrastando): traz o texto novo, se
+     * não há nada digitado pendente. Troca só o trecho que mudou e mantém a rolagem e o cursor onde
+     * estão (trocar o documento inteiro joga a vista de volta ao início).
+     */
     setText(id: string, text: string) {
-      if (tabId !== id || dirty || view.state.doc.toString() === text) return;
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text }, annotations: Transaction.addToHistory.of(false) });
+      const old = view.state.doc.toString();
+      if (tabId !== id || dirty || old === text) return;
+      const { from, to, insert } = changedRange(old, text);
+      view.dispatch({
+        changes: { from, to, insert },
+        effects: view.scrollSnapshot(),
+        annotations: Transaction.addToHistory.of(false),
+      });
       dirty = false; // a troca não é edição da pessoa
       window.clearTimeout(timer);
       window.clearTimeout(liveTimer);
       state.textContent = "";
     },
+    /** O texto da tela (para aplicar uma edição do diagrama por cima, sem gravar). */
+    text: () => view.state.doc.toString(),
     /** Há texto digitado que ainda não foi gravado. */
     get dirty() {
       return dirty;

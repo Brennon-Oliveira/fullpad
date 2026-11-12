@@ -324,6 +324,8 @@ export const api = {
   layoutLoad: (id: string) => invoke<LayoutState>("layout_load", { id }),
   /** Entende um texto de layout sem tocar no disco. */
   layoutParse: (text: string) => invoke<LayoutState>("layout_parse", { text }),
+  /** Aplica uma edição a um texto de layout sem gravar (o JSON acompanha o arrasto). */
+  layoutApply: (text: string, edit: LayoutEdit) => invoke<string>("layout_apply", { text, edit }),
   /** Grava o texto do layout como está; sem `force`, recusa com `conflito:` se mudou fora. */
   layoutWrite: (id: string, text: string, known: DiskStamp | null, force: boolean) =>
     invoke<DiskStamp>("layout_write", { id, text, known, force }),

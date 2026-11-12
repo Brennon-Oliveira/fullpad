@@ -58,6 +58,8 @@ export interface LayoutEdit {
 export interface PanelHooks {
   /** Tabelas arrastadas e/ou vista mexida: quem recebe grava no layout. */
   onLayoutEdit?(edit: LayoutEdit): void;
+  /** Durante o arrasto (a cada quadro): o que mudou até agora, sem gravar. */
+  onLayoutLive?(edit: LayoutEdit): void;
   /**
    * Mouse sobre um elemento do diagrama. `rev` diz de qual versão do texto vêm os trechos; quem
    * recebe só deve usá-los se o texto ainda for essa versão (senão apontariam para o lugar errado).
@@ -158,11 +160,13 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   };
   // ---- arrastar: tabela, grupo (move as tabelas dele) e moldura do grupo (aumenta) ----
   let snap: { boxes: Map<string, Box>; members: string[]; frame: Box } | null = null;
+  let liveEdit: LayoutEdit | null = null;
   const redraw = () => {
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
       draw();
+      if (liveEdit) hooks.onLayoutLive?.(liveEdit);
     });
   };
   const place = (id: string, x: number, y: number) => {
@@ -195,18 +199,22 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
         const b = snap.boxes.get(id)!;
         place(id, b.x + dx, b.y + dy);
         frameGroups(diagram, layout.boxes, groupRects);
+        liveEdit = { tables: { [id]: positions[id] } };
       } else if (kind === "group") {
         for (const [m, b] of snap.boxes) place(m, b.x + dx, b.y + dy);
         groupRects = { ...groupRects, [id]: groupRect({ ...snap.frame, x: snap.frame.x + dx, y: snap.frame.y + dy }) };
         frameGroups(diagram, layout.boxes, groupRects);
+        liveEdit = { tables: Object.fromEntries(snap.members.map((m) => [m, positions[m]])), groups: { [id]: groupRects[id] } };
       } else {
         const f = snap.frame;
         groupRects = { ...groupRects, [id]: groupRect({ x: f.x, y: f.y, w: Math.max(40, f.w + dx), h: Math.max(40, f.h + dy) }) };
         frameGroups(diagram, layout.boxes, groupRects);
+        liveEdit = { groups: { [id]: groupRects[id] } };
       }
       redraw();
     },
     end(kind, id) {
+      liveEdit = null;
       if (!snap) return;
       if (kind === "table") {
         pendingMoves[id] = positions[id];

@@ -845,6 +845,32 @@ async function previewLayoutText(id: string, text: string) {
   refreshLayoutUi(id, false);
 }
 
+/** Enquanto se arrasta no diagrama, o JSON do "Ver layout" acompanha (só na tela, sem gravar; um pedido por vez). */
+let dragPreviewBusy = false;
+let dragPreviewNext: { id: string; edit: LayoutEdit } | null = null;
+function previewDragInJson(id: string, edit: LayoutEdit) {
+  const view = groupShowing(id)?.layoutView;
+  if (!view || view.tab !== id) return;
+  if (dragPreviewBusy) {
+    dragPreviewNext = { id, edit }; // vale só o mais novo
+    return;
+  }
+  dragPreviewBusy = true;
+  const run = async (job: { id: string; edit: LayoutEdit }) => {
+    try {
+      const v = groupShowing(job.id)?.layoutView;
+      if (v && !v.dirty) v.setText(job.id, await api.layoutApply(v.text(), job.edit));
+    } catch {
+      // texto do JSON inválido no meio da edição: sem prévia (o arrasto grava normalmente ao soltar)
+    }
+    const next = dragPreviewNext;
+    dragPreviewNext = null;
+    if (next) await run(next);
+    else dragPreviewBusy = false;
+  };
+  void run({ id, edit });
+}
+
 function hideLayoutPane(g: Group) {
   if (g.layoutTab !== null) g.layoutView?.hide();
   g.layoutTab = null;
@@ -960,6 +986,7 @@ function syncDiagram(textChanged = false) {
             onHover: (spans, rev) => g.view.dispatch({ effects: hintLines(spans && rev === g.rev ? spans : null) }),
             // tabela arrastada ou vista mexida → grava no layout da aba que está na tela
             onLayoutEdit: (edit) => g.diagramTab && void saveLayoutEdit(g.diagramTab, edit),
+            onLayoutLive: (edit) => g.diagramTab && previewDragInJson(g.diagramTab, edit),
           });
           g.diagramKind = "dbml";
         });
