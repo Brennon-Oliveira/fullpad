@@ -2,7 +2,7 @@ const MIN_K = 0.1;
 const MAX_K = 3;
 
 /** Pan (arrastar) e zoom (roda) sobre um `<g>`. Mantém a transformação entre re-renderizações. */
-export function attachViewport(svg: SVGSVGElement, g: SVGGElement) {
+export function attachViewport(svg: SVGSVGElement, g: SVGGElement, onChange?: () => void) {
   let k = 1;
   let tx = 0;
   let ty = 0;
@@ -20,6 +20,7 @@ export function attachViewport(svg: SVGSVGElement, g: SVGGElement) {
       ty = py - ((py - ty) * nk) / k;
       k = nk;
       apply();
+      onChange?.();
     },
     { passive: false },
   );
@@ -38,6 +39,7 @@ export function attachViewport(svg: SVGSVGElement, g: SVGGElement) {
     apply();
   });
   const end = () => {
+    if (drag) onChange?.();
     drag = null;
     svg.classList.remove("panning");
   };
@@ -59,13 +61,27 @@ export function attachViewport(svg: SVGSVGElement, g: SVGGElement) {
       ty = fit(box.y, box.h, ty, r.height);
       apply();
     },
-    /** Ajusta o conteúdo (largura x altura do layout) à área visível. */
-    fit(width: number, height: number) {
+    /** O enquadramento de agora: deslocamento (px) e zoom, como o layout salvo guarda. */
+    get(): { x: number; y: number; zoom: number } {
+      return { x: Math.round(tx), y: Math.round(ty), zoom: k };
+    },
+    /** Põe um enquadramento salvo (limita o zoom e ignora valores que não são números). */
+    set(v: { x: number; y: number; zoom: number }) {
+      if (![v.x, v.y, v.zoom].every(Number.isFinite)) return;
+      k = Math.min(MAX_K, Math.max(MIN_K, v.zoom));
+      tx = v.x;
+      ty = v.y;
+      apply();
+    },
+    /** Escala de agora (pixels da tela por unidade do diagrama). */
+    scale: () => k,
+    /** Ajusta o conteúdo (largura x altura do layout, a partir de x0, y0) à área visível. */
+    fit(width: number, height: number, x0 = 0, y0 = 0) {
       const r = svg.getBoundingClientRect();
       if (r.width === 0 || r.height === 0 || width === 0 || height === 0) return;
       k = Math.min(1, Math.min(r.width / width, r.height / height));
-      tx = (r.width - width * k) / 2;
-      ty = Math.max(8, (r.height - height * k) / 2);
+      tx = (r.width - width * k) / 2 - x0 * k;
+      ty = Math.max(8, (r.height - height * k) / 2) - y0 * k;
       apply();
     },
   };

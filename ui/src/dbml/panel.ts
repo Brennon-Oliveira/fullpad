@@ -1,16 +1,18 @@
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { buildSvg, svgToPng } from "./export";
-import { type DagreLike, type Layout, layoutDiagram } from "./layout";
-import { type Interpreter, type Span, parseDbml } from "./model";
+import { type DagreLike, type Layout, type SavedPositions, fitExtent, frameGroups, layoutDiagram } from "./layout";
+import { type Diagram, type Interpreter, type Span, parseDbml } from "./model";
 import { loadDbmlService } from "./service";
 import { type Rendered, renderDiagram } from "./render";
+import { attachTableDrag } from "./tabledrag";
 import { attachViewport } from "./viewport";
 
 /** Acima disso o diagrama desliga para não pesar. */
 export const MAX_DIAGRAM_CHARS = 500_000;
 
 const DEBOUNCE_MS = 300;
+const SAVE_MS = 500; // depois de soltar a tabela ou parar de mexer na vista, grava o layout
 const NS = "http://www.w3.org/2000/svg";
 
 interface Libs {
@@ -37,7 +39,22 @@ function div(cls: string, text = ""): HTMLDivElement {
   return d;
 }
 
+/** O layout guardado da aba (do `.dbmlx` ou da nota avulsa); `null` = a aba não guarda layout. */
+export interface PanelLayout {
+  tables: SavedPositions;
+  viewport: { x: number; y: number; zoom: number } | null;
+  /** Layout que não se entende: o diagrama usa o posicionamento automático e avisa. */
+  error: string | null;
+}
+
+export interface LayoutEdit {
+  viewport?: { x: number; y: number; zoom: number };
+  tables?: SavedPositions;
+}
+
 export interface PanelHooks {
+  /** Tabelas arrastadas e/ou vista mexida: quem recebe grava no layout. */
+  onLayoutEdit?(edit: LayoutEdit): void;
   /**
    * Mouse sobre um elemento do diagrama. `rev` diz de qual versão do texto vêm os trechos; quem
    * recebe só deve usá-los se o texto ainda for essa versão (senão apontariam para o lugar errado).
@@ -50,10 +67,12 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   svg.setAttribute("class", "dbml-svg");
   const g = document.createElementNS(NS, "g");
   svg.append(g);
-  const viewport = attachViewport(svg, g);
+  const viewport = attachViewport(svg, g, () => scheduleView());
   const message = div("dbml-msg"); // vazio / carregando
   const error = div("dbml-error");
   error.hidden = true;
+  const warn = div("dbml-error dbml-warn"); // aviso do layout (não é erro do DBML)
+  warn.hidden = true;
   const tools = div("dbml-tools");
   const tool = (label: string, title: string, run: () => void) => {
     const b = document.createElement("button");
@@ -62,7 +81,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     b.addEventListener("click", run);
     tools.append(b);
   };
-  host.replaceChildren(svg, message, error, tools);
+  host.replaceChildren(svg, message, error, warn, tools);
 
   let layout: Layout | null = null;
   let lastText: string | null = null;
@@ -72,11 +91,87 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   let rendered: Rendered | null = null;
   let cursor: { offset: number | null; rev: number } = { offset: null, rev: -1 };
   let seq = 0;
+  let relayout = false; // o layout mudou e a próxima `show` precisa redesenhar
   let fitNext = true;
   let timer: number | undefined;
 
-  const fit = () => layout && viewport.fit(layout.width, layout.height);
-  svg.addEventListener("dblclick", fit);
+  // ---- layout guardado ----
+  let positions: SavedPositions = {};
+  let savedView: { x: number; y: number; zoom: number } | null = null;
+  let layoutOn = false; // a aba guarda layout (senão não se arrasta: nada seria lembrado)
+  let layoutError: string | null = null;
+  let layoutKey = "";
+  let diagram: Diagram | null = null;
+  let pendingMoves: SavedPositions = {};
+  let pendingView = false;
+  let saveTimer: number | undefined;
+  let frame = 0;
+
+  const flush = () => {
+    window.clearTimeout(saveTimer);
+    if (!layoutOn || layoutError) {
+      pendingMoves = {};
+      pendingView = false;
+      return;
+    }
+    const edit: LayoutEdit = {};
+    if (Object.keys(pendingMoves).length) edit.tables = pendingMoves;
+    if (pendingView) edit.viewport = viewport.get();
+    pendingMoves = {};
+    pendingView = false;
+    if (edit.tables || edit.viewport) hooks.onLayoutEdit?.(edit);
+  };
+  const scheduleSave = () => {
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(flush, SAVE_MS);
+  };
+  function scheduleView() {
+    if (!layoutOn || layoutError) return;
+    pendingView = true;
+    scheduleSave();
+  }
+
+  const fit = () => {
+    if (layout) viewport.fit(layout.width, layout.height, layout.x0, layout.y0);
+  };
+  const fitByUser = () => {
+    fit();
+    scheduleView();
+  };
+  svg.addEventListener("dblclick", (e) => {
+    if ((e.target as Element).closest?.(".dbml-table")) return; // duplo clique na tabela não enquadra
+    fitByUser();
+  });
+
+  const draw = () => {
+    if (!diagram || !layout) return;
+    rendered = renderDiagram(diagram, layout, g, { onHover: (spans) => hooks.onHover?.(spans, renderedRev) });
+    applyFocus(false);
+  };
+  attachTableDrag(svg, g, {
+    scale: () => viewport.scale(),
+    enabled: () => layoutOn && !layoutError && !!layout,
+    box: (id) => layout?.boxes.get(id) ?? null,
+    move(id, x, y) {
+      const b = layout?.boxes.get(id);
+      if (!layout || !diagram || !b) return;
+      layout.boxes.set(id, { ...b, x, y });
+      frameGroups(diagram, layout.boxes);
+      positions = { ...positions, [id]: { x, y } };
+      if (!frame) {
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          draw();
+        });
+      }
+    },
+    end(id, x, y) {
+      positions = { ...positions, [id]: { x, y } };
+      pendingMoves[id] = { x, y };
+      if (layout) fitExtent(layout);
+      scheduleSave();
+    },
+  });
 
   async function exportAs(kind: "svg" | "png") {
     if (!layout) return;
@@ -127,20 +222,22 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     const d = res.diagram;
     if (d.tables.length === 0) {
       layout = null;
+      diagram = null;
       rendered = null;
       g.replaceChildren();
       message.textContent = "Nenhuma tabela. Escreva, por exemplo: Table usuarios { id int [pk] }";
       return;
     }
     message.textContent = "";
-    layout = layoutDiagram(d, libs.dagre);
-    rendered = renderDiagram(d, layout, g, { onHover: (spans) => hooks.onHover?.(spans, renderedRev) });
+    diagram = d;
+    layout = layoutDiagram(d, libs.dagre, layoutError ? {} : positions);
     renderedText = text;
     if (lastText === text) renderedRev = latestRev;
-    applyFocus(false);
+    draw();
     if (fitNext) {
       fitNext = false;
-      fit();
+      if (savedView && !layoutError) viewport.set(savedView);
+      else fit();
     }
   }
 
@@ -150,14 +247,40 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
       host.classList.add("on");
       latestRev = rev;
       if (resetView) fitNext = true;
-      if (text === lastText && !resetView) {
+      if (text === lastText && !resetView && !relayout) {
         if (renderedText === text) renderedRev = rev;
         return;
       }
+      relayout = false;
       lastText = text;
       window.clearTimeout(timer);
       void render(text);
     },
+    /**
+     * O layout guardado da aba que vai aparecer (chamar antes de `show`; `null` se a aba não guarda
+     * layout). Se for outro que o de agora e o texto continua o mesmo, redesenha já.
+     */
+    setLayout(l: PanelLayout | null) {
+      flush();
+      const key = JSON.stringify(l && [l.tables, l.error]);
+      layoutOn = l !== null;
+      layoutError = l?.error ?? null;
+      positions = l?.tables ?? {};
+      savedView = l?.viewport ?? null;
+      svg.classList.toggle("can-drag", layoutOn && !layoutError);
+      warn.hidden = !layoutError;
+      warn.textContent = layoutError ? `Layout inválido, usando o posicionamento automático (${layoutError}). Corrija em "Ver layout".` : "";
+      if (key === layoutKey) return;
+      layoutKey = key;
+      relayout = true;
+      if (lastText !== null && host.classList.contains("on")) {
+        window.clearTimeout(timer);
+        relayout = false;
+        void render(lastText);
+      }
+    },
+    /** Grava já o que está pendente (arrasto e vista): antes de trocar de aba ou fechar o painel. */
+    flush,
     /** Texto mudou: renderiza com debounce. */
     update(text: string, rev = 0) {
       latestRev = rev;
@@ -175,6 +298,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
       applyFocus(true);
     },
     hide() {
+      flush();
       window.clearTimeout(timer);
       renderedText = null;
       renderedRev = -1;

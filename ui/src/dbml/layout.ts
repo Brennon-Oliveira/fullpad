@@ -21,8 +21,55 @@ export const groupKey = (name: string) => `group:${name}`;
 export interface Layout {
   /** Tabelas (por id), enums (`enum:<id>`) e grupos (`group:<nome>`, a moldura que os envolve). */
   boxes: Map<string, Box>;
+  /** Tamanho da área do desenho, a partir de (`x0`, `y0`) (0, 0 se ninguém foi posto fora do dagre). */
   width: number;
   height: number;
+  x0?: number;
+  y0?: number;
+}
+
+/** Posição salva de uma tabela (canto de cima à esquerda), por id de tabela. */
+export type SavedPositions = Record<string, { x: number; y: number }>;
+
+const MARGIN = 24;
+
+/** Recalcula as molduras dos grupos pelas caixas das tabelas (uma tabela em vários grupos fica só no primeiro). */
+export function frameGroups(d: Diagram, boxes: Map<string, Box>): void {
+  const grouped = new Set<string>();
+  for (const grp of d.groups) {
+    const members = grp.tables.filter((id) => !grouped.has(id) && boxes.has(id));
+    for (const id of grp.tables) grouped.add(id);
+    if (members.length === 0) continue;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const id of members) {
+      const b = boxes.get(id)!;
+      x0 = Math.min(x0, b.x);
+      y0 = Math.min(y0, b.y);
+      x1 = Math.max(x1, b.x + b.w);
+      y1 = Math.max(y1, b.y + b.h);
+    }
+    boxes.set(groupKey(grp.name), {
+      x: x0 - GROUP_PAD,
+      y: y0 - GROUP_PAD - GROUP_LABEL_H,
+      w: x1 - x0 + GROUP_PAD * 2,
+      h: y1 - y0 + GROUP_PAD * 2 + GROUP_LABEL_H,
+    });
+  }
+}
+
+/** Ajusta `width`/`height`/`x0`/`y0` para caber todas as caixas (depois de mover tabelas). */
+export function fitExtent(layout: Layout): void {
+  let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+  for (const b of layout.boxes.values()) {
+    x0 = Math.min(x0, b.x - MARGIN);
+    y0 = Math.min(y0, b.y - MARGIN);
+    x1 = Math.max(x1, b.x + b.w + MARGIN);
+    y1 = Math.max(y1, b.y + b.h + MARGIN);
+  }
+  layout.x0 = x0;
+  layout.y0 = y0;
+  layout.width = x1 - x0;
+  layout.height = y1 - y0;
 }
 
 /** Subconjunto do @dagrejs/dagre que usamos (injetado: o módulo só carrega sob demanda). */
@@ -52,7 +99,7 @@ export function enumSize(e: Diagram["enums"][number]): { w: number; h: number } 
   return { w: Math.max(MIN_W - 40, Math.ceil(chars * CHAR_W) + PAD_X), h: HEADER_H + Math.max(1, e.values.length) * ROW_H };
 }
 
-export function layoutDiagram(d: Diagram, dagre: DagreLike): Layout {
+export function layoutDiagram(d: Diagram, dagre: DagreLike, saved: SavedPositions = {}): Layout {
   const g = new dagre.graphlib.Graph({ compound: true });
   g.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 110, marginx: 24, marginy: 24 });
   g.setDefaultEdgeLabel(() => ({}));
@@ -111,5 +158,19 @@ export function layoutDiagram(d: Diagram, dagre: DagreLike): Layout {
     });
   }
   const gr = g.graph();
-  return { boxes, width: gr.width ?? 0, height: gr.height ?? 0 };
+  const layout: Layout = { boxes, width: gr.width ?? 0, height: gr.height ?? 0 };
+  // posições salvas valem sobre o dagre: só as tabelas que têm posição (as outras ficam onde o dagre pôs)
+  let moved = false;
+  for (const t of d.tables) {
+    const p = Object.hasOwn(saved, t.id) ? saved[t.id] : undefined;
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    const b = boxes.get(t.id)!;
+    boxes.set(t.id, { ...b, x: Math.round(p.x), y: Math.round(p.y) });
+    moved = true;
+  }
+  if (moved) {
+    frameGroups(d, boxes);
+    fitExtent(layout);
+  }
+  return layout;
 }
