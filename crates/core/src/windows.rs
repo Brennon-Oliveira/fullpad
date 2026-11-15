@@ -110,6 +110,14 @@ impl Session {
             .unwrap()
     }
 
+    /// Rótulo livre para um post-it novo (`postit-N`: não recebem abas de outras janelas).
+    pub fn fresh_postit_label(&self) -> String {
+        (1..)
+            .map(|n| format!("postit-{n}"))
+            .find(|l| !self.tabs.iter().any(|t| &t.window == l) && !self.windows.iter().any(|w| &w.label == l))
+            .unwrap()
+    }
+
     /// Grava o estado que a janela `label` enviou: as abas dela (na ordem dela) e a ativa.
     ///
     /// Só atualiza e reordena; **nunca remove** abas que a janela não mencionou, porque uma aba pode
@@ -351,6 +359,14 @@ mod tests {
         assert!(s.is_postit("win-2") && !s.is_postit("main"));
         let back: Session = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert!(back.is_postit("win-2"));
+    }
+
+    #[test]
+    fn postit_labels_are_distinct_and_reused_after_closing() {
+        let mut s = session(vec![tab("postit-1"), tab("postit-3")]);
+        assert_eq!(s.fresh_postit_label(), "postit-2");
+        s.tabs.push(tab("postit-2"));
+        assert_eq!(s.fresh_postit_label(), "postit-4");
     }
 
     fn rect(x: i32, y: i32, w: u32, h: u32) -> Geometry {

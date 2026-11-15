@@ -9,6 +9,8 @@ import { ZOOM_PRESETS } from "./zoom";
 export interface MenuActions {
   newNote(): void;
   newWindow(): void;
+  /** Nota rápida: janela pequena, sempre no topo (o atalho global abre a mesma). */
+  newPostit(): void;
   tabToNewWindow(): void;
   openFile(): void;
   save(): void;
@@ -376,6 +378,7 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
       items: () => [
         { label: "Novo", shortcut: "Ctrl+N", action: a.newNote },
         { label: "Nova janela", shortcut: "Ctrl+Shift+N", action: a.newWindow },
+        { label: "Nova nota rápida (post-it)", shortcut: "Ctrl+Alt+N", action: a.newPostit },
         { label: "Mover aba para uma nova janela", action: a.tabToNewWindow },
         { label: "Abrir…", shortcut: "Ctrl+O", action: a.openFile },
         "sep",

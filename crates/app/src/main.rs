@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use fullpad_core::dbmlx;
+use fullpad_core::windows::place_postit;
 use fullpad_core::changelog;
 use fullpad_core::json::{self, Doc, Indent, JsonError};
 use fullpad_core::reader::{FileStatus, PdfScan};
@@ -200,8 +201,11 @@ fn parse_id(id: &str) -> Result<Uuid, String> {
 
 /// Janela de aplicação (as de preview, `preview-*`, não recebem abas).
 fn is_tab_window(label: &str) -> bool {
-    !label.starts_with("preview-") && label != GHOST
+    !label.starts_with("preview-") && !label.starts_with(POSTIT_PREFIX) && label != GHOST
 }
+
+/// Os post-its (captura rápida) têm rótulo `postit-N`: não aparecem em "mover para…" nem aceitam abas.
+const POSTIT_PREFIX: &str = "postit-";
 
 /// Janela minúscula e transparente que acompanha o ponteiro enquanto uma aba é arrastada.
 const GHOST: &str = "ghost";
@@ -448,6 +452,55 @@ fn set_on_top(state: State<AppState>, window: WebviewWindow, on_top: bool) -> Re
     state.store.save_session(&session).map_err(err)
 }
 
+/// Área útil (sem a barra de tarefas), em pixels físicos, do monitor onde está o mouse; na falta
+/// dele, o principal.
+fn work_area_at_cursor(app: &AppHandle) -> (Geometry, f64) {
+    let monitor = app
+        .cursor_position()
+        .ok()
+        .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
+        .or_else(|| app.primary_monitor().ok().flatten());
+    match monitor {
+        Some(m) => {
+            let a = m.work_area();
+            (Geometry { x: a.position.x, y: a.position.y, w: a.size.width, h: a.size.height }, m.scale_factor())
+        }
+        None => (Geometry { x: 0, y: 0, w: 1920, h: 1040 }, 1.0),
+    }
+}
+
+/// Abre um post-it: nota nova numa janela pequena, sempre no topo, que nasce ao lado dos post-its
+/// já abertos (ou embaixo, se faltar tela), sem cobri-los. Usada pelo menu e pelo atalho global.
+fn open_postit(app: &AppHandle, state: &AppState) -> Result<String, String> {
+    let tab = state.store.create_note().map_err(err)?;
+    let label = {
+        let _g = state.session_lock.lock().unwrap();
+        let mut session = state.store.load_session().map_err(err)?;
+        let label = session.fresh_postit_label();
+        session.move_tab(tab, &label);
+        session.set_postit(&label, true);
+        session.set_on_top(&label, true);
+        state.store.save_session(&session).map_err(err)?;
+        label
+    };
+    let (area, scale) = work_area_at_cursor(app);
+    let (w, h) = ((POSTIT_SIZE.0 * scale) as u32, (POSTIT_SIZE.1 * scale) as u32);
+    let others: Vec<Geometry> = app
+        .webview_windows()
+        .into_iter()
+        .filter(|(l, win)| l.starts_with(POSTIT_PREFIX) && *l != label && win.is_visible().unwrap_or(false))
+        .filter_map(|(_, win)| geometry_of(&win))
+        .collect();
+    let (x, y) = place_postit(&others, area, w, h);
+    build_window(app, &label, Some(Geometry { x, y, w, h }), None)?;
+    Ok(label)
+}
+
+#[tauri::command]
+fn new_postit(app: AppHandle, state: State<AppState>) -> Result<String, String> {
+    open_postit(&app, &state)
+}
+
 /// Nota nova numa janela nova.
 #[tauri::command]
 async fn new_window(app: AppHandle, state: State<'_, AppState>, window: WebviewWindow) -> Result<String, String> {
@@ -629,6 +682,9 @@ fn drag_accept(state: State<AppState>, accept: bool) {
 #[tauri::command]
 fn window_ready(window: WebviewWindow) {
     let _ = window.show();
+    if window.label().starts_with(POSTIT_PREFIX) {
+        let _ = window.set_focus(); // a nota nasce pronta para digitar
+    }
 }
 
 // ---- visão renderizada em janela própria --------------------------------------
@@ -1458,6 +1514,7 @@ fn main() {
             move_tab,
             new_window,
             set_on_top,
+            new_postit,
             prewarm,
             drag_start,
             drag_move,

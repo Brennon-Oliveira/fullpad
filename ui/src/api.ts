@@ -217,6 +217,8 @@ export const api = {
   /** Cria em segundo plano a janela reserva: arrastar uma aba para fora fica instantâneo. */
   /** "Manter no topo" da janela que chama (gravado na sessão). */
   setOnTop: (onTop: boolean) => invoke<void>("set_on_top", { onTop }),
+  /** Nota rápida (post-it) em janela própria, ao lado das que já estão abertas. */
+  newPostit: () => invoke<string>("new_postit"),
   prewarm: () => invoke<void>("prewarm"),
   /** Começou a arrastar uma aba para fora da barra: mostra a sombra no ponteiro (tela, px físicos). */
   dragStart: (title: string, x: number, y: number, gx: number, gy: number, selfDrag: boolean) =>

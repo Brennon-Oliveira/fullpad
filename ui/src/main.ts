@@ -52,6 +52,7 @@ import { currentZoom, loadZoom, onZoomChange, setZoom, stepZoom, wheelZoom } fro
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
 import { type DockGroup, type DockTile, type Rect, SIDES, dockTiles, tileAt } from "./dock";
 import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, normalize, pathTo, removeLeaf, resizeSizes, splitLeaf, splitPath, swapAdjacent, wrapCandidates } from "./grid";
+import { mountPostitBar } from "./postit";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -60,6 +61,7 @@ const DETECT_MS = 600;
 const thisWindow = getCurrentWindow();
 const winLabel = thisWindow.label;
 const isMain = winLabel === "main";
+const isPostit = winLabel.startsWith("postit-"); // nota rápida: só a nota e a barra amarela
 let booted = false;
 let shown = false; // a janela já apareceu (a reserva só aparece quando recebe a 1ª aba)
 const pendingIn: TabState[] = []; // abas que chegaram antes de a janela terminar de iniciar
@@ -3184,6 +3186,7 @@ let menubar: ReturnType<typeof mountMenuBar> | null = null;
 const menuActions = {
   newNote: () => void newTab(),
   newWindow: () => void api.newWindow(),
+  newPostit: () => void api.newPostit(),
   tabToNewWindow: () => void sendTab(session.active!, "new"),
   openFile: () => void openFiles(),
   readerLoad: () => cur.reader?.load(),
@@ -3394,10 +3397,18 @@ document.addEventListener("visibilitychange", () => {
 
 async function boot() {
   document.body.classList.toggle("floating", !isMain); // janelas flutuantes: sem menu superior
+  document.body.classList.toggle("postit", isPostit);
   await incomingReady; // ouvindo antes de ler a sessão: nenhuma aba que chegue se perde
   const startup = await api.loadStartup();
   session = startup.session;
   onTop = startup.on_top;
+  if (isPostit) {
+    mountPostitBar(document.body, { pinned: onTop, onPin: setOnTop, onClose: () => void thisWindow.close() });
+    // Esc fecha o post-it (a menos que o editor o tenha usado: fechar a busca, por exemplo)
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !e.defaultPrevented && !e.ctrlKey && !e.altKey && !e.shiftKey) void thisWindow.close();
+    });
+  }
   const idle = session.tabs.length === 0; // janela reserva: espera uma aba
 
   // a grade: um painel por grupo das abas; a gravada vale se ainda bater com elas
@@ -3449,6 +3460,15 @@ async function boot() {
     if (exiting) return void (await flush()); // o app encerra sozinho
     // janela flutuante fechada: as abas voltam para a principal (nada se perde)
     await flush();
+    if (isPostit) {
+      // post-it sem nada escrito não vira aba na principal: vai para o histórico de fechadas
+      for (const t of [...session.tabs]) {
+        if ((states.get(t.id)?.doc.length ?? 1) === 0) {
+          await api.closeNote(t.id);
+          session.tabs = session.tabs.filter((x) => x.id !== t.id);
+        }
+      }
+    }
     for (const t of [...session.tabs]) await sendTab(t.id, "main");
     await win.destroy();
   });

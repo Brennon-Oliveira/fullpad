@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissões das janelas de abas",
-  "windows": ["main", "win-*", "spare-*", "preview-*", "ghost"],
+  "windows": ["main", "win-*", "postit-*", "spare-*", "preview-*", "ghost"],
   "permissions": [
     "core:default",
     "core:window:allow-show",
@@ -10,6 +10,7 @@
     "core:window:allow-destroy",
     "core:window:allow-close",
     "core:window:allow-set-focus",
+    "core:window:allow-start-dragging",
     "core:webview:allow-set-webview-zoom",
     "dialog:allow-open",
     "dialog:allow-save",
