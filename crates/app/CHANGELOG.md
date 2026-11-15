@@ -2,6 +2,12 @@
 
 Uma seção por versão, da mais nova para a mais antiga. A skill `gerar-versao` acrescenta a versão nova no topo; o app embute este arquivo (Ajuda > "Histórico de versões…"). As versões até a 2.0.0 foram reconstruídas das mensagens das tags.
 
+## 3.1.2 · 2026-11-15
+
+### Novidades
+
+- **"Somente diagrama"** no menu de visão dos arquivos DBML e Mermaid (Visualizar e botão "Visão" da barra de status): o editor some e o diagrama ocupa o painel inteiro. O código continua lá, escondido, com o texto e o histórico de desfazer.
+
 ## 3.1.1 · 2026-11-15
 
 ### Novidades

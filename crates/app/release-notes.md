@@ -1,4 +1,3 @@
 ## Novidades
 
-- **Notas no diagrama DBML**: tabela ou coluna com nota ganha um ícone de documento. Passe o mouse para ler a nota (com as quebras de linha) e clique no ícone para editá-la numa caixa de várias linhas; Ctrl+Enter salva e deixar vazio tira a nota. O botão direito no nome da tabela também tem "Nota…".
-- **Caixa "Editar" na barra de status** (ao lado da visão, em DBML e DBMLX): desmarcada, o diagrama fica só para ver, sem arrastar tabelas e grupos, renomear, editar colunas ou notas. O código continua editável. Vem marcada por padrão e a escolha é lembrada.
+- **"Somente diagrama"** no menu de visão dos arquivos DBML e Mermaid (Visualizar e botão "Visão" da barra de status): o editor some e o diagrama ocupa o painel inteiro. O código continua lá, escondido, com o texto e o histórico de desfazer.
