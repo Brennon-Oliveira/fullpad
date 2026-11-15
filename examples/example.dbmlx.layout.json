@@ -1,16 +1,30 @@
 {
+  "groups": {
+    "pessoas": {
+      "height": 810,
+      "width": 363,
+      "x": -100,
+      "y": 24
+    },
+    "sala_de_aula": {
+      "height": 1404,
+      "width": 278,
+      "x": 746,
+      "y": -51
+    }
+  },
   "tables": {
     "catalogo.cursos": {
-      "x": 380,
-      "y": 300
+      "x": 351,
+      "y": 181
     },
     "catalogo.idiomas": {
       "x": 380,
       "y": 0
     },
     "catalogo.materiais": {
-      "x": 380,
-      "y": 900
+      "x": 347,
+      "y": 902
     },
     "catalogo.modulos": {
       "x": 380,
@@ -21,8 +35,8 @@
       "y": 1200
     },
     "ensino.aulas": {
-      "x": 760,
-      "y": 900
+      "x": 758,
+      "y": 896
     },
     "ensino.avaliacoes": {
       "x": 760,
@@ -33,20 +47,20 @@
       "y": 1800
     },
     "ensino.horarios_turma": {
-      "x": 760,
-      "y": 300
+      "x": 758,
+      "y": 296
     },
     "ensino.matriculas": {
       "x": 760,
       "y": 600
     },
     "ensino.presencas": {
-      "x": 760,
-      "y": 1200
+      "x": 758,
+      "y": 1196
     },
     "ensino.turmas": {
-      "x": 760,
-      "y": 0
+      "x": 735,
+      "y": 95
     },
     "financeiro.cupons": {
       "x": 1140,
@@ -61,22 +75,21 @@
       "y": 600
     },
     "pessoas.alunos": {
-      "x": 0,
-      "y": 300
+      "x": -63,
+      "y": 364
     },
     "pessoas.professores": {
-      "x": 0,
-      "y": 600
+      "x": -66,
+      "y": 565
     },
     "pessoas.usuarios": {
-      "x": 0,
-      "y": 0
+      "x": -88,
+      "y": 50
     }
   },
   "version": 1,
   "viewport": {
-    "x": 40,
-    "y": 30,
-    "zoom": 0.4
+    "x": -206,
+    "zoom": 1.134
   }
 }
