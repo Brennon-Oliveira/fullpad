@@ -4,6 +4,9 @@ import { type DEnum, type DGroup, type DRef, type DTable, type Diagram, type End
 /** Altura da faixa do título do grupo que serve de alça para movê-lo. */
 const GROUP_HANDLE_H = 26;
 
+/** Largura aproximada de um caractere do tipo (monoespaçado 12px): onde termina o texto à direita da linha. */
+const TYPE_CHAR_W = 7.2;
+
 const NS = "http://www.w3.org/2000/svg";
 
 function el<K extends keyof SVGElementTagNameMap>(
@@ -29,6 +32,17 @@ export function contrastOn(color: string): string | null {
 function withNote<T extends SVGElement>(e: T, note?: string): T {
   if (note) e.append(el("title", {}, note)); // tooltip nativo
   return e;
+}
+
+/** Ícone de documento que marca uma nota; o chamador põe o tooltip e o clique (`data-note` = onde a declaração começa). */
+function noteIcon(kind: "table" | "column", decl: number | undefined, note: string, x: number, y: number): SVGGElement {
+  const g = el("g", { class: "dbml-noteicon", "data-note-kind": kind, "data-note-text": note, transform: `translate(${x} ${y})` });
+  if (decl !== undefined) g.setAttribute("data-note", String(decl));
+  g.append(
+    el("rect", { class: "dbml-noteicon-hit", x: -2, y: -2, width: 16, height: 18 }),
+    el("path", { d: "M2.5,0.5 H7.5 L10.5,3.5 V12.5 H2.5 Z M7.5,0.5 V3.5 H10.5 M4.5,6.5 H8.5 M4.5,9 H8.5" }),
+  );
+  return g;
 }
 
 const colKey = (table: string, column: string) => `${table}\u001f${column}`;
@@ -102,7 +116,8 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
   const title = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, t.schema ? `${t.schema}.${t.name}` : t.name);
   if (t.span) title.setAttribute("data-off", String(t.span.from)); // duplo clique: renomear (onde a declaração começa)
   if (ink) title.setAttribute("style", `fill:${ink}`);
-  g.append(withNote(title, t.note));
+  g.append(title);
+  if (t.note) g.append(noteIcon("table", t.span?.from, t.note, w - 24, (HEADER_H - 13) / 2));
   t.columns.forEach((c, i) => {
     const cy = HEADER_H + i * ROW_H + ROW_H / 2 + 4;
     const row = el("rect", { class: "dbml-row", "data-k": colKey(t.id, c.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H });
@@ -111,8 +126,9 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
     g.append(row);
     const colName = el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name);
     if (c.span) colName.setAttribute("data-off", String(c.span.from));
-    g.append(withNote(colName, c.note));
+    g.append(colName);
     g.append(el("text", { class: "dbml-type", x: w - 10, y: cy, "text-anchor": "end" }, c.type));
+    if (c.note) g.append(noteIcon("column", c.span?.from, c.note, w - 10 - c.type.length * TYPE_CHAR_W - 20, HEADER_H + i * ROW_H + (ROW_H - 13) / 2));
   });
   return g;
 }
@@ -152,6 +168,8 @@ function groupFrame(grp: DGroup, b: { x: number; y: number; w: number; h: number
 export interface RenderHooks {
   /** Mouse sobre um elemento: trechos do texto que ele representa (`null` ao sair). */
   onHover?(spans: Span[] | null): void;
+  /** Mouse sobre o ícone de uma nota (`null` ao sair): o texto e o retângulo do ícone na tela. */
+  onNoteHover?(note: { text: string; rect: DOMRect } | null): void;
 }
 
 export interface Rendered {
@@ -300,6 +318,11 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
       t.addEventListener("mouseenter", () => hover([en.kind === "value" ? en.span : head(en.span)]));
       t.addEventListener("mouseleave", () => hover(null));
     }
+  }
+
+  for (const icon of into.querySelectorAll<SVGElement>(".dbml-noteicon")) {
+    icon.addEventListener("mouseenter", () => hooks.onNoteHover?.({ text: icon.getAttribute("data-note-text") ?? "", rect: icon.getBoundingClientRect() }));
+    icon.addEventListener("mouseleave", () => hooks.onNoteHover?.(null));
   }
 
   // ---- cursor do editor → diagrama ----

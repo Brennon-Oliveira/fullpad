@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ColumnRef, columnAt, quoteString, setFlag, setNote, setType, settingsBracket } from "./edit";
+import { type ColumnRef, bodyNote, columnAt, quoteString, setFlag, setNote, setTableNote, setType, settingsBracket } from "./edit";
 import { parseDbml } from "./model";
 import { applyChanges } from "./rename";
 import { service } from "./test-util";
@@ -65,10 +65,10 @@ describe("nota", () => {
     expect(line(run(setNote(service, d(), SRC, col("mail"), "outra")), 3)).toBe("  mail varchar [unique, note: 'outra']");
     expect(line(run(setNote(service, d(), SRC, col("mail"), "")), 3)).toBe("  mail varchar [unique]");
   });
-  it("escapa aspas e recusa quebra de linha", () => {
+  it("escapa aspas e recusa três aspas seguidas em nota de várias linhas", () => {
     expect(quoteString("it's")).toBe("'it\\'s'");
     expect(line(run(setNote(service, d(), SRC, col("nome"), "it's")), 2)).toBe("  nome varchar(80) [note: 'it\\'s']");
-    expect(setNote(service, d(), SRC, col("nome"), "a\nb")).toMatchObject({ error: expect.stringContaining("quebra de linha") });
+    expect(setNote(service, d(), SRC, col("nome"), "a\n'''b")).toMatchObject({ error: expect.stringContaining("três aspas") });
   });
 });
 
@@ -83,5 +83,56 @@ describe("tipo", () => {
     expect(setType(service, d(), SRC, col("nome"), "  ")).toMatchObject({ error: "O tipo não pode ficar vazio." });
     expect(setType(service, d(), SRC, col("nome"), "varchar(80)")).toMatchObject({ error: "O tipo é o mesmo." });
     expect(setType(service, d(), SRC, col("nome"), "text [pk]")).toMatchObject({ error: expect.stringContaining("colchetes") });
+  });
+});
+
+describe("notas de tabela e de várias linhas", () => {
+  const SRC2 = `Table a {
+  id int [pk]
+  note_col text
+  Note: 'antiga'
+}
+Table b [note: 'no cabeçalho'] {
+  id int
+}
+Table c {
+  id int [note: 'x']
+}
+Table d {
+  Note: '''
+    linha 1
+    linha 2
+  '''
+  id int
+}
+`;
+  const dd = () => parseDbml(service.interpret, SRC2).diagram!;
+  const tb = (n: string) => dd().tables.find((t) => t.name === n)!;
+  const go = (r: { changes: { from: number; to: number; insert: string }[] } | { error: string }) => {
+    if ("error" in r) throw new Error(r.error);
+    return applyChanges(SRC2, r.changes);
+  };
+  it("troca a nota do corpo", () => {
+    const out = go(setTableNote(service, dd(), SRC2, tb("a"), "nova"));
+    expect(out).toContain("  Note: 'nova'\n");
+    expect(parseDbml(service.interpret, out).diagram!.tables[0].note).toBe("nova");
+  });
+  it("troca a do cabeçalho, cria no corpo e tira", () => {
+    expect(parseDbml(service.interpret, go(setTableNote(service, dd(), SRC2, tb("b"), "x"))).diagram!.tables[1].note).toBe("x");
+    const created = go(setTableNote(service, dd(), SRC2, tb("c"), "criada"));
+    expect(parseDbml(service.interpret, created).diagram!.tables[2].note).toBe("criada");
+    const removed = go(setTableNote(service, dd(), SRC2, tb("a"), ""));
+    expect(removed).not.toContain("antiga");
+    expect(parseDbml(service.interpret, removed).diagram!.tables[0].note).toBeUndefined();
+  });
+  it("aceita várias linhas, na tabela e na coluna", () => {
+    const out = go(setTableNote(service, dd(), SRC2, tb("d"), "um\ndois"));
+    expect(parseDbml(service.interpret, out).diagram!.tables[3].note?.replace(/\s+/g, " ").trim()).toBe("um dois");
+    const col2 = columnAt(dd(), tb("c").columns[0].span!.from)!;
+    const out2 = go(setNote(service, dd(), SRC2, col2, "a\nb"));
+    expect(parseDbml(service.interpret, out2).diagram!.tables[2].columns[0].note?.replace(/\s+/g, " ").trim()).toBe("a b");
+  });
+  it("não confunde coluna chamada note_col com a nota", () => {
+    expect(bodyNote(SRC2.slice(0, SRC2.indexOf("}") + 1))?.litFrom).toBeGreaterThan(0);
   });
 });

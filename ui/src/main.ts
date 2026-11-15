@@ -23,6 +23,8 @@ interface DiagramPanel {
   /** Só o diagrama DBML: o layout guardado da aba (chamar antes de `show`) e gravar o que está pendente. */
   setLayout?(l: { tables: LayoutState["tables"]; groups?: LayoutState["groups"]; viewport: LayoutState["viewport"]; error: string | null } | null): void;
   flush?(): void;
+  /** Só o diagrama DBML: liga/desliga a edição pelo diagrama (desligado, só se vê). */
+  setEditable?(on: boolean): void;
 }
 import type { CsvPanel } from "./csv/panel";
 import type { LayoutView } from "./dbml/layoutview";
@@ -78,6 +80,8 @@ let writeChain: Promise<unknown> = Promise.resolve(); // serializa escritas
 let wrap = readSetting("wrap", true);
 let onTop = false; // "Manter no topo" desta janela (vem da sessão, ver boot)
 let lineNumbers = readSetting("lineNumbers", true);
+/** Editar pelo diagrama DBML (arrastar, renomear, colunas, notas); desmarcado, o diagrama só se vê. */
+let diagramEdit = readSetting("diagramEdit", true);
 let overwrite = false;
 let outlineOn = readSetting("outline", true);
 let outlinePinned = readSetting("outlinePinned", false);
@@ -798,11 +802,16 @@ async function diagramContextMenu(g: Group, info: { decl: number; column: boolea
   if (!tab || effectiveLang(tab) !== "dbml" || isReadOnlyText(tab)) return;
   if (rev !== g.rev) return flashDiskInfo(tab, "O texto mudou depois de o diagrama ser desenhado; tente de novo.");
   const rename: MenuItem = { label: "Renomear…", shortcut: "F2", action: () => void renameSymbolAt(g, info.decl, "decl", at, rev) };
-  if (!info.column) return void showMenuAt(at.x, at.y, [rename]);
   const [{ loadDbmlService }, model, ed, { promptRename }] = await Promise.all([import("./dbml/service"), import("./dbml/model"), import("./dbml/edit"), import("./renamebox")]);
   const svc = await loadDbmlService();
   const text = g.view.state.doc.toString();
   const parsed = model.parseDbml(svc.interpret, text);
+  if (!info.column) {
+    // no nome de uma tabela, além de renomear dá para editar a nota dela
+    const t = parsed.diagram ? ed.tableAt(parsed.diagram, info.decl) : null;
+    if (!t) return void showMenuAt(at.x, at.y, [rename]);
+    return void showMenuAt(at.x, at.y, [rename, "sep", { label: "Nota…", action: () => void editNoteAt(g, info.decl, "table", at, rev) }]);
+  }
   if (!parsed.diagram) return flashDiskInfo(tab, "Corrija o erro de sintaxe antes de editar pelo diagrama.");
   const d = parsed.diagram;
   const ref = ed.columnAt(d, info.decl);
@@ -824,8 +833,35 @@ async function diagramContextMenu(g: Group, info: { decl: number; column: boolea
     flag("Chave primária", "pk", c.pk),
     flag("Não nulo", "not null", c.notNull),
     flag("Único", "unique", c.unique),
-    { label: "Nota…", action: () => ask(`Nota de ${c.name} (vazio tira)`, c.note ?? "", (v) => ed.setNote(svc, d, text, ref, v)) },
+    { label: "Nota…", action: () => void editNoteAt(g, info.decl, "column", at, rev) },
   ]);
+}
+
+/** Edita a nota de uma tabela ou coluna do diagrama numa caixa de várias linhas (vazio tira a nota). */
+async function editNoteAt(g: Group, decl: number, kind: "table" | "column", at: { x: number; y: number }, rev: number) {
+  const tab = tabOf(g);
+  if (!tab || effectiveLang(tab) !== "dbml" || isReadOnlyText(tab) || !diagramEdit) return;
+  if (rev !== g.rev) return flashDiskInfo(tab, "O texto mudou depois de o diagrama ser desenhado; tente de novo.");
+  const [{ loadDbmlService }, model, ed, { promptNote }] = await Promise.all([import("./dbml/service"), import("./dbml/model"), import("./dbml/edit"), import("./notebox")]);
+  const svc = await loadDbmlService();
+  const text = g.view.state.doc.toString();
+  const parsed = model.parseDbml(svc.interpret, text);
+  if (!parsed.diagram) return flashDiskInfo(tab, "Corrija o erro de sintaxe antes de editar pelo diagrama.");
+  const d = parsed.diagram;
+  const ref = kind === "column" ? ed.columnAt(d, decl) : null;
+  const table = kind === "table" ? ed.tableAt(d, decl) : null;
+  if (!ref && !table) return;
+  const name = ref ? `coluna ${ref.column.name}` : `tabela ${table!.name}`;
+  promptNote({
+    ...at,
+    value: (ref ? ref.column.note : table!.note) ?? "",
+    title: `Nota da ${name}`,
+    onClose: () => g.view.focus(),
+    submit: (v) => {
+      const r = ref ? ed.setNote(svc, d, text, ref, v) : ed.setTableNote(svc, d, text, table!, v);
+      return "error" in r ? r.error : applyDiagramChanges(g, text, r.changes);
+    },
+  });
 }
 
 // ---- layout do diagrama (.dbmlx) ----------------------------------------------------
@@ -1081,6 +1117,7 @@ function syncDiagram(textChanged = false) {
       }
       g.diagram.setLayout(l ? { tables: l.tables, groups: l.groups, viewport: l.viewport, error: l.error } : null);
     }
+    g.diagram.setEditable?.(diagramEdit);
     if (textChanged && g.diagramTab === tab.id) g.diagram.update(text, g.rev);
     else g.diagram.show(text, g.diagramTab !== tab.id, g.rev);
     g.diagramTab = tab.id;
@@ -1125,6 +1162,8 @@ function syncDiagram(textChanged = false) {
             onRename: (decl, at, rev) => void renameSymbolAt(g, decl, "decl", at, rev),
             // botão direito numa coluna (tipo, chave, não nulo, único, nota) ou num nome (renomear)
             onContext: (info, at, rev) => void diagramContextMenu(g, info, at, rev),
+            // clique no ícone de nota (tabela ou coluna) → editar a nota
+            onNote: (info, at, rev) => void editNoteAt(g, info.decl, info.kind, at, rev),
           });
           g.diagramKind = "dbml";
         });
@@ -1186,6 +1225,8 @@ function refreshStatus(recomputeSize = true) {
     languageLabel: langLabel(tab),
     viewLabel: viewLabel(tab),
     viewAvailable: previewAvailable(tab),
+    editAvailable: effectiveLang(tab) === "dbml" && previewOn(tab) && !tab.detached,
+    editChecked: diagramEdit,
     layoutLabel: layoutAvailable(tab) ? (layoutShown(tab) ? "Ver diagrama" : "Ver layout") : null,
     codeLang: effectiveLang(tab) === "plain" ? (codeLangOf(tab)?.name ?? null) : undefined,
     size: lastSize,
@@ -1226,6 +1267,12 @@ const status = mountStatusBar(statusEl, {
   onLanguage: (a) => showMenu(a, languageItems(menuActions), "above"),
   onView: (a) => showMenu(a, viewItems(menuActions), "above"),
   onLayout: () => toggleLayoutView(),
+  onEdit: (on) => {
+    diagramEdit = on;
+    writeSetting("diagramEdit", on);
+    for (const g of groups.values()) g.diagram?.setEditable?.(on);
+    refreshStatus(false);
+  },
   onCodeLang: (a) => showMenu(a, codeLangItems(menuActions), "above"),
   onEol: (a) =>
     showMenu(

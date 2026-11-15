@@ -5,6 +5,9 @@ export interface StatusInfo {
   viewAvailable: boolean;
   /** "Ver layout" / "Ver diagrama" (`.dbmlx`); `null` esconde o botão. */
   layoutLabel?: string | null;
+  /** DBML com o diagrama à vista: mostra a caixa "Editar" (liga/desliga a edição pelo diagrama). */
+  editAvailable?: boolean;
+  editChecked?: boolean;
   /** Arquivo de texto sem visão renderizada: o botão "Visão" vira "Lang" (destaque de sintaxe). */
   codeLang?: string | null;
   size: number;
@@ -25,6 +28,8 @@ export interface StatusHandlers {
   onLanguage(anchor: HTMLElement): void;
   onView(anchor: HTMLElement): void;
   onLayout(): void;
+  /** Marcou ou desmarcou "Editar" (editar pelo diagrama). */
+  onEdit(checked: boolean): void;
   onCodeLang(anchor: HTMLElement): void;
   onEol(anchor: HTMLElement): void;
   onEncoding(anchor: HTMLElement): void;
@@ -52,6 +57,14 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
   const view = button("view", "Como mostrar o arquivo: código, renderizado ou lado a lado (Ctrl+E)");
   const layoutBtn = button("layoutbtn", "Alterna entre o diagrama e o JSON do layout (posições das tabelas)");
   layoutBtn.hidden = true;
+  const editBox = document.createElement("label");
+  editBox.className = "seg editchk";
+  editBox.title = "Desmarcado, o diagrama só se vê: não dá para arrastar, renomear, editar colunas nem notas por ele (o código continua editável)";
+  editBox.hidden = true;
+  const editInput = document.createElement("input");
+  editInput.type = "checkbox";
+  editBox.append(editInput, document.createTextNode("Editar"));
+  editInput.addEventListener("change", () => h.onEdit(editInput.checked));
   const spacer = document.createElement("div");
   spacer.className = "spacer";
   const path = document.createElement("span");
@@ -86,7 +99,7 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
 
   layoutBtn.addEventListener("click", () => h.onLayout());
 
-  root.append(lang, layoutBtn, view, path, spacer, size, cursor, eol, enc, ins, zoomBox);
+  root.append(lang, layoutBtn, view, editBox, path, spacer, size, cursor, eol, enc, ins, zoomBox);
 
   return {
     setZoom(percent: number) {
@@ -101,6 +114,8 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
       layoutBtn.textContent = i.layoutLabel ?? "";
       layoutBtn.hidden = !i.layoutLabel || i.reader !== undefined;
       const reading = i.reader !== undefined;
+      editBox.hidden = reading || !i.editAvailable;
+      editInput.checked = i.editChecked ?? true;
       for (const e of [view, size, cursor, eol, enc, ins]) e.hidden = reading;
       path.textContent = (reading ? i.reader : i.path) ?? "";
       path.hidden = !path.textContent;

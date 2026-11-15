@@ -676,3 +676,20 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .renamebox-title { margin-bottom: 4px; color: var(--muted); font-size: 11px; }
 .renamebox-input { box-sizing: border-box; width: 100%; padding: 4px 6px; background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 4px; font: 13px var(--mono); outline: none; }
 .renamebox-error { margin-top: 5px; color: #e5534b; font-size: 11px; }
+
+/* ---- notas no diagrama DBML: ícone, tooltip e caixa de edição ---- */
+.dbml-noteicon { cursor: help; }
+.dbml-noteicon path { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; }
+.dbml-noteicon-hit { fill: transparent; }
+.dbml-noteicon:hover path { stroke: var(--accent); }
+.dbml-svg:not(.view-only) .dbml-noteicon { cursor: pointer; }
+.dbml-notetip { position: absolute; z-index: 5; max-width: min(420px, 80%); padding: 8px 10px; background: var(--bar); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); font: 12px/1.45 var(--sans); pointer-events: none; }
+.dbml-notetip[hidden] { display: none; }
+.dbml-notetip-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 40vh; overflow: hidden; }
+.dbml-notetip-hint { margin-top: 6px; color: var(--muted); font-size: 11px; }
+.notebox-input { resize: vertical; font: 12px/1.45 var(--sans); min-height: 70px; }
+.notebox-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; color: var(--muted); font-size: 11px; }
+.notebox-bar button { font: 12px var(--sans); padding: 3px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
+#status .seg.editchk { cursor: pointer; user-select: none; }
+#status .seg.editchk input { margin: 0; accent-color: var(--accent); }
+#status .seg.editchk[hidden] { display: none; }

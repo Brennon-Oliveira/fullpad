@@ -36,7 +36,8 @@ describe("renderDiagram", () => {
     expect(g.querySelectorAll(".dbml-group")).toHaveLength(1);
     expect(g.querySelector(".dbml-head")?.getAttribute("style")).toContain("#ffd700");
     expect(g.querySelector(".dbml-title")?.getAttribute("style")).toContain("#111"); // amarelo → texto escuro
-    expect(g.querySelector("title")?.textContent).toBe("gente");
+    expect(g.querySelector(".dbml-noteicon")?.getAttribute("data-note-text")).toBe("gente"); // nota da tabela: ícone no cabeçalho
+    expect(g.querySelector(".dbml-noteicon")?.getAttribute("data-note-kind")).toBe("table");
     const inGroup = l.boxes.get("group:blog")!;
     for (const id of ["users", "posts"]) {
       const b = l.boxes.get(id)!;

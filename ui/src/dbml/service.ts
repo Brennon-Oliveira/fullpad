@@ -62,6 +62,8 @@ export interface DbmlService {
   definition(text: string, offset: number): number | null;
   /** Trocas que mudam (ou tiram, com `null`) a configuração `name` da coluna `column` da tabela; `[]` se a biblioteca não achou. */
   columnSettingEdits(text: string, col: { schema?: string; table: string; column: string }, name: string, value: string | null): { from: number; to: number; insert: string }[];
+  /** Como `columnSettingEdits`, para uma configuração da própria tabela (`[note: ...]` no cabeçalho). */
+  tableSettingEdits(text: string, table: { schema?: string; table: string }, name: string, value: string | null): { from: number; to: number; insert: string }[];
   /** `renameTable` da biblioteca sobre o texto: o texto novo, ou `null` se não renomeou (não achou ou o nome já existe). */
   renameTable(text: string, from: { schema?: string; table: string }, to: { schema?: string; table: string }): string | null;
   /** Caracteres que, ao serem digitados, já pedem sugestões (`.`, `[`, espaço...). */
@@ -144,6 +146,11 @@ export function createDbmlService(parse: DbmlParse): DbmlService {
     columnSettingEdits(text, col, name, value) {
       sync(text);
       const edits = compiler.updateElementSettingEdit(entry, { kind: parse.SymbolKind.Column, ...col }, name, value);
+      return edits.map((e) => ({ from: e.start, to: e.end, insert: e.newText }));
+    },
+    tableSettingEdits(text, table, name, value) {
+      sync(text);
+      const edits = compiler.updateElementSettingEdit(entry, { kind: parse.SymbolKind.Table, ...table }, name, value);
       return edits.map((e) => ({ from: e.start, to: e.end, insert: e.newText }));
     },
     renameTable(text, from, to) {

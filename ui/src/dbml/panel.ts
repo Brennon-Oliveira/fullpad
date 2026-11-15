@@ -80,6 +80,11 @@ export interface PanelHooks {
    * dele começa no texto da versão `rev`. Quem recebe leva o código até lá.
    */
   onPick?(offset: number, rev: number): void;
+  /**
+   * Clicou no ícone de uma nota (só com o diagrama editável): `decl` é onde a declaração da tabela ou
+   * da coluna começa no texto da versão `rev`; `at` é onde abrir a caixa (coordenadas da tela).
+   */
+  onNote?(info: { decl: number; kind: "table" | "column" }, at: { x: number; y: number }, rev: number): void;
 }
 
 export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
@@ -101,7 +106,9 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     b.addEventListener("click", run);
     tools.append(b);
   };
-  host.replaceChildren(svg, message, error, warn, tools);
+  const noteTip = div("dbml-notetip");
+  noteTip.hidden = true;
+  host.replaceChildren(svg, message, error, warn, tools, noteTip);
 
   let layout: Layout | null = null;
   let lastText: string | null = null;
@@ -156,6 +163,43 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     scheduleSave();
   }
 
+  // ---- editar ou só ver ----
+  let editable = true;
+  const showNoteTip = (n: { text: string; rect: DOMRect } | null) => {
+    if (!n) {
+      noteTip.hidden = true;
+      return;
+    }
+    noteTip.replaceChildren(div("dbml-notetip-text", n.text));
+    if (editable && hooks.onNote) noteTip.append(div("dbml-notetip-hint", "Clique no ícone para editar"));
+    noteTip.hidden = false;
+    const h = host.getBoundingClientRect();
+    const w = noteTip.offsetWidth;
+    const left = Math.max(8, Math.min(n.rect.left - h.left, h.width - w - 8));
+    const below = n.rect.bottom - h.top + 6;
+    noteTip.style.left = `${left}px`;
+    noteTip.style.top = `${below + noteTip.offsetHeight > h.height - 4 ? Math.max(4, n.rect.top - h.top - noteTip.offsetHeight - 6) : below}px`;
+  };
+  // o pan prende o ponteiro no <svg>, então o clique no ícone é achado pelo ponto, e só vale se não arrastou
+  let down: { x: number; y: number } | null = null;
+  svg.addEventListener(
+    "pointerdown",
+    (e) => {
+      down = e.button === 0 ? { x: e.clientX, y: e.clientY } : null;
+      showNoteTip(null);
+    },
+    true,
+  );
+  svg.addEventListener("click", (e) => {
+    if (!editable || !hooks.onNote || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 3) return;
+    const icon = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".dbml-noteicon");
+    const decl = icon?.getAttribute("data-note");
+    if (!icon || decl === null || decl === undefined) return;
+    const r = icon.getBoundingClientRect();
+    showNoteTip(null);
+    hooks.onNote({ decl: Number(decl), kind: icon.getAttribute("data-note-kind") === "table" ? "table" : "column" }, { x: r.left, y: r.bottom + 4 }, renderedRev);
+  });
+
   const fit = () => {
     if (layout) viewport.fit(layout.width, layout.height, layout.x0, layout.y0);
   };
@@ -168,7 +212,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     // <svg>: o elemento de verdade é o que está sob o ponto do clique
     const target = document.elementFromPoint(e.clientX, e.clientY) ?? (e.target as Element);
     const named = target.closest?.("[data-off], [data-col]");
-    if (named && hooks.onRename) {
+    if (named && hooks.onRename && editable) {
       const r = named.getBoundingClientRect();
       const decl = Number(named.getAttribute("data-off") ?? named.getAttribute("data-col"));
       hooks.onRename(decl, { x: r.left, y: r.bottom + 4, width: Math.max(220, r.width + 40) }, renderedRev);
@@ -194,14 +238,14 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     const row = target.closest?.("[data-col]");
     const named = row ? null : target.closest?.("[data-off]");
     const decl = row ? Number(row.getAttribute("data-col")) : named ? Number(named.getAttribute("data-off")) : null;
-    if (decl === null || !hooks.onContext) return;
+    if (decl === null || !hooks.onContext || !editable) return;
     e.preventDefault();
     hooks.onContext({ decl, column: !!row }, { x: e.clientX, y: e.clientY }, renderedRev);
   });
 
   const draw = () => {
     if (!diagram || !layout) return;
-    rendered = renderDiagram(diagram, layout, g, { onHover: (spans) => hooks.onHover?.(spans, renderedRev) });
+    rendered = renderDiagram(diagram, layout, g, { onHover: (spans) => hooks.onHover?.(spans, renderedRev), onNoteHover: showNoteTip });
     applyFocus(false);
   };
   // ---- arrastar: tabela, grupo (move as tabelas dele) e moldura do grupo (aumenta) ----
@@ -224,7 +268,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   const groupRect = (b: Box) => ({ x: b.x, y: b.y, width: b.w, height: b.h });
   attachTableDrag(svg, g, {
     scale: () => viewport.scale(),
-    enabled: () => layoutOn && !layoutError && !!layout,
+    enabled: () => editable && layoutOn && !layoutError && !!layout,
     start(kind, id) {
       if (!layout || !diagram) return false;
       if (kind === "table") {
@@ -343,6 +387,16 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   }
 
   return {
+    /**
+     * Liga ou desliga a edição pelo diagrama (arrastar tabelas e grupos, renomear, menu da coluna e notas).
+     * Desligado, o diagrama só se vê: ainda dá para mover a vista, dar zoom e passar o mouse nas notas.
+     */
+    setEditable(on: boolean) {
+      editable = on;
+      svg.classList.toggle("can-drag", editable && layoutOn && !layoutError);
+      svg.classList.toggle("view-only", !editable);
+      showNoteTip(null);
+    },
     /** Mostra o painel e renderiza já (troca de aba, ligar o preview). `resetView` reenquadra. */
     show(text: string, resetView: boolean, rev = 0) {
       host.classList.add("on");
@@ -369,7 +423,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
       positions = l?.tables ?? {};
       groupRects = l?.groups ?? {};
       savedView = l?.viewport ?? null;
-      svg.classList.toggle("can-drag", layoutOn && !layoutError);
+      svg.classList.toggle("can-drag", editable && layoutOn && !layoutError);
       warn.hidden = !layoutError;
       warn.textContent = layoutError ? `Layout inválido, usando o posicionamento automático (${layoutError}). Corrija em "Ver layout".` : "";
       if (key === layoutKey) return;
