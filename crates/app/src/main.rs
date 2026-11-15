@@ -1448,6 +1448,22 @@ fn main() {
                 let _ = w.set_focus();
             }
         }))
+        // atalho global da captura rápida (Ctrl+Alt+N): abre um post-it mesmo com o app em segundo plano
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        let app = app.clone();
+                        // fora do laço de eventos: criar janela dali pode travar no Windows
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(e) = open_postit(&app, &app.state::<AppState>()) {
+                                eprintln!("post-it não aberto: {e}");
+                            }
+                        });
+                    }
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -1468,6 +1484,14 @@ fn main() {
             let session = state.store.load_session().map_err(|e| e.to_string())?;
             for label in session.floating_labels() {
                 build_window(app.handle(), &label, session.geometry_of(&label), None)?;
+            }
+            // atalho global; se outro programa já o usa, o app segue normal (o menu continua abrindo o post-it)
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+                let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN);
+                if let Err(e) = app.global_shortcut().register(shortcut) {
+                    eprintln!("atalho global Ctrl+Alt+N indisponível: {e}");
+                }
             }
             // a principal também lembra do "Manter no topo"
             if let Some(main) = app.get_webview_window(MAIN_WINDOW) {

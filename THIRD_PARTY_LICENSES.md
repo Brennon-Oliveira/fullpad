@@ -23,18 +23,18 @@ O Fullpad é distribuído com as bibliotecas abaixo. Cada uma continua sob a lic
 - Todo o resto é MIT, Apache-2.0, BSD, ISC, Zlib, Unicode-3.0, 0BSD, CC0, Unlicense e semelhantes.
 - Onde um pacote oferece `A OR B`, o Fullpad o usa pela licença mais permissiva (MIT ou Apache-2.0).
 
-## Pacotes (530)
+## Pacotes (540)
 
 Rust: dependências normais (sem as de desenvolvimento e de compilação) para Windows e Linux, as plataformas em que o Fullpad é distribuído. UI: dependências de produção. Onde há `OR`, vale a opção mais permissiva.
 
 | Licença | Pacotes |
 |---|---|
 | MIT | 207 |
-| MIT OR Apache-2.0 | 162 |
-| Apache-2.0 OR MIT | 45 |
+| MIT OR Apache-2.0 | 168 |
+| Apache-2.0 OR MIT | 47 |
 | ISC | 35 |
 | Unicode-3.0 | 18 |
-| Apache-2.0 | 11 |
+| Apache-2.0 | 12 |
 | BSD-3-Clause | 9 |
 | MIT/Apache-2.0 | 7 |
 | MPL-2.0 | 6 |
@@ -44,6 +44,7 @@ Rust: dependências normais (sem as de desenvolvimento e de compilação) para W
 | Zlib | 2 |
 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 2 |
 | MIT OR Zlib OR Apache-2.0 | 2 |
+| MIT OR Apache-2.0 OR Zlib | 2 |
 | Unlicense/MIT | 2 |
 | 0BSD OR MIT OR Apache-2.0 | 1 |
 | BSD-3-Clause AND MIT | 1 |
@@ -52,7 +53,6 @@ Rust: dependências normais (sem as de desenvolvimento e de compilação) para W
 | CC0-1.0 OR MIT-0 OR Apache-2.0 | 1 |
 | (Apache-2.0 OR MIT) AND BSD-3-Clause | 1 |
 | Apache-2.0 / MIT | 1 |
-| MIT OR Apache-2.0 OR Zlib | 1 |
 | Apache-2.0 AND ISC | 1 |
 | (MIT OR Apache-2.0) AND Unicode-3.0 | 1 |
 | (MPL-2.0 OR Apache-2.0) | 1 |
@@ -166,6 +166,7 @@ Rust: dependências normais (sem as de desenvolvimento e de compilação) para W
 | `gdkx11` | 0.18.2 | Rust | MIT | https://github.com/gtk-rs/gtk3-rs |
 | `gdkx11-sys` | 0.18.2 | Rust | MIT | https://github.com/gtk-rs/gtk3-rs |
 | `generic-array` | 0.14.7 | Rust | MIT | https://github.com/fizyk20/generic-array.git |
+| `gethostname` | 1.1.0 | Rust | Apache-2.0 | https://codeberg.org/swsnr/gethostname.rs.git |
 | `getrandom` | 0.2.17 | Rust | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |
 | `getrandom` | 0.3.4 | Rust | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |
 | `getrandom` | 0.4.3 | Rust | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom |
@@ -175,6 +176,7 @@ Rust: dependências normais (sem as de desenvolvimento e de compilação) para W
 | `glib-macros` | 0.18.5 | Rust | MIT | https://github.com/gtk-rs/gtk-rs-core |
 | `glib-sys` | 0.18.1 | Rust | MIT | https://github.com/gtk-rs/gtk-rs-core |
 | `glob` | 0.3.4 | Rust | MIT OR Apache-2.0 | https://github.com/rust-lang/glob |
+| `global-hotkey` | 0.8.0 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/global-hotkey |
 | `gobject-sys` | 0.18.0 | Rust | MIT | https://github.com/gtk-rs/gtk-rs-core |
 | `gtk` | 0.18.2 | Rust | MIT | https://github.com/gtk-rs/gtk3-rs |
 | `gtk-sys` | 0.18.2 | Rust | MIT | https://github.com/gtk-rs/gtk3-rs |
@@ -215,6 +217,7 @@ Rust: dependências normais (sem as de desenvolvimento e de compilação) para W
 | `javascriptcore-rs-sys` | 1.1.1 | Rust | MIT | https://github.com/tauri-apps/javascriptcore-rs |
 | `json-patch` | 4.2.0 | Rust | MIT/Apache-2.0 | https://github.com/idubrov/json-patch |
 | `jsonptr` | 0.7.1 | Rust | MIT OR Apache-2.0 | https://github.com/chanced/jsonptr |
+| `keyboard-types` | 0.7.0 | Rust | MIT OR Apache-2.0 | https://github.com/pyfisch/keyboard-types |
 | `keyboard-types` | 0.8.3 | Rust | MIT OR Apache-2.0 | https://github.com/rust-windowing/keyboard-types |
 | `libc` | 0.2.191 | Rust | MIT OR Apache-2.0 | https://github.com/rust-lang/libc |
 | `libdbus-sys` | 0.2.7 | Rust | Apache-2.0/MIT | https://github.com/diwic/dbus-rs |
@@ -333,6 +336,7 @@ Rust: dependências normais (sem as de desenvolvimento e de compilação) para W
 | `tauri-macros` | 2.7.4 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri |
 | `tauri-plugin-dialog` | 2.8.4 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/plugins-workspace |
 | `tauri-plugin-fs` | 2.7.1 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/plugins-workspace |
+| `tauri-plugin-global-shortcut` | 2.4.1 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/plugins-workspace |
 | `tauri-plugin-opener` | 2.7.2 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/plugins-workspace |
 | `tauri-plugin-single-instance` | 2.5.5 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/plugins-workspace |
 | `tauri-plugin-updater` | 2.14.1 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/plugins-workspace |
@@ -402,16 +406,22 @@ Rust: dependências normais (sem as de desenvolvimento e de compilação) para W
 | `windows-registry` | 0.6.1 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-result` | 0.4.1 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-strings` | 0.5.1 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
+| `windows-sys` | 0.59.0 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.61.2 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
+| `windows-targets` | 0.52.6 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-threading` | 0.2.1 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-version` | 0.1.7 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
+| `windows_x86_64_msvc` | 0.52.6 | Rust | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `winnow` | 0.5.40 | Rust | MIT | https://github.com/winnow-rs/winnow |
 | `winnow` | 1.0.4 | Rust | MIT | https://github.com/winnow-rs/winnow |
 | `writeable` | 0.6.4 | Rust | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | `wry` | 0.57.1 | Rust | Apache-2.0 OR MIT | https://github.com/tauri-apps/wry |
 | `x11` | 2.21.0 | Rust | MIT | https://github.com/AltF02/x11-rs.git |
 | `x11-dl` | 2.21.0 | Rust | MIT | https://github.com/AltF02/x11-rs.git |
+| `x11rb` | 0.13.2 | Rust | MIT OR Apache-2.0 | https://github.com/psychon/x11rb |
+| `x11rb-protocol` | 0.13.2 | Rust | MIT OR Apache-2.0 | https://github.com/psychon/x11rb |
 | `xattr` | 1.7.0 | Rust | MIT OR Apache-2.0 | https://github.com/Stebalien/xattr |
+| `xkeysym` | 0.2.1 | Rust | MIT OR Apache-2.0 OR Zlib | https://github.com/notgull/xkeysym |
 | `yoke` | 0.8.4 | Rust | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | `yoke-derive` | 0.8.4 | Rust | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | `zbus` | 5.19.0 | Rust | MIT | https://github.com/z-galaxy/zbus/ |
@@ -596,7 +606,7 @@ Rust: dependências normais (sem as de desenvolvimento e de compilação) para W
 
 Cada texto aparece uma vez, com a lista dos pacotes que o usam (o aviso de copyright vem dentro do texto, como no pacote original).
 
-### Texto 1: async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, atomic-waker 1.1.2, base64 0.22.1, base64 0.23.1, bit-set 0.8.0 e mais 104
+### Texto 1: async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, atomic-waker 1.1.2, base64 0.22.1, base64 0.23.1, bit-set 0.8.0 e mais 109
 
 ~~~~text
 Apache License
@@ -830,7 +840,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 3: anyhow 1.0.104, async-trait 0.1.92, dtoa 1.0.11, dyn-clone 1.0.20, erased-serde 0.4.11, fdeflate 0.3.7, field-offset 0.3.6, itoa 1.0.18, libc 0.2.191, miniz_oxide 0.8.9, miniz_oxide 0.9.1, num-conv 0.2.2 e mais 40
+### Texto 3: anyhow 1.0.104, async-trait 0.1.92, dtoa 1.0.11, dyn-clone 1.0.20, erased-serde 0.4.11, fdeflate 0.3.7, field-offset 0.3.6, itoa 1.0.18, libc 0.2.191, miniz_oxide 0.8.9, miniz_oxide 0.9.1, num-conv 0.2.2 e mais 41
 
 ~~~~text
 Apache License
@@ -1011,7 +1021,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 END OF TERMS AND CONDITIONS
 ~~~~
 
-### Texto 4: windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-numerics 0.3.1, windows-registry 0.6.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.61.2 e mais 35
+### Texto 4: windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-numerics 0.3.1, windows-registry 0.6.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.59.0 e mais 38
 
 ~~~~text
 MIT License
@@ -1132,7 +1142,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 8: windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-numerics 0.3.1, windows-registry 0.6.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.61.2 e mais 2
+### Texto 8: windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2, windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3, windows-link 0.2.1, windows-numerics 0.3.1, windows-registry 0.6.1, windows-result 0.4.1, windows-strings 0.5.1, windows-sys 0.59.0 e mais 5
 
 ~~~~text
 Apache License
@@ -1338,7 +1348,7 @@ Apache License
    limitations under the License.
 ~~~~
 
-### Texto 9: tauri 2.12.5, tauri-codegen 2.7.4, tauri-macros 2.7.4, tauri-plugin-dialog 2.8.4, tauri-plugin-fs 2.7.1, tauri-plugin-opener 2.7.2, tauri-plugin-updater 2.14.1, tauri-runtime 2.12.2, tauri-runtime-wry 2.12.3, tauri-utils 2.10.2, @tauri-apps/api 2.12.4, @tauri-apps/plugin-dialog 2.8.4
+### Texto 9: tauri 2.12.5, tauri-codegen 2.7.4, tauri-macros 2.7.4, tauri-plugin-dialog 2.8.4, tauri-plugin-fs 2.7.1, tauri-plugin-global-shortcut 2.4.1, tauri-plugin-opener 2.7.2, tauri-plugin-updater 2.14.1, tauri-runtime 2.12.2, tauri-runtime-wry 2.12.3, tauri-utils 2.10.2, @tauri-apps/api 2.12.4 e mais 1
 
 ~~~~text
 MIT License
@@ -4173,7 +4183,33 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 55: hashbrown 0.12.3, hashbrown 0.17.1
+### Texto 55: global-hotkey 0.8.0, muda 0.20.0
+
+~~~~text
+MIT License
+
+Copyright (c) 2022-2022 Tauri Programme within The Commons Conservancy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+~~~~
+
+### Texto 56: hashbrown 0.12.3, hashbrown 0.17.1
 
 ~~~~text
 Copyright (c) 2016 Amanieu d'Antras
@@ -4203,7 +4239,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 56: http-body 1.1.0, http-body-util 0.1.5
+### Texto 57: http-body 1.1.0, http-body-util 0.1.5
 
 ~~~~text
 Copyright (c) 2019-2026 Sean McArthur & Hyper Contributors
@@ -4233,7 +4269,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 57: indexmap 1.9.3, indexmap 2.14.2
+### Texto 58: indexmap 1.9.3, indexmap 2.14.2
 
 ~~~~text
 Copyright (c) 2016--2017
@@ -4263,7 +4299,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 58: internmap 1.0.1, internmap 2.0.3
+### Texto 59: internmap 1.0.1, internmap 2.0.3
 
 ~~~~text
 Copyright 2021 Mike Bostock
@@ -4281,7 +4317,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ~~~~
 
-### Texto 59: is-docker 0.2.0, is-wsl 0.4.0
+### Texto 60: is-docker 0.2.0, is-wsl 0.4.0
 
 ~~~~text
 MIT License
@@ -4307,7 +4343,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 60: katex 0.18.10, katex 0.19.0
+### Texto 61: katex 0.18.10, katex 0.19.0
 
 ~~~~text
 The MIT License (MIT)
@@ -4333,7 +4369,31 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 61: layout-base 1.0.2, layout-base 2.0.1
+### Texto 62: keyboard-types 0.7.0, keyboard-types 0.8.3
+
+~~~~text
+Copyright (c) 2017 Pyfisch
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+~~~~
+
+### Texto 63: layout-base 1.0.2, layout-base 2.0.1
 
 ~~~~text
 MIT License
@@ -4359,7 +4419,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 62: linux-raw-sys 0.12.1, rustix 1.1.6
+### Texto 64: linux-raw-sys 0.12.1, rustix 1.1.6
 
 ~~~~text
 Apache License
@@ -4582,7 +4642,7 @@ the License, but only in their entirety and only with respect to the Combined
 Software.
 ~~~~
 
-### Texto 63: marked 15.0.12, marked 16.4.2
+### Texto 65: marked 15.0.12, marked 16.4.2
 
 ~~~~text
 # License information
@@ -4631,7 +4691,7 @@ Redistribution and use in source and binary forms, with or without modification,
 This software is provided by the copyright holders and contributors “as is” and any express or implied warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software, even if advised of the possibility of such damage.
 ~~~~
 
-### Texto 64: miniz_oxide 0.8.9, miniz_oxide 0.9.1
+### Texto 66: miniz_oxide 0.8.9, miniz_oxide 0.9.1
 
 ~~~~text
 MIT License
@@ -4661,7 +4721,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 65: miniz_oxide 0.8.9, miniz_oxide 0.9.1
+### Texto 67: miniz_oxide 0.8.9, miniz_oxide 0.9.1
 
 ~~~~text
 Copyright 2013-2014 RAD Game Tools and Valve Software
@@ -4680,7 +4740,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ~~~~
 
-### Texto 66: path-data-parser 0.1.0, points-on-curve 0.2.0
+### Texto 68: path-data-parser 0.1.0, points-on-curve 0.2.0
 
 ~~~~text
 MIT License
@@ -4706,7 +4766,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 67: proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4
+### Texto 69: proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4
 
 ~~~~text
 Apache License
@@ -4912,7 +4972,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 68: proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4
+### Texto 70: proc-macro-error 1.0.4, proc-macro-error-attr 1.0.4
 
 ~~~~text
 MIT License
@@ -4938,7 +4998,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 69: quick-xml 0.37.5, quick-xml 0.42.0
+### Texto 71: quick-xml 0.37.5, quick-xml 0.42.0
 
 ~~~~text
 The MIT License (MIT)
@@ -4966,7 +5026,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 70: same-file 1.0.6, winapi-util 0.1.11
+### Texto 72: same-file 1.0.6, winapi-util 0.1.11
 
 ~~~~text
 The MIT License (MIT)
@@ -4992,7 +5052,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 71: schemars 0.8.22, schemars_derive 0.8.22
+### Texto 73: schemars 0.8.22, schemars_derive 0.8.22
 
 ~~~~text
 MIT License
@@ -5018,7 +5078,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 72: serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2
+### Texto 74: serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2
 
 ~~~~text
 MIT License
@@ -5044,7 +5104,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 73: string_cache 0.11.0, string_cache 0.9.0
+### Texto 75: string_cache 0.11.0, string_cache 0.9.0
 
 ~~~~text
 Copyright (c) 2012-2013 Mozilla Foundation
@@ -5074,7 +5134,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 74: tempfile 3.27.0, xattr 1.7.0
+### Texto 76: tempfile 3.27.0, xattr 1.7.0
 
 ~~~~text
 Copyright (c) 2015 Steven Allen
@@ -5104,7 +5164,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 75: tokio 1.54.1, tokio-util 0.7.20
+### Texto 77: tokio 1.54.1, tokio-util 0.7.20
 
 ~~~~text
 MIT License
@@ -5130,7 +5190,37 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 76: @antfu/install-pkg 2.1.0
+### Texto 78: x11rb 0.13.2, x11rb-protocol 0.13.2
+
+~~~~text
+Copyright 2019 x11rb Contributers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+~~~~
+
+### Texto 79: @antfu/install-pkg 2.1.0
 
 ~~~~text
 MIT License
@@ -5156,7 +5246,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 77: @braintree/sanitize-url 7.1.2
+### Texto 80: @braintree/sanitize-url 7.1.2
 
 ~~~~text
 MIT License
@@ -5182,7 +5272,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 78: @codemirror/lang-yaml 6.1.3
+### Texto 81: @codemirror/lang-yaml 6.1.3
 
 ~~~~text
 MIT License
@@ -5208,7 +5298,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 79: @dbml/parse 11.0.0
+### Texto 82: @dbml/parse 11.0.0
 
 ~~~~text
 Apache License
@@ -5414,7 +5504,7 @@ Apache License
    limitations under the License.
 ~~~~
 
-### Texto 80: @iconify/types 2.0.0
+### Texto 83: @iconify/types 2.0.0
 
 ~~~~text
 MIT License
@@ -5440,7 +5530,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 81: @iconify/utils 3.1.7
+### Texto 84: @iconify/utils 3.1.7
 
 ~~~~text
 MIT License
@@ -5466,7 +5556,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 82: @lezer/json 1.0.3
+### Texto 85: @lezer/json 1.0.3
 
 ~~~~text
 MIT License
@@ -5492,7 +5582,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 83: @lezer/yaml 1.0.4
+### Texto 86: @lezer/yaml 1.0.4
 
 ~~~~text
 MIT License
@@ -5518,7 +5608,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 84: @marijn/find-cluster-break 1.0.4
+### Texto 87: @marijn/find-cluster-break 1.0.4
 
 ~~~~text
 MIT License
@@ -5544,7 +5634,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 85: @mermaid-js/parser 2.0.1
+### Texto 88: @mermaid-js/parser 2.0.1
 
 ~~~~text
 The MIT License (MIT)
@@ -5570,7 +5660,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 86: @upsetjs/venn.js 2.0.0
+### Texto 89: @upsetjs/venn.js 2.0.0
 
 ~~~~text
 MIT License
@@ -5597,7 +5687,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 87: adler2 2.0.1
+### Texto 90: adler2 2.0.1
 
 ~~~~text
 Copyright (C) Jonas Schievink <jonasschievink@gmail.com>
@@ -5614,7 +5704,7 @@ AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ~~~~
 
-### Texto 88: ammonia 4.2.4
+### Texto 91: ammonia 4.2.4
 
 ~~~~text
 Copyright (c) 2015-2022 The ammonia Developers
@@ -5638,7 +5728,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 89: arraydeque 0.5.1
+### Texto 92: arraydeque 0.5.1
 
 ~~~~text
 The MIT License (MIT)
@@ -5664,7 +5754,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 90: async-broadcast 0.7.2
+### Texto 93: async-broadcast 0.7.2
 
 ~~~~text
 Apache License
@@ -5859,7 +5949,7 @@ Apache License
    limitations under the License.
 ~~~~
 
-### Texto 91: async-broadcast 0.7.2
+### Texto 94: async-broadcast 0.7.2
 
 ~~~~text
 The MIT License (MIT)
@@ -5885,7 +5975,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 92: base64 0.22.1
+### Texto 95: base64 0.22.1
 
 ~~~~text
 The MIT License (MIT)
@@ -5911,7 +6001,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 93: base64 0.23.1
+### Texto 96: base64 0.23.1
 
 ~~~~text
 The MIT License (MIT)
@@ -5937,7 +6027,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 94: block-buffer 0.10.4
+### Texto 97: block-buffer 0.10.4
 
 ~~~~text
 Copyright (c) 2018-2019 The RustCrypto Project Developers
@@ -5967,7 +6057,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 95: brotli 9.1.1
+### Texto 98: brotli 9.1.1
 
 ~~~~text
 Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
@@ -5991,7 +6081,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 96: bumpalo 3.20.3
+### Texto 99: bumpalo 3.20.3
 
 ~~~~text
 Copyright (c) 2019 Nick Fitzgerald
@@ -6021,7 +6111,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 97: bytes 1.12.1
+### Texto 100: bytes 1.12.1
 
 ~~~~text
 Copyright (c) 2018 Carl Lerche
@@ -6051,7 +6141,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 98: cfb 0.14.0
+### Texto 101: cfb 0.14.0
 
 ~~~~text
 MIT License
@@ -6077,7 +6167,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 99: cookie 0.18.2
+### Texto 102: cookie 0.18.2
 
 ~~~~text
 Apache License
@@ -6284,7 +6374,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 100: cookie 0.18.2
+### Texto 103: cookie 0.18.2
 
 ~~~~text
 Copyright (c) 2017 Sergio Benitez
@@ -6315,7 +6405,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 101: core_detect 1.0.0
+### Texto 104: core_detect 1.0.0
 
 ~~~~text
 Copyright (c) 2017-2020 The Rust Project Developers
@@ -6345,7 +6435,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 102: cpufeatures 0.2.17
+### Texto 105: cpufeatures 0.2.17
 
 ~~~~text
 Copyright (c) 2020-2025 The RustCrypto Project Developers
@@ -6375,7 +6465,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 103: crc32fast 1.5.3
+### Texto 106: crc32fast 1.5.3
 
 ~~~~text
 MIT License
@@ -6401,7 +6491,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 104: crelt 1.0.7
+### Texto 107: crelt 1.0.7
 
 ~~~~text
 Copyright (C) 2020 by Marijn Haverbeke <marijn@haverbeke.berlin>
@@ -6425,7 +6515,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 105: crossbeam-channel 0.5.17
+### Texto 108: crossbeam-channel 0.5.17
 
 ~~~~text
 ===============================================================================
@@ -7023,7 +7113,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 106: crypto-common 0.1.7
+### Texto 109: crypto-common 0.1.7
 
 ~~~~text
 Copyright (c) 2021 RustCrypto Developers
@@ -7053,7 +7143,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 107: cytoscape 3.34.4
+### Texto 110: cytoscape 3.34.4
 
 ~~~~text
 Copyright (c) 2016-2026, The Cytoscape Consortium.
@@ -7077,7 +7167,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 108: cytoscape 3.34.4
+### Texto 111: cytoscape 3.34.4
 
 ~~~~text
 import fs from 'fs';
@@ -7114,7 +7204,7 @@ SOFTWARE.`;
 fs.writeFileSync(path.join(__dirname, 'LICENSE'), license);
 ~~~~
 
-### Texto 109: cytoscape-cose-bilkent 4.1.0
+### Texto 112: cytoscape-cose-bilkent 4.1.0
 
 ~~~~text
 Copyright (c) 2016-2018, The Cytoscape Consortium.
@@ -7138,7 +7228,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 110: cytoscape-fcose 2.2.0
+### Texto 113: cytoscape-fcose 2.2.0
 
 ~~~~text
 Copyright (c) 2018 - present, iVis-at-Bilkent.
@@ -7162,7 +7252,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 111: d3-array 2.12.1
+### Texto 114: d3-array 2.12.1
 
 ~~~~text
 Copyright 2010-2020 Mike Bostock
@@ -7194,7 +7284,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 112: d3-contour 4.0.3
+### Texto 115: d3-contour 4.0.3
 
 ~~~~text
 Copyright 2012-2026 Mike Bostock
@@ -7212,7 +7302,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ~~~~
 
-### Texto 113: d3-delaunay 6.0.5
+### Texto 116: d3-delaunay 6.0.5
 
 ~~~~text
 Copyright 2018-2026 Observable, Inc.
@@ -7231,7 +7321,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ~~~~
 
-### Texto 114: d3-dsv 3.0.2
+### Texto 117: d3-dsv 3.0.2
 
 ~~~~text
 Copyright 2013-2026 Mike Bostock
@@ -7249,7 +7339,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ~~~~
 
-### Texto 115: d3-ease 3.0.2
+### Texto 118: d3-ease 3.0.2
 
 ~~~~text
 Copyright 2010-2026 Mike Bostock
@@ -7282,7 +7372,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 116: d3-fetch 3.0.2
+### Texto 119: d3-fetch 3.0.2
 
 ~~~~text
 Copyright 2016-2026 Mike Bostock
@@ -7300,7 +7390,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ~~~~
 
-### Texto 117: d3-geo 3.1.2
+### Texto 120: d3-geo 3.1.2
 
 ~~~~text
 Copyright 2010-2026 Mike Bostock
@@ -7339,7 +7429,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 118: d3-path 1.0.9
+### Texto 121: d3-path 1.0.9
 
 ~~~~text
 Copyright 2015-2016 Mike Bostock
@@ -7371,7 +7461,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 119: d3-path 3.1.1
+### Texto 122: d3-path 3.1.1
 
 ~~~~text
 Copyright 2015-2026 Mike Bostock
@@ -7389,7 +7479,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ~~~~
 
-### Texto 120: d3-sankey 0.12.3
+### Texto 123: d3-sankey 0.12.3
 
 ~~~~text
 Copyright 2015, Mike Bostock
@@ -7421,7 +7511,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 121: d3-scale-chromatic 3.1.1
+### Texto 124: d3-scale-chromatic 3.1.1
 
 ~~~~text
 Copyright 2010-2026 Mike Bostock
@@ -7454,7 +7544,7 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 ~~~~
 
-### Texto 122: d3-shape 1.3.7
+### Texto 125: d3-shape 1.3.7
 
 ~~~~text
 Copyright 2010-2015 Mike Bostock
@@ -7486,7 +7576,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 123: dagre-d3-es 7.0.14
+### Texto 126: dagre-d3-es 7.0.14
 
 ~~~~text
 Original dagre-d3 copyright: Copyright (c) 2013 Chris Pettitt
@@ -7514,7 +7604,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 124: dayjs 1.11.23
+### Texto 127: dayjs 1.11.23
 
 ~~~~text
 MIT License
@@ -7540,7 +7630,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 125: delaunator 5.1.0
+### Texto 128: delaunator 5.1.0
 
 ~~~~text
 ISC License
@@ -7560,7 +7650,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ~~~~
 
-### Texto 126: deranged 0.5.9
+### Texto 129: deranged 0.5.9
 
 ~~~~text
 Apache License
@@ -7766,7 +7856,7 @@ Apache License
    limitations under the License.
 ~~~~
 
-### Texto 127: deranged 0.5.9
+### Texto 130: deranged 0.5.9
 
 ~~~~text
 Copyright (c) 2024 Jacob Pratt et al.
@@ -7790,7 +7880,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 128: digest 0.10.7
+### Texto 131: digest 0.10.7
 
 ~~~~text
 Copyright (c) 2017 Artyom Pavlov
@@ -7820,7 +7910,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 129: dom_query 0.28.0
+### Texto 132: dom_query 0.28.0
 
 ~~~~text
 MIT License
@@ -7852,7 +7942,7 @@ derived from the "nipper" project (https://github.com/importcjj/nipper),
 developed by Chen Jiaju, licensed under the MIT License and the Apache License 2.0 (dual licensed).
 ~~~~
 
-### Texto 130: dpi 0.1.2
+### Texto 133: dpi 0.1.2
 
 ~~~~text
 rust-lang/libm as a whole is available for use under the MIT license:
@@ -7908,7 +7998,7 @@ have been licensed under extremely permissive terms.
 ------------------------------------------------------------------------------
 ~~~~
 
-### Texto 131: dunce 1.0.5
+### Texto 134: dunce 1.0.5
 
 ~~~~text
 Creative Commons Legal Code
@@ -8034,7 +8124,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 ~~~~
 
-### Texto 132: elkjs 0.9.3
+### Texto 135: elkjs 0.9.3
 
 ~~~~text
 # Eclipse Public License - v 2.0
@@ -8303,7 +8393,7 @@ version(s), and exceptions or additional permissions here}.”
 > You may add additional accurate notices of copyright ownership.
 ~~~~
 
-### Texto 133: encoding_rs 0.8.44
+### Texto 136: encoding_rs 0.8.44
 
 ~~~~text
 Copyright © WHATWG (Apple, Google, Mozilla, Microsoft).
@@ -8334,7 +8424,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 134: enumflags2 0.7.12
+### Texto 137: enumflags2 0.7.12
 
 ~~~~text
 Apache License
@@ -8407,7 +8497,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 135: enumflags2 0.7.12
+### Texto 138: enumflags2 0.7.12
 
 ~~~~text
 Copyright (c) 2017-2023 Maik Klein, Maja Kądziołka
@@ -8437,7 +8527,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 136: enumflags2_derive 0.7.12
+### Texto 139: enumflags2_derive 0.7.12
 
 ~~~~text
 Apache License
@@ -8510,7 +8600,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 137: enumflags2_derive 0.7.12
+### Texto 140: enumflags2_derive 0.7.12
 
 ~~~~text
 Copyright (c) 2017 Maik Klein
@@ -8540,7 +8630,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 138: equivalent 1.0.3
+### Texto 141: equivalent 1.0.3
 
 ~~~~text
 Copyright (c) 2016--2023
@@ -8570,7 +8660,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 139: errno 0.3.14
+### Texto 142: errno 0.3.14
 
 ~~~~text
 Copyright (c) 2014 Chris Wong
@@ -8600,7 +8690,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 140: es-toolkit 1.53.1
+### Texto 143: es-toolkit 1.53.1
 
 ~~~~text
 MIT License
@@ -8626,7 +8716,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 141: es-toolkit 1.53.1
+### Texto 144: es-toolkit 1.53.1
 
 ~~~~text
 es-toolkit
@@ -8670,7 +8760,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 142: field-offset 0.3.6
+### Texto 145: field-offset 0.3.6
 
 ~~~~text
 MIT License
@@ -8696,7 +8786,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 143: flate2 1.1.10
+### Texto 146: flate2 1.1.10
 
 ~~~~text
 Copyright (c) 2014-2026 Alex Crichton
@@ -8726,7 +8816,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 144: fnv 1.0.7
+### Texto 147: fnv 1.0.7
 
 ~~~~text
 Copyright (c) 2017 Contributors
@@ -8756,7 +8846,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 145: foldhash 0.2.0
+### Texto 148: foldhash 0.2.0
 
 ~~~~text
 Copyright (c) 2024 Orson Peters
@@ -8780,7 +8870,7 @@ the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ~~~~
 
-### Texto 146: form_urlencoded 1.2.2
+### Texto 149: form_urlencoded 1.2.2
 
 ~~~~text
 Copyright (c) 2013-2016 The rust-url developers
@@ -8810,7 +8900,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 147: generic-array 0.14.7
+### Texto 150: generic-array 0.14.7
 
 ~~~~text
 The MIT License (MIT)
@@ -8836,7 +8926,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 148: getrandom 0.2.17
+### Texto 151: getrandom 0.2.17
 
 ~~~~text
 Copyright (c) 2018-2024 The rust-random Project Developers
@@ -8867,7 +8957,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 149: getrandom 0.3.4
+### Texto 152: getrandom 0.3.4
 
 ~~~~text
 Copyright (c) 2018-2025 The rust-random Project Developers
@@ -8898,7 +8988,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 150: getrandom 0.4.3
+### Texto 153: getrandom 0.4.3
 
 ~~~~text
 Copyright (c) 2018-2026 The rust-random Project Developers
@@ -8929,7 +9019,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 151: hachure-fill 0.5.2
+### Texto 154: hachure-fill 0.5.2
 
 ~~~~text
 MIT License
@@ -8955,7 +9045,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 152: hex 0.4.3
+### Texto 155: hex 0.4.3
 
 ~~~~text
 Copyright (c) 2013-2014 The Rust Project Developers.
@@ -8980,7 +9070,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 153: http 1.5.0
+### Texto 156: http 1.5.0
 
 ~~~~text
 Apache License
@@ -9186,7 +9276,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 154: http 1.5.0
+### Texto 157: http 1.5.0
 
 ~~~~text
 Copyright (c) 2017 http-rs authors
@@ -9216,7 +9306,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 155: httparse 1.10.1
+### Texto 158: httparse 1.10.1
 
 ~~~~text
 Copyright (c) 2015-2025 Sean McArthur
@@ -9240,7 +9330,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 156: hyper 1.12.0
+### Texto 159: hyper 1.12.0
 
 ~~~~text
 Copyright (c) 2014-2026 Sean McArthur
@@ -9264,7 +9354,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 157: hyper-util 0.1.21
+### Texto 160: hyper-util 0.1.21
 
 ~~~~text
 Copyright (c) 2023-2025 Sean McArthur
@@ -9288,7 +9378,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 158: ico 0.6.0
+### Texto 161: ico 0.6.0
 
 ~~~~text
 MIT License
@@ -9314,7 +9404,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 159: iconv-lite 0.6.3
+### Texto 162: iconv-lite 0.6.3
 
 ~~~~text
 Copyright (c) 2011 Alexander Shtuchkin
@@ -9339,7 +9429,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 160: idna_adapter 1.2.2
+### Texto 163: idna_adapter 1.2.2
 
 ~~~~text
 Copyright (c) The rust-url developers
@@ -9369,7 +9459,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 161: import-meta-resolve 4.2.0
+### Texto 164: import-meta-resolve 4.2.0
 
 ~~~~text
 (The MIT License)
@@ -9448,7 +9538,7 @@ IN THE SOFTWARE.
 """
 ~~~~
 
-### Texto 162: infer 0.22.0
+### Texto 165: infer 0.22.0
 
 ~~~~text
 MIT License
@@ -9474,7 +9564,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 163: ipnet 2.12.2
+### Texto 166: ipnet 2.12.2
 
 ~~~~text
 Apache License
@@ -9680,7 +9770,7 @@ Apache License
    limitations under the License.
 ~~~~
 
-### Texto 164: ipnet 2.12.2
+### Texto 167: ipnet 2.12.2
 
 ~~~~text
 Copyright 2017 Juniper Networks, Inc.
@@ -9692,7 +9782,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 165: javascriptcore-rs 1.1.2
+### Texto 168: javascriptcore-rs 1.1.2
 
 ~~~~text
 The MIT License (MIT)
@@ -9719,7 +9809,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 166: json-patch 4.2.0
+### Texto 169: json-patch 4.2.0
 
 ~~~~text
 MIT License
@@ -9745,7 +9835,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 167: jsonptr 0.7.1
+### Texto 170: jsonptr 0.7.1
 
 ~~~~text
 Apache License
@@ -9951,7 +10041,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 168: jsonptr 0.7.1
+### Texto 171: jsonptr 0.7.1
 
 ~~~~text
 MIT License
@@ -9977,31 +10067,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 169: keyboard-types 0.8.3
-
-~~~~text
-Copyright (c) 2017 Pyfisch
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-~~~~
-
-### Texto 170: khroma 2.1.0
+### Texto 172: khroma 2.1.0
 
 ~~~~text
 The MIT License (MIT)
@@ -10027,7 +10093,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 171: libc 0.2.191
+### Texto 173: libc 0.2.191
 
 ~~~~text
 Copyright (c) The Rust Project Developers
@@ -10057,7 +10123,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 172: lodash-es 4.18.1
+### Texto 174: lodash-es 4.18.1
 
 ~~~~text
 Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
@@ -10109,7 +10175,7 @@ licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ~~~~
 
-### Texto 173: luxon 3.7.2
+### Texto 175: luxon 3.7.2
 
 ~~~~text
 Copyright 2019 JS Foundation and other contributors
@@ -10121,7 +10187,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 174: memoffset 0.9.1
+### Texto 176: memoffset 0.9.1
 
 ~~~~text
 Copyright (c) 2017 Gilad Naaman
@@ -10145,7 +10211,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 175: mermaid 12.2.0
+### Texto 177: mermaid 12.2.0
 
 ~~~~text
 The MIT License (MIT)
@@ -10171,7 +10237,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 176: mime 0.3.17
+### Texto 178: mime 0.3.17
 
 ~~~~text
 Copyright (c) 2014 Sean McArthur
@@ -10195,7 +10261,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 177: minisign-verify 0.3.0
+### Texto 179: minisign-verify 0.3.0
 
 ~~~~text
 Copyright (c) 2019-2025 Frank Denis
@@ -10259,7 +10325,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 178: mio 1.2.4
+### Texto 180: mio 1.2.4
 
 ~~~~text
 Copyright (c) 2014 Carl Lerche and other MIO contributors
@@ -10283,33 +10349,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 179: muda 0.20.0
-
-~~~~text
-MIT License
-
-Copyright (c) 2022-2022 Tauri Programme within The Commons Conservancy
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-~~~~
-
-### Texto 180: new_debug_unreachable 1.0.6
+### Texto 181: new_debug_unreachable 1.0.6
 
 ~~~~text
 Copyright (c) 2015 Jonathan Reem
@@ -10339,7 +10379,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 181: num-conv 0.2.2
+### Texto 182: num-conv 0.2.2
 
 ~~~~text
 Copyright (c) Jacob Pratt
@@ -10363,7 +10403,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 182: open 5.4.5
+### Texto 183: open 5.4.5
 
 ~~~~text
 The MIT License (MIT)
@@ -10393,7 +10433,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 183: option-ext 0.2.0
+### Texto 184: option-ext 0.2.0
 
 ~~~~text
 Mozilla Public License Version 2.0
@@ -10771,7 +10811,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ~~~~
 
-### Texto 184: package-manager-detector 1.9.0
+### Texto 185: package-manager-detector 1.9.0
 
 ~~~~text
 MIT License
@@ -10797,7 +10837,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 185: parking 2.2.1
+### Texto 186: parking 2.2.1
 
 ~~~~text
 ===============================================================================
@@ -10811,7 +10851,7 @@ option. All files in the project carrying such notice may not be
 copied, modified, or distributed except according to those terms.
 ~~~~
 
-### Texto 186: pathe 2.0.3
+### Texto 187: pathe 2.0.3
 
 ~~~~text
 MIT License
@@ -10886,7 +10926,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 187: plist 1.10.3
+### Texto 188: plist 1.10.3
 
 ~~~~text
 Copyright (c) 2015 Edward Barnard
@@ -10910,7 +10950,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 188: png 0.18.1
+### Texto 189: png 0.18.1
 
 ~~~~text
 Copyright (c) 2015 nwin
@@ -10940,7 +10980,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 189: points-on-path 0.2.1
+### Texto 190: points-on-path 0.2.1
 
 ~~~~text
 MIT License
@@ -10966,7 +11006,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 190: powerfmt 0.2.1
+### Texto 191: powerfmt 0.2.1
 
 ~~~~text
 Apache License
@@ -11172,7 +11212,7 @@ Apache License
    limitations under the License.
 ~~~~
 
-### Texto 191: powerfmt 0.2.1
+### Texto 192: powerfmt 0.2.1
 
 ~~~~text
 Copyright (c) 2023 Jacob Pratt et al.
@@ -11196,7 +11236,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 192: precomputed-hash 0.1.1
+### Texto 193: precomputed-hash 0.1.1
 
 ~~~~text
 MIT License
@@ -11222,7 +11262,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 193: raw-window-handle 0.6.2
+### Texto 194: raw-window-handle 0.6.2
 
 ~~~~text
 MIT License
@@ -11248,7 +11288,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 194: raw-window-handle 0.6.2
+### Texto 195: raw-window-handle 0.6.2
 
 ~~~~text
 Copyright (c) 2020 Osspial
@@ -11264,7 +11304,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ~~~~
 
-### Texto 195: reqwest 0.13.5
+### Texto 196: reqwest 0.13.5
 
 ~~~~text
 Apache License
@@ -11470,7 +11510,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 196: reqwest 0.13.5
+### Texto 197: reqwest 0.13.5
 
 ~~~~text
 Copyright (c) 2016-2026 Sean McArthur
@@ -11494,7 +11534,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 197: rfd 0.17.2
+### Texto 198: rfd 0.17.2
 
 ~~~~text
 MIT License
@@ -11520,7 +11560,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 198: ring 0.17.14
+### Texto 199: ring 0.17.14
 
 ~~~~text
 *ring* uses an "ISC" license, like BoringSSL used to use, for new code
@@ -11534,7 +11574,7 @@ See src/polyfill/once_cell/LICENSE-APACHE and src/polyfill/once_cell/LICENSE-MIT
 for the license to code that was sourced from the once_cell project.
 ~~~~
 
-### Texto 199: ring 0.17.14
+### Texto 200: ring 0.17.14
 
 ~~~~text
 Apache License
@@ -11810,7 +11850,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 200: ring 0.17.14
+### Texto 201: ring 0.17.14
 
 ~~~~text
 Copyright 2015-2025 Brian Smith.
@@ -11828,7 +11868,7 @@ OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ~~~~
 
-### Texto 201: robust-predicates 3.0.3
+### Texto 202: robust-predicates 3.0.3
 
 ~~~~text
 This is free and unencumbered software released into the public domain.
@@ -11857,7 +11897,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org>
 ~~~~
 
-### Texto 202: roughjs 4.6.6
+### Texto 203: roughjs 4.6.6
 
 ~~~~text
 MIT License
@@ -11883,7 +11923,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 203: rustls-native-certs 0.8.5
+### Texto 204: rustls-native-certs 0.8.5
 
 ~~~~text
 Rustls is distributed under the following three licenses:
@@ -11897,7 +11937,7 @@ respectively.  You may use this software under the terms of any
 of these licenses, at your option.
 ~~~~
 
-### Texto 204: rustls-pki-types 1.15.1
+### Texto 205: rustls-pki-types 1.15.1
 
 ~~~~text
 Apache License
@@ -12103,7 +12143,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 205: rustls-pki-types 1.15.1
+### Texto 206: rustls-pki-types 1.15.1
 
 ~~~~text
 Copyright (c) 2023 Dirkjan Ochtman <dirkjan@ochtman.nl>
@@ -12133,7 +12173,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 206: rustls-platform-verifier 0.7.1
+### Texto 207: rustls-platform-verifier 0.7.1
 
 ~~~~text
 MIT License
@@ -12159,7 +12199,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 207: rustls-webpki 0.103.16
+### Texto 208: rustls-webpki 0.103.16
 
 ~~~~text
 Except as otherwise noted, this project is licensed under the following
@@ -12183,7 +12223,7 @@ The files under third-party/chromium are licensed as described in
 third-party/chromium/LICENSE.
 ~~~~
 
-### Texto 208: rw 1.3.3
+### Texto 209: rw 1.3.3
 
 ~~~~text
 Copyright (c) 2014-2016, Michael Bostock
@@ -12214,7 +12254,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 209: safer-buffer 2.1.2
+### Texto 210: safer-buffer 2.1.2
 
 ~~~~text
 MIT License
@@ -12240,7 +12280,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 210: saphyr-parser 0.3.3
+### Texto 211: saphyr-parser 0.3.3
 
 ~~~~text
 Code up to and including commit `da52a68615f2ecdd6b7e4567019f280c433c1521` is licensed by Chen Yuheng under either of:
@@ -12254,7 +12294,7 @@ Code modifications starting with commit `1d71a23b151dcc12b289d0f06d8207dd9c76421
 Redistributions of this Work must include licenses of both Chen Yuheng and Ethiraric.
 ~~~~
 
-### Texto 211: scopeguard 1.2.0
+### Texto 212: scopeguard 1.2.0
 
 ~~~~text
 Copyright (c) 2016-2019 Ulrik Sverdrup "bluss" and scopeguard developers
@@ -12284,7 +12324,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 212: sha2 0.10.9
+### Texto 213: sha2 0.10.9
 
 ~~~~text
 Copyright (c) 2006-2009 Graydon Hoare
@@ -12316,7 +12356,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 213: signal-hook-registry 1.4.8
+### Texto 214: signal-hook-registry 1.4.8
 
 ~~~~text
 Copyright (c) 2017 tokio-jsonrpc developers
@@ -12346,7 +12386,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 214: simd-adler32 0.3.10
+### Texto 215: simd-adler32 0.3.10
 
 ~~~~text
 MIT License
@@ -12372,7 +12412,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 215: siphasher 1.0.4
+### Texto 216: siphasher 1.0.4
 
 ~~~~text
 Copyright 2012-2016 The Rust Project Developers.
@@ -12384,7 +12424,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option.
 ~~~~
 
-### Texto 216: slab 0.4.12
+### Texto 217: slab 0.4.12
 
 ~~~~text
 Copyright (c) 2019 Carl Lerche
@@ -12414,7 +12454,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 217: smallvec 1.16.4
+### Texto 218: smallvec 1.16.4
 
 ~~~~text
 Copyright (c) 2018 The Servo Project Developers
@@ -12444,7 +12484,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 218: softbuffer 0.4.8
+### Texto 219: softbuffer 0.4.8
 
 ~~~~text
 Apache License
@@ -12650,7 +12690,7 @@ Apache License
    limitations under the License.
 ~~~~
 
-### Texto 219: softbuffer 0.4.8
+### Texto 220: softbuffer 0.4.8
 
 ~~~~text
 Copyright 2022 Kirill Chibisov
@@ -12674,7 +12714,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 220: stable_deref_trait 1.2.1
+### Texto 221: stable_deref_trait 1.2.1
 
 ~~~~text
 Copyright (c) 2017 Robert Grosse
@@ -12704,7 +12744,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 221: strsim 0.11.1
+### Texto 222: strsim 0.11.1
 
 ~~~~text
 The MIT License (MIT)
@@ -12732,7 +12772,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 222: style-mod 4.1.4
+### Texto 223: style-mod 4.1.4
 
 ~~~~text
 Copyright (C) 2018 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
@@ -12756,7 +12796,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 223: stylis 4.4.0
+### Texto 224: stylis 4.4.0
 
 ~~~~text
 MIT License
@@ -12782,7 +12822,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 224: subtle 2.6.1
+### Texto 225: subtle 2.6.1
 
 ~~~~text
 Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights reserved.
@@ -12816,7 +12856,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~~
 
-### Texto 225: synstructure 0.14.0
+### Texto 226: synstructure 0.14.0
 
 ~~~~text
 Copyright 2016 Nika Layzell
@@ -12828,7 +12868,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 226: tar 0.4.46
+### Texto 227: tar 0.4.46
 
 ~~~~text
 Copyright (c) The tar-rs Project Contributors
@@ -12858,7 +12898,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 227: tauri-plugin-single-instance 2.5.5
+### Texto 228: tauri-plugin-single-instance 2.5.5
 
 ~~~~text
 MIT License
@@ -12884,7 +12924,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 228: tendril 0.5.1
+### Texto 229: tendril 0.5.1
 
 ~~~~text
 Copyright (c) 2015 Keegan McAllister
@@ -12914,7 +12954,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 229: tinyexec 1.3.1
+### Texto 230: tinyexec 1.3.1
 
 ~~~~text
 MIT License
@@ -12940,7 +12980,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 230: tokio-rustls 0.26.6
+### Texto 231: tokio-rustls 0.26.6
 
 ~~~~text
 Apache License
@@ -13146,7 +13186,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 231: tokio-rustls 0.26.6
+### Texto 232: tokio-rustls 0.26.6
 
 ~~~~text
 Copyright (c) 2017 quininer kel
@@ -13176,7 +13216,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 232: tower-http 0.6.11
+### Texto 233: tower-http 0.6.11
 
 ~~~~text
 Copyright (c) 2019-2021 Tower Contributors
@@ -13206,7 +13246,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 233: try-lock 0.2.5
+### Texto 234: try-lock 0.2.5
 
 ~~~~text
 Copyright (c) 2018-2023 Sean McArthur
@@ -13231,7 +13271,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 234: ts-dedent 2.3.0
+### Texto 235: ts-dedent 2.3.0
 
 ~~~~text
 MIT License
@@ -13257,13 +13297,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 235: typenum 1.20.1
+### Texto 236: typenum 1.20.1
 
 ~~~~text
 MIT OR Apache-2.0
 ~~~~
 
-### Texto 236: typenum 1.20.1
+### Texto 237: typenum 1.20.1
 
 ~~~~text
 Apache License
@@ -13469,7 +13509,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ~~~~
 
-### Texto 237: typenum 1.20.1
+### Texto 238: typenum 1.20.1
 
 ~~~~text
 The MIT License (MIT)
@@ -13495,7 +13535,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 238: unicode-ident 1.0.27
+### Texto 239: unicode-ident 1.0.27
 
 ~~~~text
 UNICODE LICENSE V3
@@ -13539,7 +13579,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 ~~~~
 
-### Texto 239: untrusted 0.9.0
+### Texto 240: untrusted 0.9.0
 
 ~~~~text
 // Copyright 2015-2016 Brian Smith.
@@ -13557,7 +13597,7 @@ authorization of the copyright holder.
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ~~~~
 
-### Texto 240: urlpattern 0.6.0
+### Texto 241: urlpattern 0.6.0
 
 ~~~~text
 MIT License
@@ -13583,7 +13623,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 241: uuid 1.29.0
+### Texto 242: uuid 1.29.0
 
 ~~~~text
 Copyright (c) 2014 The Rust Project Developers
@@ -13614,7 +13654,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 242: uuid 14.0.3
+### Texto 243: uuid 14.0.3
 
 ~~~~text
 The MIT License (MIT)
@@ -13628,7 +13668,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 243: w3c-keyname 2.2.8
+### Texto 244: w3c-keyname 2.2.8
 
 ~~~~text
 Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
@@ -13652,7 +13692,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 244: want 0.3.2
+### Texto 245: want 0.3.2
 
 ~~~~text
 Copyright (c) 2018-2019 Sean McArthur
@@ -13676,7 +13716,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ~~~~
 
-### Texto 245: web-time 1.1.0
+### Texto 246: web-time 1.1.0
 
 ~~~~text
 Apache License
@@ -13882,7 +13922,7 @@ Apache License
    limitations under the License.
 ~~~~
 
-### Texto 246: web-time 1.1.0
+### Texto 247: web-time 1.1.0
 
 ~~~~text
 MIT License
@@ -13908,7 +13948,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 247: webkit2gtk 2.0.2
+### Texto 248: webkit2gtk 2.0.2
 
 ~~~~text
 Copyright (c) 2016 Boucher, Antoni <bouanto@zoho.com>
@@ -13933,7 +13973,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 248: webkit2gtk-sys 2.0.2
+### Texto 249: webkit2gtk-sys 2.0.2
 
 ~~~~text
 Copyright (c) 2016 Boucher, Antoni <bouanto@zoho.com>
@@ -13956,7 +13996,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 249: window-vibrancy 0.8.1
+### Texto 250: window-vibrancy 0.8.1
 
 ~~~~text
 MIT License
@@ -13982,7 +14022,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 250: wry 0.57.1
+### Texto 251: wry 0.57.1
 
 ~~~~text
 MIT License
@@ -14008,7 +14048,253 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 251: zcheapstr 1.2.0
+### Texto 252: xkeysym 0.2.1
+
+~~~~text
+Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2022-2023 John Nunley
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+~~~~
+
+### Texto 253: xkeysym 0.2.1
+
+~~~~text
+Copyright (c) 2022-2023 John Nunley
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+~~~~
+
+### Texto 254: xkeysym 0.2.1
+
+~~~~text
+Copyright (c) 2022-2023 John Nunley
+
+This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+
+2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+
+3. This notice may not be removed or altered from any source distribution.
+~~~~
+
+### Texto 255: zcheapstr 1.2.0
 
 ~~~~text
 Copyright (c) 2026 Zeeshan Ali Khan & zcheapstr contributors
@@ -14038,7 +14324,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 252: zeroize 1.9.1
+### Texto 256: zeroize 1.9.1
 
 ~~~~text
 Copyright (c) 2018-2026 The RustCrypto Project Developers
@@ -14068,7 +14354,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ~~~~
 
-### Texto 253: zip 9.2.3
+### Texto 257: zip 9.2.3
 
 ~~~~text
 The MIT License (MIT)
@@ -14094,7 +14380,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
 
-### Texto 254: zlib-rs 0.6.8
+### Texto 258: zlib-rs 0.6.8
 
 ~~~~text
 (C) 2024 Trifecta Tech Foundation 
@@ -14118,7 +14404,7 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ~~~~
 
-### Texto 255: zopfli 0.8.4
+### Texto 259: zopfli 0.8.4
 
 ~~~~text
 Apache License
