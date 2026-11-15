@@ -369,6 +369,24 @@ mod tests {
         assert_eq!(s.fresh_postit_label(), "postit-4");
     }
 
+    #[test]
+    fn tab_sent_to_a_postit_and_back_restores_the_origin() {
+        let (a, b) = (tab("main"), tab("main"));
+        let mut s = session(vec![a.clone(), b.clone()]);
+        s.set_active("main", Some(b.id));
+        let label = s.fresh_postit_label();
+        s.move_tab(b.clone(), &label);
+        s.set_postit(&label, true);
+        s.set_on_top(&label, true);
+        assert_eq!(s.active_of("main"), Some(a.id));
+        // a janela não abriu: desfaz
+        s.move_tab(b.clone(), "main");
+        s.prune_windows();
+        assert!(s.windows.is_empty(), "o registro do post-it some junto com a aba");
+        assert_eq!(s.view_for("main").tabs.len(), 2);
+        assert_eq!(s.floating_labels(), Vec::<String>::new());
+    }
+
     fn rect(x: i32, y: i32, w: u32, h: u32) -> Geometry {
         Geometry { x, y, w, h }
     }

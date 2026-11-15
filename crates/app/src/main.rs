@@ -472,20 +472,23 @@ fn work_area_at_cursor(app: &AppHandle) -> (Geometry, f64) {
 /// Abre um post-it: nota nova numa janela pequena, sempre no topo, que nasce ao lado dos post-its
 /// já abertos (ou embaixo, se faltar tela), sem cobri-los. Usada pelo menu e pelo atalho global.
 fn open_postit(app: &AppHandle, state: &AppState, tab: Option<TabState>) -> Result<String, String> {
+    let fresh_note = tab.is_none();
     let tab = match tab {
         Some(t) => t,
         None => state.store.create_note().map_err(err)?,
     };
-    let label = {
+    // de onde a aba vem (e como ela chegou): para desfazer tudo se a janela não abrir
+    let (label, origin) = {
         let _g = state.session_lock.lock().unwrap();
         let mut session = state.store.load_session().map_err(err)?;
+        let origin = session.tabs.iter().find(|t| t.id == tab.id).map(|t| t.window.clone());
         let label = session.fresh_postit_label();
-        session.move_tab(tab, &label);
+        session.move_tab(tab.clone(), &label);
         session.prune_windows(); // a janela de origem pode ter ficado sem abas
         session.set_postit(&label, true);
         session.set_on_top(&label, true);
         state.store.save_session(&session).map_err(err)?;
-        label
+        (label, origin)
     };
     let (area, scale) = work_area_at_cursor(app);
     let (w, h) = ((POSTIT_SIZE.0 * scale) as u32, (POSTIT_SIZE.1 * scale) as u32);
@@ -496,12 +499,41 @@ fn open_postit(app: &AppHandle, state: &AppState, tab: Option<TabState>) -> Resu
         .filter_map(|(_, win)| geometry_of(&win))
         .collect();
     let (x, y) = place_postit(&others, area, w, h);
-    build_window(app, &label, Some(Geometry { x, y, w, h }), None)?;
+    if let Err(e) = build_window(app, &label, Some(Geometry { x, y, w, h }), None) {
+        // a janela não abriu: a aba volta para onde estava, senão ficaria numa janela que não existe
+        let id = tab.id;
+        let _g = state.session_lock.lock().unwrap();
+        if let Ok(mut session) = state.store.load_session() {
+            match origin {
+                Some(from) => session.move_tab(tab, &from),
+                None => session.remove_tab(id),
+            }
+            session.prune_windows();
+            let _ = state.store.save_session(&session);
+        }
+        if fresh_note {
+            let _ = state.store.close_note(id);
+        }
+        return Err(e);
+    }
+    // rede de segurança: se a UI do post-it não chegar a se mostrar (falha ao iniciar), ele aparece mesmo assim
+    let app2 = app.clone();
+    let label2 = label.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        if let Some(w) = app2.get_webview_window(&label2) {
+            if !w.is_visible().unwrap_or(true) {
+                let _ = w.show();
+            }
+        }
+    });
     Ok(label)
 }
 
+// Os comandos que criam janela são `async`: no Windows, criar uma janela num comando síncrono trava
+// o laço de eventos do app inteiro (Tauri: "known issues" de `WebviewWindowBuilder::build`).
 #[tauri::command]
-fn new_postit(app: AppHandle, state: State<AppState>) -> Result<String, String> {
+async fn new_postit(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
     open_postit(&app, &state, None)
 }
 
@@ -509,7 +541,7 @@ fn new_postit(app: AppHandle, state: State<AppState>) -> Result<String, String> 
 /// gravado pela UI e o histórico de desfazer fica para trás). Abas de leitura (PDF/EPUB), a nota de
 /// versão e as que já estão num post-it não vão: são grandes demais ou só leitura.
 #[tauri::command]
-fn tab_to_postit(app: AppHandle, state: State<AppState>, window: WebviewWindow, tab: TabState) -> Result<String, String> {
+async fn tab_to_postit(app: AppHandle, state: State<'_, AppState>, window: WebviewWindow, tab: TabState) -> Result<String, String> {
     if window.label().starts_with(POSTIT_PREFIX) {
         return Err("a aba já está numa nota adesiva".into());
     }
