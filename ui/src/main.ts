@@ -52,7 +52,7 @@ import { currentZoom, loadZoom, onZoomChange, setZoom, stepZoom, wheelZoom } fro
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
 import { type DockGroup, type DockTile, type Rect, SIDES, dockTiles, tileAt } from "./dock";
 import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, normalize, pathTo, removeLeaf, resizeSizes, splitLeaf, splitPath, swapAdjacent, wrapCandidates } from "./grid";
-import { mountPostitBar } from "./postit";
+import { mountPostitBar, type PostitBar } from "./postit";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -1351,8 +1351,12 @@ function tabLabel(t: TabState): string {
 }
 
 function updateTitle() {
-  if (session.active) void thisWindow.setTitle(`${tabLabel(activeTab())} — Fullpad`);
+  if (session.active) {
+    void thisWindow.setTitle(`${tabLabel(activeTab())} — Fullpad`);
+    postitBar?.setTitle(tabLabel(activeTab()));
+  }
 }
+let postitBar: PostitBar | undefined;
 
 /** Alfinete (agulha) mostrado no lugar do × nas abas fixadas. */
 const PIN_ICON =
@@ -2251,6 +2255,24 @@ async function prepareToLeave(id: string): Promise<TabState | null> {
   return structuredClone(tab);
 }
 
+/** A aba pode virar nota adesiva: texto editável, e não já dentro de um post-it. */
+const canPostit = (tab: TabState) => !isPostit && !isReader(tab) && !isReadOnlyText(tab);
+
+/** Manda a aba para uma nota adesiva (post-it) nova: sai desta janela como em `sendTab`. */
+async function sendToPostit(id: string) {
+  const tab = session.tabs.find((t) => t.id === id);
+  if (!tab || !canPostit(tab)) return;
+  const copy = await prepareToLeave(id);
+  if (!copy) return;
+  try {
+    await enqueue(() => api.tabToPostit(copy));
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível criar a nota adesiva", kind: "error" });
+    return;
+  }
+  await removeLocalTab(id);
+}
+
 /**
  * Leva a aba para outra janela (`to`: rótulo ou "new"). O texto pendente é gravado antes, para a
  * outra janela ler a versão mais recente; o histórico de desfazer fica para trás.
@@ -2489,6 +2511,7 @@ async function openTabMenu(tab: TabState, anchor: HTMLElement) {
     "sep",
     { label: tab.pinned ? "Desafixar" : "Fixar", action: () => setPinned(tab.id, !tab.pinned) },
     { label: "Manter janela no topo", checked: onTop, action: toggleOnTop },
+    { label: "Enviar para nota adesiva", disabled: !canPostit(tab), action: () => void sendToPostit(tab.id) },
     "sep",
     { label: "Fechar", shortcut: "Ctrl+W", action: () => void closeTab(tab.id) },
     { label: "Fechar outras", action: () => void closeMany(toCloseOthers(session.tabs, tab.id)) },
@@ -3187,6 +3210,8 @@ const menuActions = {
   newNote: () => void newTab(),
   newWindow: () => void api.newWindow(),
   newPostit: () => void api.newPostit(),
+  tabToPostit: () => void (session.active && sendToPostit(session.active)),
+  postitsToFront: () => void api.postitsToFront(),
   tabToNewWindow: () => void sendTab(session.active!, "new"),
   openFile: () => void openFiles(),
   readerLoad: () => cur.reader?.load(),
@@ -3264,6 +3289,7 @@ const menuActions = {
       wrap,
       lineNumbers,
       onTop,
+      canPostit: canPostit(tab),
       outline: { on: outlineOn, pinned: outlinePinned, side: outlineSide },
       jsonIndent,
       csv: csvSettings(tab),
@@ -3403,7 +3429,7 @@ async function boot() {
   session = startup.session;
   onTop = startup.on_top;
   if (isPostit) {
-    mountPostitBar(document.body, { pinned: onTop, onPin: setOnTop, onClose: () => void thisWindow.close() });
+    postitBar = mountPostitBar(document.body, { pinned: onTop, onPin: setOnTop, onClose: () => void thisWindow.close() });
     // Esc fecha o post-it (a menos que o editor o tenha usado: fechar a busca, por exemplo)
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !e.defaultPrevented && !e.ctrlKey && !e.altKey && !e.shiftKey) void thisWindow.close();
@@ -3463,7 +3489,7 @@ async function boot() {
     if (isPostit) {
       // post-it sem nada escrito não vira aba na principal: vai para o histórico de fechadas
       for (const t of [...session.tabs]) {
-        if ((states.get(t.id)?.doc.length ?? 1) === 0) {
+        if (!t.path && (states.get(t.id)?.doc.length ?? 1) === 0) {
           await api.closeNote(t.id);
           session.tabs = session.tabs.filter((x) => x.id !== t.id);
         }

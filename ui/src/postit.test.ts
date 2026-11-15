@@ -53,4 +53,10 @@ describe("barra do post-it", () => {
     bar.el.querySelector<HTMLButtonElement>(".postit-close")!.click();
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it("mostra o título da nota", () => {
+    const bar = mountPostitBar(document.body, { pinned: false, onPin: async (v) => v, onClose: () => {} });
+    bar.setTitle("Lista de compras");
+    expect(bar.el.querySelector(".postit-title")!.textContent).toBe("Lista de compras");
+  });
 });

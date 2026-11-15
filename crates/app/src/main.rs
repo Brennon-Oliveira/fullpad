@@ -471,13 +471,17 @@ fn work_area_at_cursor(app: &AppHandle) -> (Geometry, f64) {
 
 /// Abre um post-it: nota nova numa janela pequena, sempre no topo, que nasce ao lado dos post-its
 /// já abertos (ou embaixo, se faltar tela), sem cobri-los. Usada pelo menu e pelo atalho global.
-fn open_postit(app: &AppHandle, state: &AppState) -> Result<String, String> {
-    let tab = state.store.create_note().map_err(err)?;
+fn open_postit(app: &AppHandle, state: &AppState, tab: Option<TabState>) -> Result<String, String> {
+    let tab = match tab {
+        Some(t) => t,
+        None => state.store.create_note().map_err(err)?,
+    };
     let label = {
         let _g = state.session_lock.lock().unwrap();
         let mut session = state.store.load_session().map_err(err)?;
         let label = session.fresh_postit_label();
         session.move_tab(tab, &label);
+        session.prune_windows(); // a janela de origem pode ter ficado sem abas
         session.set_postit(&label, true);
         session.set_on_top(&label, true);
         state.store.save_session(&session).map_err(err)?;
@@ -498,7 +502,44 @@ fn open_postit(app: &AppHandle, state: &AppState) -> Result<String, String> {
 
 #[tauri::command]
 fn new_postit(app: AppHandle, state: State<AppState>) -> Result<String, String> {
-    open_postit(&app, &state)
+    open_postit(&app, &state, None)
+}
+
+/// Manda uma aba aberta para um post-it novo (mesmo caminho de `move_tab`: o texto pendente já foi
+/// gravado pela UI e o histórico de desfazer fica para trás). Abas de leitura (PDF/EPUB), a nota de
+/// versão e as que já estão num post-it não vão: são grandes demais ou só leitura.
+#[tauri::command]
+fn tab_to_postit(app: AppHandle, state: State<AppState>, window: WebviewWindow, tab: TabState) -> Result<String, String> {
+    if window.label().starts_with(POSTIT_PREFIX) {
+        return Err("a aba já está numa nota adesiva".into());
+    }
+    if tab.kind != TabKind::Text || tab.release_notes {
+        return Err("esta aba não pode virar nota adesiva (só abas de texto editáveis)".into());
+    }
+    open_postit(&app, &state, Some(tab))
+}
+
+/// Traz todos os post-its para a frente (mostra os minimizados) e reaplica o "sempre no topo" de
+/// cada um conforme o estado gravado. Não rouba o foco.
+#[tauri::command]
+fn postits_to_front(app: AppHandle, state: State<AppState>) -> Result<usize, String> {
+    let session = state.store.load_session().map_err(err)?;
+    let mut n = 0;
+    for (label, win) in app.webview_windows() {
+        if !label.starts_with(POSTIT_PREFIX) || !session.is_postit(&label) {
+            continue;
+        }
+        let _ = win.unminimize();
+        let _ = win.show();
+        let keep = session.on_top_of(&label);
+        // ligar o sempre-no-topo leva a janela à frente; se ela não estava fixada, solta de novo
+        let _ = win.set_always_on_top(true);
+        if !keep {
+            let _ = win.set_always_on_top(false);
+        }
+        n += 1;
+    }
+    Ok(n)
 }
 
 /// Nota nova numa janela nova.
@@ -1456,7 +1497,7 @@ fn main() {
                         let app = app.clone();
                         // fora do laço de eventos: criar janela dali pode travar no Windows
                         tauri::async_runtime::spawn(async move {
-                            if let Err(e) = open_postit(&app, &app.state::<AppState>()) {
+                            if let Err(e) = open_postit(&app, &app.state::<AppState>(), None) {
                                 eprintln!("post-it não aberto: {e}");
                             }
                         });
@@ -1539,6 +1580,8 @@ fn main() {
             new_window,
             set_on_top,
             new_postit,
+            tab_to_postit,
+            postits_to_front,
             prewarm,
             drag_start,
             drag_move,

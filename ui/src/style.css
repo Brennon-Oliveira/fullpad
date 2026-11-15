@@ -285,7 +285,9 @@ body.postit #status, body.postit .tabs, body.postit .outline, body.postit #gsear
   display: flex; align-items: center; flex: none; height: 24px; gap: 4px; padding: 0 4px;
   background: #fde68a; color: #5b4a00; border-bottom: 1px solid #e5c95a; user-select: none;
 }
-.postit-toast { flex: 1; min-width: 0; font-size: 11px; padding-left: 4px; overflow: hidden; white-space: nowrap; }
+.postit-title { flex: 1; min-width: 0; font-size: 11px; padding-left: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.postit-toast { flex: none; font-size: 11px; padding: 0 4px; white-space: nowrap; }
+.postit-toast:empty { display: none; }
 .postit-btn { display: grid; place-items: center; width: 22px; height: 20px; border: 0; border-radius: 4px; background: none; color: inherit; cursor: pointer; padding: 0; }
 .postit-btn:hover { background: rgba(0, 0, 0, .12); }
 .postit-pin { opacity: .55; transform: rotate(35deg); }

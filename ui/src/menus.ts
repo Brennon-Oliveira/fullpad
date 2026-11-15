@@ -11,6 +11,10 @@ export interface MenuActions {
   newWindow(): void;
   /** Nota rápida: janela pequena, sempre no topo (o atalho global abre a mesma). */
   newPostit(): void;
+  /** Manda a aba atual para uma nota adesiva (post-it) nova. */
+  tabToPostit(): void;
+  /** Traz todas as notas adesivas para a frente. */
+  postitsToFront(): void;
   tabToNewWindow(): void;
   openFile(): void;
   save(): void;
@@ -93,6 +97,8 @@ export interface MenuActions {
     lineNumbers: boolean;
     /** A janela está com "Manter no topo". */
     onTop: boolean;
+    /** A aba atual pode virar nota adesiva (texto editável, fora de um post-it). */
+    canPostit: boolean;
     outline: { on: boolean; pinned: boolean; side: "left" | "right" };
     jsonIndent: string;
     /** Escolhas do CSV da aba e o separador que a detecção achou (vale quando a escolha é automática). */
@@ -427,6 +433,15 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
           outlineItem(a),
           "sep",
           { label: "Manter no topo", checked: c.onTop, action: a.toggleOnTop },
+          {
+            label: "Notas adesivas",
+            submenu: [
+              { label: "Nova nota adesiva", shortcut: "Ctrl+Alt+N", action: a.newPostit },
+              { label: "Enviar aba atual para nota adesiva", disabled: !c.canPostit, action: a.tabToPostit },
+              "sep",
+              { label: "Trazer todas para o topo", action: a.postitsToFront },
+            ],
+          },
           zoomItem(a),
         ];
       },

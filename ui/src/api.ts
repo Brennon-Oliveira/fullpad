@@ -219,6 +219,10 @@ export const api = {
   setOnTop: (onTop: boolean) => invoke<void>("set_on_top", { onTop }),
   /** Nota rápida (post-it) em janela própria, ao lado das que já estão abertas. */
   newPostit: () => invoke<string>("new_postit"),
+  /** Manda uma aba de texto desta janela para um post-it novo. Devolve o rótulo dele. */
+  tabToPostit: (tab: TabState) => invoke<string>("tab_to_postit", { tab }),
+  /** Traz todos os post-its para a frente (mostra os minimizados). Devolve quantos são. */
+  postitsToFront: () => invoke<number>("postits_to_front"),
   prewarm: () => invoke<void>("prewarm"),
   /** Começou a arrastar uma aba para fora da barra: mostra a sombra no ponteiro (tela, px físicos). */
   dragStart: (title: string, x: number, y: number, gx: number, gy: number, selfDrag: boolean) =>

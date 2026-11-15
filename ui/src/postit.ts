@@ -6,6 +6,8 @@ export interface PostitBar {
   el: HTMLElement;
   /** Atualiza o alfinete (aceso = fixado) sem mostrar aviso. */
   setPinned(v: boolean): void;
+  /** Título da nota na barra (o nome da aba). */
+  setTitle(t: string): void;
 }
 
 export interface PostitOptions {
@@ -31,6 +33,10 @@ export function mountPostitBar(host: HTMLElement, opts: PostitOptions): PostitBa
   pin.className = "postit-btn postit-pin";
   pin.innerHTML = PIN_SVG;
 
+  const title = document.createElement("span");
+  title.className = "postit-title";
+  title.setAttribute("data-tauri-drag-region", "");
+
   const toast = document.createElement("span");
   toast.className = "postit-toast";
   toast.setAttribute("data-tauri-drag-region", "");
@@ -43,7 +49,7 @@ export function mountPostitBar(host: HTMLElement, opts: PostitOptions): PostitBa
   close.setAttribute("aria-label", "Fechar");
   close.innerHTML = CLOSE_SVG;
 
-  el.append(pin, toast, close);
+  el.append(pin, title, toast, close);
   host.prepend(el);
 
   let pinned = opts.pinned;
@@ -69,6 +75,10 @@ export function mountPostitBar(host: HTMLElement, opts: PostitOptions): PostitBa
 
   return {
     el,
+    setTitle(t) {
+      title.textContent = t;
+      title.title = t;
+    },
     setPinned(v) {
       pinned = v;
       paint();
