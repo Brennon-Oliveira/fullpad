@@ -407,6 +407,8 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .csvview.on { display: flex; }
 .body.tableonly > .editor { display: none !important; }
 .body.tableonly > .csvview { border-left: 0; }
+.body.diagramonly:not(.layoutjson) > .editor { display: none !important; }
+.body.diagramonly > .diagram { border-left: 0; }
 .preview-only .csvview { border-left: 0; }
 .csv-bar { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: var(--bar); border-bottom: 1px solid var(--border); font: 12px var(--sans); }
 .csv-filter { width: 220px; max-width: 40%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }

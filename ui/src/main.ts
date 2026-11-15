@@ -218,11 +218,13 @@ function previewAvailable(tab: TabState): boolean {
 }
 
 /** Como o arquivo aparece: só código, renderizado no próprio texto (markdown) ou ao lado do código. */
-type ViewKind = "source" | "inline" | "split";
+type ViewKind = "source" | "inline" | "split" | "only";
 
 function viewKind(tab: TabState): ViewKind {
   if (!previewAvailable(tab) || tab.mode === "source") return "source";
-  if (sideOnly(effectiveLang(tab))) return "split"; // diagrama e árvore sempre ficam ao lado
+  const lang = effectiveLang(tab);
+  if (tab.mode === "only" && (lang === "dbml" || lang === "mermaid") && !tab.detached) return "only"; // só o diagrama, sem o código
+  if (sideOnly(lang)) return "split"; // diagrama e árvore sempre ficam ao lado
   return tab.mode === "split" ? "split" : "inline";
 }
 
@@ -232,7 +234,7 @@ function viewLabel(tab: TabState): string {
   const k = viewKind(tab);
   if (k === "source") return "Código";
   if (tab.detached) return "Janela separada";
-  if (effectiveLang(tab) === "dbml" || effectiveLang(tab) === "mermaid") return "Diagrama";
+  if (effectiveLang(tab) === "dbml" || effectiveLang(tab) === "mermaid") return k === "only" ? "Só diagrama" : "Diagrama";
   if (effectiveLang(tab) === "latex") return "Equações";
   if (isTree(effectiveLang(tab))) return "Árvore";
   if (effectiveLang(tab) === "csv") return k === "inline" ? "Tabela" : "Tabela e código";
@@ -1089,6 +1091,8 @@ function syncDiagram(textChanged = false) {
   syncCsvTable(textChanged);
   syncDetached(textChanged);
   const tab = activeTab();
+  // sozinho, o diagrama cobre o painel e o editor (que segue vivo, escondido, com o texto e o histórico) some
+  g.bodyEl.classList.toggle("diagramonly", diagramWanted(tab) && viewKind(tab) === "only");
   if (!diagramWanted(tab)) {
     g.diagram?.hide();
     g.diagramTab = null;

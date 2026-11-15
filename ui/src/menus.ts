@@ -134,7 +134,7 @@ export function viewItems(a: MenuActions, withLayout = false): MenuItem[] {
     "sep",
     { label: c.lang === "dbml" || c.lang === "mermaid" ? "Diagrama em janela separada" : c.lang === "latex" ? "Equações em janela separada" : isTree(c.lang) ? "Árvore em janela separada" : "Preview em janela separada", checked: c.detached, disabled: off, action: a.toggleDetached },
   ];
-  if (c.lang === "dbml" || c.lang === "mermaid") return [...layout, item("Somente código", "source"), item("Código e diagrama lado a lado", "split", "Ctrl+E"), ...detach];
+  if (c.lang === "dbml" || c.lang === "mermaid") return [...layout, item("Somente diagrama", "only"), item("Somente código", "source"), item("Código e diagrama lado a lado", "split", "Ctrl+E"), ...detach];
   if (c.lang === "latex") return [item("Somente código", "source"), item("Código e equações lado a lado", "split", "Ctrl+E"), ...detach];
   if (c.lang === "json") return [item("Somente código", "source"), item("Código e árvore lado a lado", "split", "Ctrl+E"), ...detach];
   if (isTree(c.lang)) return [item("Somente código", "source"), item("Código e árvore lado a lado", "split", "Ctrl+E")];

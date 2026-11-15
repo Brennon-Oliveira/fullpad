@@ -9,6 +9,9 @@ pub enum ViewMode {
     Source,
     /// Código e visão renderizada lado a lado (markdown renderizado, ou o diagrama no DBML).
     Split,
+    /// Só o diagrama (DBML e Mermaid): o editor fica escondido, vivo, com o texto e o histórico.
+    /// Uma versão que não o conhece lê como `Rendered`, que nesses tipos é o diagrama ao lado.
+    Only,
     /// Preview ligado: markdown renderizado (live preview). Também é o que um valor
     /// desconhecido (de uma versão mais nova do app) vira, em vez de invalidar a sessão.
     #[default]
