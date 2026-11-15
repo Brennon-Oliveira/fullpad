@@ -35,7 +35,7 @@ impl Session {
         if let Some(i) = self.windows.iter().position(|w| w.label == label) {
             return &mut self.windows[i];
         }
-        self.windows.push(WindowState { label: label.to_string(), active: None, geometry: None, layout: None });
+        self.windows.push(WindowState { label: label.to_string(), active: None, geometry: None, layout: None, on_top: false, postit: false });
         self.windows.last_mut().unwrap()
     }
 
@@ -49,6 +49,28 @@ impl Session {
         if layout.is_some() || self.windows.iter().any(|w| w.label == label) {
             self.window_state(label).layout = layout;
         }
+    }
+
+    pub fn set_on_top(&mut self, label: &str, on_top: bool) {
+        // não cria registro à toa: só guarda quando liga ou quando já havia registro
+        if on_top || self.windows.iter().any(|w| w.label == label) {
+            self.window_state(label).on_top = on_top;
+        }
+    }
+
+    pub fn on_top_of(&self, label: &str) -> bool {
+        self.windows.iter().find(|w| w.label == label).is_some_and(|w| w.on_top)
+    }
+
+    /// Marca a janela como post-it (captura rápida).
+    pub fn set_postit(&mut self, label: &str, postit: bool) {
+        if postit || self.windows.iter().any(|w| w.label == label) {
+            self.window_state(label).postit = postit;
+        }
+    }
+
+    pub fn is_postit(&self, label: &str) -> bool {
+        self.windows.iter().find(|w| w.label == label).is_some_and(|w| w.postit)
     }
 
     pub fn layout_of(&self, label: &str) -> Option<serde_json::Value> {
@@ -153,6 +175,36 @@ impl Session {
         let alive: HashSet<String> = self.tabs.iter().map(|t| t.window.clone()).collect();
         self.windows.retain(|w| alive.contains(&w.label));
     }
+}
+
+/// Onde nasce um post-it novo: o primeiro lugar livre, da direita para a esquerda na faixa de
+/// cima da área útil do monitor (`area`, pixels físicos) e, quando a faixa enche, na faixa de
+/// baixo, sem cobrir as janelas em `others` (as notas já abertas). Sem lugar livre, cai em cascata.
+pub fn place_postit(others: &[Geometry], area: Geometry, w: u32, h: u32) -> (i32, i32) {
+    const GAP: i32 = 12;
+    const MARGIN: i32 = 16;
+    let (w, h) = (w as i32, h as i32);
+    let free = |x: i32, y: i32| {
+        others.iter().all(|o| {
+            let (ow, oh) = (o.w as i32, o.h as i32);
+            x + w + GAP <= o.x || o.x + ow + GAP <= x || y + h + GAP <= o.y || o.y + oh + GAP <= y
+        })
+    };
+    let (left, top) = (area.x + MARGIN, area.y + MARGIN);
+    let (right, bottom) = (area.x + area.w as i32 - MARGIN, area.y + area.h as i32 - MARGIN);
+    let mut y = top;
+    while y + h <= bottom {
+        let mut x = right - w;
+        while x >= left {
+            if free(x, y) {
+                return (x, y);
+            }
+            x -= w + GAP;
+        }
+        y += h + GAP;
+    }
+    let step = 32 * others.len() as i32;
+    ((right - w - step).max(area.x), (top + step).min((bottom - h).max(area.y)))
 }
 
 #[cfg(test)]
@@ -272,5 +324,81 @@ mod tests {
         assert_eq!(back, s);
         s.prune_windows();
         assert!(s.layout_of("main").is_some(), "janela com abas mantém a grade");
+    }
+
+    #[test]
+    fn on_top_is_remembered_per_window_and_old_sessions_default_to_off() {
+        let mut s = session(vec![tab("win-2")]);
+        assert!(!s.on_top_of("win-2"));
+        s.set_on_top("win-2", false);
+        assert!(s.windows.is_empty(), "desligado e sem registro: nada a guardar");
+        s.set_on_top("win-2", true);
+        assert!(s.on_top_of("win-2"));
+        let back: Session = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        assert!(back.on_top_of("win-2"));
+        s.set_on_top("win-2", false);
+        assert!(!s.on_top_of("win-2"));
+        assert!(!serde_json::to_string(&s).unwrap().contains("on_top"));
+        let old = r#"{"label":"win-2"}"#;
+        let w: WindowState = serde_json::from_str(old).unwrap();
+        assert!(!w.on_top && !w.postit);
+    }
+
+    #[test]
+    fn postit_flag_survives_a_round_trip() {
+        let mut s = session(vec![tab("win-2")]);
+        s.set_postit("win-2", true);
+        assert!(s.is_postit("win-2") && !s.is_postit("main"));
+        let back: Session = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        assert!(back.is_postit("win-2"));
+    }
+
+    fn rect(x: i32, y: i32, w: u32, h: u32) -> Geometry {
+        Geometry { x, y, w, h }
+    }
+
+    fn overlaps(a: (i32, i32), b: Geometry, w: u32, h: u32) -> bool {
+        a.0 < b.x + b.w as i32 && b.x < a.0 + w as i32 && a.1 < b.y + b.h as i32 && b.y < a.1 + h as i32
+    }
+
+    #[test]
+    fn first_postit_goes_to_the_top_right_corner() {
+        let area = rect(0, 0, 1920, 1040);
+        assert_eq!(place_postit(&[], area, 320, 260), (1920 - 16 - 320, 16));
+    }
+
+    #[test]
+    fn next_postits_sit_beside_then_below_without_overlapping() {
+        let area = rect(0, 0, 1000, 700);
+        let (w, h) = (300, 250);
+        let mut placed: Vec<Geometry> = Vec::new();
+        for _ in 0..6 {
+            let (x, y) = place_postit(&placed, area, w, h);
+            assert!(placed.iter().all(|o| !overlaps((x, y), *o, w, h)), "sobrepôs em ({x}, {y})");
+            assert!(x >= area.x && y >= area.y && x + w as i32 <= 1000 && y + h as i32 <= 700, "saiu da tela");
+            placed.push(rect(x, y, w, h));
+        }
+        // a 2ª fica à esquerda da 1ª, na mesma faixa
+        assert_eq!(placed[1].y, placed[0].y);
+        assert!(placed[1].x < placed[0].x);
+        // com 3 por faixa (1000 de largura), a 4ª vai para a faixa de baixo
+        assert!(placed[3].y > placed[0].y);
+    }
+
+    #[test]
+    fn postit_respects_a_monitor_that_does_not_start_at_the_origin() {
+        let area = rect(-1920, 0, 1920, 1040);
+        let (x, y) = place_postit(&[], area, 320, 260);
+        assert_eq!((x, y), (-16 - 320, 16));
+    }
+
+    #[test]
+    fn postit_falls_back_to_a_cascade_when_the_screen_is_full() {
+        let area = rect(0, 0, 400, 300);
+        let first = place_postit(&[], area, 300, 250);
+        let full = [rect(first.0, first.1, 300, 250)];
+        let next = place_postit(&full, area, 300, 250);
+        assert_ne!(next, first);
+        assert!(next.0 >= 0 && next.1 >= 0);
     }
 }

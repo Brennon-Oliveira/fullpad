@@ -178,6 +178,10 @@ struct Startup {
     active_text: String,
     /// Grade de painéis desta janela (a UI a interpreta).
     layout: Option<serde_json::Value>,
+    /// A janela está com "Manter no topo".
+    on_top: bool,
+    /// A janela é um post-it (captura rápida): sem abas nem barra de status, só a nota.
+    postit: bool,
 }
 
 #[derive(Serialize)]
@@ -202,6 +206,9 @@ fn is_tab_window(label: &str) -> bool {
 /// Janela minúscula e transparente que acompanha o ponteiro enquanto uma aba é arrastada.
 const GHOST: &str = "ghost";
 
+/// Tamanho inicial (px lógicos) do post-it.
+const POSTIT_SIZE: (f64, f64) = (320.0, 240.0);
+
 fn geometry_of(w: &WebviewWindow) -> Option<Geometry> {
     let p = w.outer_position().ok()?;
     let s = w.outer_size().ok()?;
@@ -210,12 +217,21 @@ fn geometry_of(w: &WebviewWindow) -> Option<Geometry> {
 
 /// Cria uma janela de abas escondida (a UI se mostra quando termina de carregar, sem flash branco).
 fn build_window(app: &AppHandle, label: &str, geometry: Option<Geometry>, at: Option<(i32, i32)>) -> Result<(), String> {
-    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
-        .title("Fullpad")
-        .inner_size(900.0, 620.0)
-        .visible(false)
-        .build()
-        .map_err(err)?;
+    // "Manter no topo" e post-it vêm da sessão: valem também ao reabrir o app
+    let (on_top, postit) = app
+        .state::<AppState>()
+        .store
+        .load_session()
+        .map(|s| (s.on_top_of(label), s.is_postit(label)))
+        .unwrap_or((false, false));
+    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into())).title("Fullpad").visible(false);
+    builder = if postit {
+        // post-it: sem moldura do sistema (a UI desenha a barra com o alfinete) e fora da barra de tarefas
+        builder.inner_size(POSTIT_SIZE.0, POSTIT_SIZE.1).min_inner_size(180.0, 120.0).decorations(false).skip_taskbar(true)
+    } else {
+        builder.inner_size(900.0, 620.0)
+    };
+    let win = builder.always_on_top(on_top).build().map_err(err)?;
     if let Some(g) = geometry {
         let _ = win.set_size(PhysicalSize::new(g.w, g.h));
         let _ = win.set_position(PhysicalPosition::new(g.x, g.y));
@@ -251,7 +267,7 @@ fn load_startup(state: State<AppState>, window: WebviewWindow) -> Result<Startup
         None => String::new(),
     };
     let layout = session.layout_of(&label);
-    Ok(Startup { session: view, active_text, layout })
+    Ok(Startup { session: view, active_text, layout, on_top: session.on_top_of(&label), postit: session.is_postit(&label) })
 }
 
 #[tauri::command]
@@ -420,6 +436,16 @@ async fn place_tab(app: &AppHandle, state: &AppState, from: &str, tab: TabState,
 #[tauri::command]
 async fn move_tab(app: AppHandle, state: State<'_, AppState>, window: WebviewWindow, tab: TabState, to: String) -> Result<String, String> {
     place_tab(&app, &state, window.label(), tab, &to, None).await
+}
+
+/// "Manter no topo": liga ou desliga o sempre-por-cima da janela que chamou e grava na sessão.
+#[tauri::command]
+fn set_on_top(state: State<AppState>, window: WebviewWindow, on_top: bool) -> Result<(), String> {
+    window.set_always_on_top(on_top).map_err(err)?;
+    let _g = state.session_lock.lock().unwrap();
+    let mut session = state.store.load_session().map_err(err)?;
+    session.set_on_top(window.label(), on_top);
+    state.store.save_session(&session).map_err(err)
 }
 
 /// Nota nova numa janela nova.
@@ -1387,6 +1413,12 @@ fn main() {
             for label in session.floating_labels() {
                 build_window(app.handle(), &label, session.geometry_of(&label), None)?;
             }
+            // a principal também lembra do "Manter no topo"
+            if let Some(main) = app.get_webview_window(MAIN_WINDOW) {
+                if session.on_top_of(MAIN_WINDOW) {
+                    let _ = main.set_always_on_top(true);
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1425,6 +1457,7 @@ fn main() {
             list_windows,
             move_tab,
             new_window,
+            set_on_top,
             prewarm,
             drag_start,
             drag_move,

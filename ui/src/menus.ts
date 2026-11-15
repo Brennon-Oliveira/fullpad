@@ -47,6 +47,7 @@ export interface MenuActions {
   toggleLayoutView(): void;
   toggleWrap(): void;
   toggleLineNumbers(): void;
+  toggleOnTop(): void;
   toggleOutline(): void;
   toggleOutlinePinned(): void;
   setOutlineSide(side: "left" | "right"): void;
@@ -88,6 +89,8 @@ export interface MenuActions {
     canReload: boolean;
     wrap: boolean;
     lineNumbers: boolean;
+    /** A janela está com "Manter no topo". */
+    onTop: boolean;
     outline: { on: boolean; pinned: boolean; side: "left" | "right" };
     jsonIndent: string;
     /** Escolhas do CSV da aba e o separador que a detecção achou (vale quando a escolha é automática). */
@@ -420,6 +423,7 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
           { label: "Números de linha", checked: c.lineNumbers, action: a.toggleLineNumbers },
           outlineItem(a),
           "sep",
+          { label: "Manter no topo", checked: c.onTop, action: a.toggleOnTop },
           zoomItem(a),
         ];
       },

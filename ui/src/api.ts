@@ -188,6 +188,10 @@ export interface Startup {
   active_text: string;
   /** Grade de painéis gravada para esta janela (a UI a valida). */
   layout: unknown;
+  /** A janela está com "Manter no topo". */
+  on_top: boolean;
+  /** A janela é um post-it (captura rápida). */
+  postit: boolean;
 }
 
 export interface ClosedTab {
@@ -211,6 +215,8 @@ export const api = {
   /** `to`: rótulo de uma janela aberta ou "new". Devolve o rótulo de destino. */
   moveTab: (tab: TabState, to: string) => invoke<string>("move_tab", { tab, to }),
   /** Cria em segundo plano a janela reserva: arrastar uma aba para fora fica instantâneo. */
+  /** "Manter no topo" da janela que chama (gravado na sessão). */
+  setOnTop: (onTop: boolean) => invoke<void>("set_on_top", { onTop }),
   prewarm: () => invoke<void>("prewarm"),
   /** Começou a arrastar uma aba para fora da barra: mostra a sombra no ponteiro (tela, px físicos). */
   dragStart: (title: string, x: number, y: number, gx: number, gy: number, selfDrag: boolean) =>

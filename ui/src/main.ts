@@ -74,6 +74,7 @@ let detectTimer: number | undefined;
 let sizeTimer: number | undefined;
 let writeChain: Promise<unknown> = Promise.resolve(); // serializa escritas
 let wrap = readSetting("wrap", true);
+let onTop = false; // "Manter no topo" desta janela (vem da sessão, ver boot)
 let lineNumbers = readSetting("lineNumbers", true);
 let overwrite = false;
 let outlineOn = readSetting("outline", true);
@@ -2485,6 +2486,7 @@ async function openTabMenu(tab: TabState, anchor: HTMLElement) {
   items.push(
     "sep",
     { label: tab.pinned ? "Desafixar" : "Fixar", action: () => setPinned(tab.id, !tab.pinned) },
+    { label: "Manter janela no topo", checked: onTop, action: toggleOnTop },
     "sep",
     { label: "Fechar", shortcut: "Ctrl+W", action: () => void closeTab(tab.id) },
     { label: "Fechar outras", action: () => void closeMany(toCloseOthers(session.tabs, tab.id)) },
@@ -3145,6 +3147,21 @@ function toggleLineNumbers() {
   cur.view.focus();
 }
 
+/** "Manter no topo": a janela fica por cima das outras; o Rust grava a escolha na sessão. */
+async function setOnTop(v: boolean): Promise<boolean> {
+  try {
+    await api.setOnTop(v);
+    onTop = v;
+  } catch (e) {
+    console.error(e);
+  }
+  return onTop;
+}
+
+function toggleOnTop() {
+  void setOnTop(!onTop).then(() => cur.view.focus());
+}
+
 function toggleOverwrite() {
   overwrite = !overwrite;
   applyTabConfig();
@@ -3206,6 +3223,7 @@ const menuActions = {
   toggleLayoutView,
   toggleWrap,
   toggleLineNumbers,
+  toggleOnTop,
   toggleOutline,
   toggleOutlinePinned,
   setOutlineSide,
@@ -3242,6 +3260,7 @@ const menuActions = {
       canReload: hasDiskFile(tab),
       wrap,
       lineNumbers,
+      onTop,
       outline: { on: outlineOn, pinned: outlinePinned, side: outlineSide },
       jsonIndent,
       csv: csvSettings(tab),
@@ -3378,6 +3397,7 @@ async function boot() {
   await incomingReady; // ouvindo antes de ler a sessão: nenhuma aba que chegue se perde
   const startup = await api.loadStartup();
   session = startup.session;
+  onTop = startup.on_top;
   const idle = session.tabs.length === 0; // janela reserva: espera uma aba
 
   // a grade: um painel por grupo das abas; a gravada vale se ainda bater com elas

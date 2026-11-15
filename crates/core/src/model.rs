@@ -221,6 +221,12 @@ pub struct WindowState {
     /// uma versão que não a conheça simplesmente a ignora.
     #[serde(default)]
     pub layout: Option<serde_json::Value>,
+    /// "Manter no topo": a janela fica sempre por cima das outras (lembrado ao reabrir o app).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub on_top: bool,
+    /// Post-it: janela pequena, sem moldura do sistema nem abas, de uma nota só (captura rápida).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub postit: bool,
 }
 
 /// Todas as abas de todas as janelas, na ordem de gravação. `active` é a aba ativa da janela
