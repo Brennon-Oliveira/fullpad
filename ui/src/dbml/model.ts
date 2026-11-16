@@ -35,6 +35,7 @@ export interface DEnum {
   id: string;
   schema: string | null;
   name: string;
+  note?: string;
   values: { name: string; note?: string; span?: Span }[];
 }
 
@@ -110,6 +111,7 @@ interface RawEnum {
   token?: RawToken;
   name: string;
   schemaName?: string | null;
+  note?: { value?: string };
   values?: { token?: RawToken; name: string; note?: { value?: string } }[];
 }
 interface RawGroup {
@@ -203,6 +205,7 @@ export function buildDiagram(raw: RawDb): Diagram {
     id: tableId(e.schemaName, e.name),
     schema: e.schemaName ?? null,
     name: e.name,
+    note: e.note?.value,
     values: (e.values ?? []).map((v) => ({ name: v.name, note: v.note?.value, span: spanOf(v.token) })),
   }));
   const groups: DGroup[] = (raw.tableGroups ?? []).map((g) => ({

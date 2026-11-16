@@ -140,7 +140,7 @@ function enumNode(e: DEnum, x: number, y: number, w: number, h: number): SVGGEle
   g.append(el("path", { class: "dbml-head dbml-enum-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` }));
   const enumTitle = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, `enum ${e.schema ? `${e.schema}.` : ""}${e.name}`);
   if (e.span) enumTitle.setAttribute("data-off", String(e.span.from));
-  g.append(enumTitle);
+  g.append(withNote(enumTitle, e.note));
   e.values.forEach((v, i) => {
     g.append(el("rect", { class: "dbml-vrow", "data-v": colKey(enumKey(e.id), v.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H, ...(v.span ? { "data-pick": v.span.from } : {}) }));
     const valName = el("text", { class: "dbml-col", x: 10, y: HEADER_H + i * ROW_H + ROW_H / 2 + 4 }, v.name);

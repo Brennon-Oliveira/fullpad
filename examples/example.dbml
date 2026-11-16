@@ -32,6 +32,8 @@ enum status_matricula {
   trancada
   concluida
   cancelada
+
+  Note: 'Ciclo de vida da matrícula do aluno em uma turma'
 }
 
 enum forma_pagamento {

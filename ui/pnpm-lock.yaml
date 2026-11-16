@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@dbml/parse': 60ed49d56c71554a0a3ed7f67781d0f65efdf8943fdea32c130fa302626d4d91
+
 importers:
 
   .:
@@ -64,7 +67,7 @@ importers:
         version: 3.1.3
       '@dbml/parse':
         specifier: 11.0.0
-        version: 11.0.0
+        version: 11.0.0(patch_hash=60ed49d56c71554a0a3ed7f67781d0f65efdf8943fdea32c130fa302626d4d91)
       '@lezer/highlight':
         specifier: ^1.2.5
         version: 1.2.5
@@ -1663,7 +1666,7 @@ snapshots:
 
   '@dagrejs/graphlib@4.0.6': {}
 
-  '@dbml/parse@11.0.0':
+  '@dbml/parse@11.0.0(patch_hash=60ed49d56c71554a0a3ed7f67781d0f65efdf8943fdea32c130fa302626d4d91)':
     dependencies:
       lodash-es: 4.18.1
       luxon: 3.7.2

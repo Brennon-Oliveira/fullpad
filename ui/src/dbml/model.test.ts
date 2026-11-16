@@ -67,6 +67,25 @@ describe("parseDbml", () => {
   });
 });
 
+describe("nota no enum (correção do @dbml/parse em ui/patches)", () => {
+  // a lib 11.0.0 recusava `Note` no corpo do enum; o patch (pnpm patchedDependencies) a aceita
+  it("lê Note: e Note { } do corpo do enum, sem erro, e guarda a nota dos valores", () => {
+    for (const nota of ["Note: 'estado do pedido'", "Note { 'estado do pedido' }"]) {
+      const r = parseDbml(interpret, `enum pedido {\n  novo [note: 'recém criado']\n  pago\n  ${nota}\n}\nTable p { s pedido }\n`);
+      expect(r.error).toBeUndefined();
+      const e = r.diagram!.enums[0];
+      expect(e.note).toBe("estado do pedido");
+      expect(e.values.map((v) => v.name)).toEqual(["novo", "pago"]);
+      expect(e.values[0].note).toBe("recém criado");
+    }
+  });
+
+  it("enum sem nota continua sem nota", () => {
+    const r = parseDbml(interpret, "enum e { a }\n");
+    expect(r.diagram!.enums[0].note).toBeUndefined();
+  });
+});
+
 describe("layoutDiagram", () => {
   it("posiciona todas as tabelas sem sobreposição", () => {
     const d = parseDbml(interpret, SRC).diagram!;
