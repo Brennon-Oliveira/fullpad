@@ -1132,6 +1132,7 @@ dependencies = [
  "dirs",
  "encoding_rs",
  "flate2",
+ "memchr",
  "quick-xml 0.37.5",
  "regex",
  "saphyr-parser",

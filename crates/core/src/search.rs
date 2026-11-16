@@ -62,6 +62,11 @@ pub fn compile(query: &str, opts: &Options) -> Result<Regex, String> {
 /// Acha os resultados de `query` em `text`. Consulta vazia não acha nada; `replace` calcula, para
 /// cada resultado, o texto que entraria no lugar (com `$1` etc. quando é expressão regular).
 pub fn find(text: &str, query: &str, opts: &Options, replace: Option<&str>) -> Result<Hits, String> {
+    find_limited(text, query, opts, replace, MAX_MATCHES_PER_TEXT)
+}
+
+/// Como `find`, com o teto de resultados detalhados escolhido por quem chama (o resto só conta).
+pub fn find_limited(text: &str, query: &str, opts: &Options, replace: Option<&str>, limit: usize) -> Result<Hits, String> {
     let mut hits = Hits::default();
     if query.is_empty() {
         return Ok(hits);
@@ -75,7 +80,7 @@ pub fn find(text: &str, query: &str, opts: &Options, replace: Option<&str>) -> R
             continue; // casamento vazio (ex.: `^`) não é resultado
         }
         hits.total += 1;
-        if hits.matches.len() >= MAX_MATCHES_PER_TEXT {
+        if hits.matches.len() >= limit {
             continue;
         }
         let gap = &text[at_byte..m.start()];
