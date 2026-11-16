@@ -147,7 +147,7 @@ Publica o instalador de Windows, o AppImage, o `.deb`, o `.rpm` já gerados e o 
 ## 9. Conferir
 
 ```sh
-curl -sL "https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest/download/latest.json?n=$RANDOM" | grep -E '"version"|"(windows|linux)-x86_64''
+curl -sL "https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest/download/latest.json?n=$RANDOM" | grep -E '"version"|"(windows|linux)-x86_64'
 ```
 
 Precisa mostrar a versão nova (o GitHub pode levar alguns segundos). Se a publicação falhar depois da tag, não apague a tag: corrija e rode o passo 8 de novo.
