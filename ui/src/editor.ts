@@ -1,3 +1,4 @@
+import { isDark } from "./theme";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -226,10 +227,7 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
   ];
 }
 
-/** O app segue o tema do sistema (veja o CSS); aqui só avisamos o CodeMirror. */
-export function isDark(): boolean {
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
-}
+export { isDark };
 
 export function createState(
   doc: string,

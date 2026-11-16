@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #ffffff;
   --fg: #1f2328;
   --muted: #6b7280;
@@ -22,8 +22,9 @@
   --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   --sans: system-ui, "Segoe UI", sans-serif;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+@media all {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #1e1f22;
     --fg: #dcddde;
     --muted: #8b8f98;

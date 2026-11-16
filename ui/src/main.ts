@@ -50,6 +50,7 @@ import { type OutlineItem, activeIndex, treeOutline } from "./outlinecore";
 import { dbmlSymbols, markdownSymbols, pushRecent, treeSymbols, type Symbol as PaletteSymbol } from "./palettecore";
 import { type MenuItem, showMenu, showMenuAt } from "./popup";
 import { mountStatusBar } from "./statusbar";
+import { onThemeChange } from "./theme";
 import { currentZoom, loadZoom, onZoomChange, setZoom, stepZoom, wheelZoom } from "./zoom";
 import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
 import { type DockGroup, type DockTile, type Rect, SIDES, dockTiles, tileAt } from "./dock";
@@ -277,8 +278,8 @@ function applyTabConfig() {
   refreshStatus();
 }
 
-// O tema segue o sistema: quando muda, reaplica na aba ativa (as outras pegam ao serem mostradas).
-window.matchMedia?.("(prefers-color-scheme: dark)").addEventListener("change", () => forEachGroup(applyTabConfig));
+// Quando o tema muda (escolha, sistema ou outra janela), reaplica na aba ativa (as outras pegam ao serem mostradas).
+onThemeChange(() => forEachGroup(applyTabConfig));
 
 // ---- recursos de editor do DBML (diagnóstico; carregados sob demanda) -----------
 

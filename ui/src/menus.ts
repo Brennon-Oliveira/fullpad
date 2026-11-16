@@ -1,3 +1,4 @@
+import { type ThemePref, setThemePref, themePref } from "./theme";
 import type { Language, ViewMode } from "./api";
 import { type CsvSettings, DELIMITERS, delimiterName } from "./csv/settings";
 import { NO_CODE_LANG, pickableLanguages } from "./codelangs";
@@ -344,6 +345,13 @@ export function zoomItems(a: MenuActions): MenuItem[] {
   ];
 }
 
+/** Submenu "Tema" do menu Visualizar: Claro, Escuro ou o do Sistema (padrão: Escuro). */
+export function themeItem(): MenuItem {
+  const cur = themePref();
+  const opt = (label: string, p: ThemePref): MenuItem => ({ label, checked: cur === p, action: () => setThemePref(p) });
+  return { label: "Tema", submenu: [opt("Claro", "light"), opt("Escuro", "dark"), opt("Sistema", "system")] };
+}
+
 /** Submenu "Zoom" do menu Visualizar. */
 export function zoomItem(a: MenuActions): MenuItem {
   return { label: `Zoom (${a.current().zoom}%)`, submenu: zoomItems(a) };
@@ -443,6 +451,7 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
             ],
           },
           zoomItem(a),
+          themeItem(),
         ];
       },
     },

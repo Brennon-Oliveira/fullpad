@@ -11,6 +11,7 @@ import type { Hit } from "./find";
 import { applyHighlights, clearHighlights, revealRange, textRanges } from "./highlight";
 import { chapterLabel } from "./quote";
 import { type ReaderPos, clamp, wheelFactor } from "./pos";
+import { isDark, onThemeChange } from "../theme";
 import type { ReaderView, ViewHooks } from "./view";
 
 const MIN_TEXT_ZOOM = 0.6;
@@ -19,7 +20,7 @@ const MAX_TEXT_ZOOM = 3;
 const cssVar = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
 function theme(scale: number): Theme {
-  const dark = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = isDark();
   return {
     dark,
     bg: cssVar("--bg", dark ? "#1e1f22" : "#ffffff"),
@@ -210,9 +211,7 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
   }
 
   // o tema do sistema mudou: refaz as cores sem recarregar o capítulo
-  const mq = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
-  const onTheme = () => restyle();
-  mq?.addEventListener?.("change", onTheme);
+  const offTheme = onThemeChange(() => restyle());
 
   markCurrent();
   void go(cur, pos.frac);
@@ -252,7 +251,7 @@ export async function openEpubView(host: HTMLElement, id: string, pos: ReaderPos
       disposed = true;
       token++;
       window.clearTimeout(posTimer);
-      mq?.removeEventListener?.("change", onTheme);
+      offTheme();
       detach?.();
       frame.onload = null;
       frame.srcdoc = "";

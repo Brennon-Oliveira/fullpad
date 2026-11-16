@@ -2,6 +2,7 @@ import { emitTo } from "@tauri-apps/api/event";
 import { listenHere as listen } from "./events";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api";
+import { isDark, onThemeChange } from "./theme";
 import "./style.css";
 
 /**
@@ -73,8 +74,7 @@ async function boot() {
     void listen<{ offset: number | null; rev: number }>("pv-cursor", (e) => panel.setCursor(e.payload.offset, e.payload.rev));
   } else if (info.lang === "mermaid") {
     const { createMermaidPanel } = await import("./mermaid/panel");
-    const dark = window.matchMedia?.("(prefers-color-scheme: dark)");
-    const panel = createMermaidPanel(diagramEl, { isDark: () => !!dark?.matches });
+    const panel = createMermaidPanel(diagramEl, { isDark });
     let first = true;
     let last = "";
     apply = (m) => {
@@ -83,7 +83,7 @@ async function boot() {
       else panel.update(m.text, m.rev);
       first = false;
     };
-    dark?.addEventListener("change", () => !first && panel.update(last, rev)); // o tema mudou: desenha de novo
+    onThemeChange(() => !first && panel.update(last, rev)); // o tema mudou: desenha de novo
   } else {
     const { createMarkdownPane } = await import("./mdpreview");
     const pane = createMarkdownPane(mdEl, {
