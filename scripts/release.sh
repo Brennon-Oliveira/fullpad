@@ -19,7 +19,9 @@ TAG="v$VERSION"
 DIR="$ROOT/target/x86_64-pc-windows-msvc/release/bundle/nsis"
 EXE="Fullpad_${VERSION}_x64-setup.exe"
 LINUX="${LINUX:-1}"
-LDIR="$ROOT/target/release/bundle"
+# o Linux compila num diretório próprio: o cargo trava o `target/` inteiro e os dois builds esperariam um ao outro
+LTARGET="$ROOT/target/linux"
+LDIR="$LTARGET/release/bundle"
 LFILES=("appimage/Fullpad_${VERSION}_amd64.AppImage" "deb/Fullpad_${VERSION}_amd64.deb" "rpm/Fullpad-${VERSION}-1.x86_64.rpm")
 
 # chave privada das atualizações: fora do repositório (perdê-la = não dá mais para atualizar quem já instalou)
@@ -33,8 +35,25 @@ if [ "${PUBLISH:-1}" = 1 ] && gh release view "$TAG" -R "$REPO" >/dev/null 2>&1;
 fi
 
 if [ "${BUILD:-1}" = 1 ]; then
-  (cd crates/app && cargo tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis)
-  [ "$LINUX" = 1 ] && (cd crates/app && cargo tauri build --bundles appimage,deb,rpm)
+  # a UI é compilada uma vez só (os dois builds a embutem) e o `beforeBuildCommand` é desligado:
+  # dois `vite build` ao mesmo tempo escreveriam na mesma pasta
+  pnpm --dir ui build
+  NOPRE='{"build":{"beforeBuildCommand":""}}'
+  LOGDIR=$(mktemp -d)
+  (cd crates/app && cargo tauri build --config "$NOPRE" --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis) >"$LOGDIR/windows.log" 2>&1 &
+  WIN=$!
+  LIN=
+  if [ "$LINUX" = 1 ]; then
+    (cd crates/app && CARGO_TARGET_DIR="$LTARGET" cargo tauri build --config "$NOPRE" --bundles appimage,deb,rpm) >"$LOGDIR/linux.log" 2>&1 &
+    LIN=$!
+  fi
+  FAIL=0
+  wait "$WIN" || { echo "build de Windows falhou:" >&2; tail -n 40 "$LOGDIR/windows.log" >&2; FAIL=1; }
+  if [ -n "$LIN" ]; then
+    wait "$LIN" || { echo "build de Linux falhou:" >&2; tail -n 40 "$LOGDIR/linux.log" >&2; FAIL=1; }
+  fi
+  [ "$FAIL" = 0 ] || { echo "nada foi publicado (logs completos em $LOGDIR)" >&2; exit 1; }
+  echo "builds ok (logs em $LOGDIR)"
 fi
 [ -f "$DIR/$EXE" ] && [ -f "$DIR/$EXE.sig" ] || { echo "falta $DIR/$EXE (ou o .sig): gere antes de publicar" >&2; exit 1; }
 if [ "$LINUX" = 1 ]; then

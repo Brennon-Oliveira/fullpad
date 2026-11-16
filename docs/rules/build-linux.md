@@ -21,7 +21,7 @@ export TAURI_SIGNING_PRIVATE_KEY="$HOME/.tauri/fullpad.key" TAURI_SIGNING_PRIVAT
 cd crates/app && cargo tauri build --bundles appimage,deb,rpm
 ```
 
-Saída em `target/release/bundle/{appimage,deb,rpm}/` (cada um com o `.sig` da atualização). `scripts/release.sh` gera os três junto com o instalador de Windows e põe no `latest.json` as chaves `linux-x86_64-appimage`/`-deb`/`-rpm` (o atualizador escolhe pelo tipo de pacote em que o app foi instalado; `LINUX=0` pula). Atualizar no Linux: AppImage troca o próprio arquivo; `.deb` e `.rpm` pedem a senha pelo `pkexec`; depois de instalar, o app reinicia sozinho (`install_update`).
+Saída em `target/release/bundle/{appimage,deb,rpm}/` (cada um com o `.sig` da atualização). `scripts/release.sh` gera os três **em paralelo** com o instalador de Windows (a UI compila uma vez, o `beforeBuildCommand` fica desligado e o Linux usa `CARGO_TARGET_DIR=target/linux`, senão o cargo serializaria os dois no lock do `target/`; saída em `target/linux/release/bundle/`) e **não publica nada se qualquer um falhar**: o Linux funcionar é critério para lançar e põe no `latest.json` as chaves `linux-x86_64-appimage`/`-deb`/`-rpm` (o atualizador escolhe pelo tipo de pacote em que o app foi instalado; `LINUX=0` pula). Atualizar no Linux: AppImage troca o próprio arquivo; `.deb` e `.rpm` pedem a senha pelo `pkexec`; depois de instalar, o app reinicia sozinho (`install_update`).
 
 `crates/app/linux/fullpad.desktop` é o modelo do atalho (deb, rpm e AppImage usam o mesmo): `Exec=fullpad %F` (abre arquivos passados pelo gerenciador de arquivos, inclusive `file://`) e `MimeType` com os tipos de texto, o que põe o Fullpad no "Abrir com" **sem tomar o padrão de ninguém**. DBML, PDF e EPUB não têm tipo MIME padrão e ficam de fora.
 
