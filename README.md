@@ -177,7 +177,7 @@ A lista completa, com as decisões por trás de cada recurso, está em [`docs/AG
 
 > **Aviso do SmartScreen.** O instalador **não tem assinatura de código do Windows** (isso custa um certificado pago), então na primeira execução o Windows mostra "O Windows protegeu o computador / editor desconhecido". Clique em **Mais informações → Executar assim mesmo**. As atualizações automáticas, essas sim, são assinadas por uma chave própria do projeto e o app só aceita as que conferem. O código é aberto: você pode compilar o instalador você mesmo.
 
-**Linux**: ainda não há pacote; compile do código-fonte (abaixo). **macOS**: ainda não é suportado.
+**Linux (x86_64)**: baixe o `.AppImage` (qualquer distribuição: `chmod +x` e execute), o `.deb` (Debian/Ubuntu) ou o `.rpm` (Fedora/openSUSE) na [última versão](https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest). Precisa do WebKitGTK 4.1 (já vem nas distribuições atuais). O app se atualiza sozinho, o Fullpad aparece em "Abrir com" dos arquivos de texto e, em sessão Wayland, roda via XWayland (para as janelas, o "manter no topo" e o atalho global funcionarem; `FULLPAD_WAYLAND=1` desliga isso). Detalhes em [`docs/rules/build-linux.md`](docs/rules/build-linux.md). **macOS**: ainda não é suportado.
 
 Os dados ficam em `%APPDATA%\fullpad` (Windows) e `~/.local/share/fullpad` (Linux). `FULLPAD_DATA_DIR=/algum/lugar` sobrescreve (bom para testar sem mexer nas suas notas). Desinstalar **não apaga as suas notas**: elas ficam nessa pasta.
 

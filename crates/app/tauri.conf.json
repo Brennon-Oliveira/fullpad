@@ -26,7 +26,10 @@
   "bundle": {
     "active": true,
     "targets": [
-      "nsis"
+      "nsis",
+      "deb",
+      "rpm",
+      "appimage"
     ],
     "icon": [
       "icons/32x32.png",
@@ -52,7 +55,19 @@
         "installerHooks": "windows/fullpad.nsh"
       }
     },
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": true,
+    "category": "Productivity",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/fullpad.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/fullpad.desktop"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
   },
   "plugins": {
     "updater": {

@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+GenericName=Editor de notas e markdown
+Comment={{comment}}
+Exec={{exec}} %F
+Icon={{icon}}
+Terminal=false
+StartupWMClass={{exec}}
+Categories=Utility;TextEditor;Office;
+Keywords=notas;markdown;texto;editor;json;csv;
+# Só aparece em "Abrir com": não muda o programa padrão de nenhum tipo (quem escolhe é a pessoa).
+MimeType=text/markdown;text/x-markdown;text/plain;application/json;text/csv;text/tab-separated-values;application/yaml;application/x-yaml;application/toml;text/x-tex;
+Actions=NewNote;
+
+[Desktop Action NewNote]
+Name=Nova nota
+Exec={{exec}}

@@ -19,8 +19,8 @@
   --pop: #ffffff;
   --err: #d1242f;
   --warn: #9a6700;
-  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
-  --sans: system-ui, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", monospace;
+  --sans: system-ui, "Segoe UI", "Cantarell", "Noto Sans", "DejaVu Sans", sans-serif;
 }
 @media all {
   :root[data-theme="dark"] {

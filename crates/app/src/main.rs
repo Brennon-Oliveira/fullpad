@@ -77,10 +77,36 @@ fn paths_from_args(args: &[String], cwd: &std::path::Path) -> Vec<PathBuf> {
         .skip(1)
         .filter(|a| !a.starts_with('-') && !a.is_empty())
         .map(|a| {
-            let p = PathBuf::from(a);
+            let p = PathBuf::from(file_uri_to_path(a).unwrap_or_else(|| a.clone()));
             if p.is_absolute() { p } else { cwd.join(p) }
         })
         .collect()
+}
+
+/// `file:///home/x/a%20b.md` → `/home/x/a b.md`. Alguns gerenciadores de arquivos do Linux passam
+/// URIs em vez de caminhos. Outros esquemas (e URIs com host que não seja local) não valem.
+fn file_uri_to_path(arg: &str) -> Option<String> {
+    let rest = arg.strip_prefix("file://")?;
+    let path = rest.strip_prefix("localhost").unwrap_or(rest);
+    if !path.starts_with('/') {
+        return None;
+    }
+    let bytes = path.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = |b: u8| (b as char).to_digit(16);
+            if let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).ok()
 }
 
 #[derive(Serialize)]
@@ -117,10 +143,18 @@ async fn download_update(state: State<'_, AppState>) -> Result<(), String> {
 /// Roda o instalador baixado. No Windows o app encerra aqui e o instalador o reabre.
 /// Só chamar depois de gravar todas as janelas.
 #[tauri::command]
-fn install_update(state: State<AppState>) -> Result<(), String> {
+fn install_update(app: AppHandle, state: State<AppState>) -> Result<(), String> {
     let update = state.update.lock().unwrap().clone().ok_or("nenhuma atualização pendente")?;
     let bytes = state.update_bytes.lock().unwrap().take().ok_or("a atualização não foi baixada")?;
-    update.install(bytes).map_err(err)
+    update.install(bytes).map_err(err)?;
+    // no Linux o pacote é trocado com o app ainda aberto: reabre já na versão nova
+    #[cfg(not(windows))]
+    app.restart();
+    #[cfg(windows)]
+    {
+        let _ = app;
+        Ok(())
+    }
 }
 
 /// Abre a nota de versão (Ajuda > "Ver nota de versão"): uma nota nova com as notas embutidas.
@@ -620,7 +654,12 @@ async fn prewarm(app: AppHandle, state: State<'_, AppState>) -> Result<(), Strin
             .visible(false)
             .build()
             .map_err(err)?;
-        let _ = ghost.set_ignore_cursor_events(true); // o mouse atravessa a sombra
+        // o mouse atravessa a sombra. No Linux a janela GTK só existe depois de mostrada (antes disso
+        // o tao entra em pânico), então lá isso é feito em `drag_start`, logo após o `show`.
+        #[cfg(not(target_os = "linux"))]
+        let _ = ghost.set_ignore_cursor_events(true);
+        #[cfg(target_os = "linux")]
+        let _ = ghost;
     }
     let label = {
         let mut spare = state.spare.lock().unwrap();
@@ -655,6 +694,8 @@ fn drag_start(app: AppHandle, state: State<AppState>, window: WebviewWindow, tit
         let _ = app.emit_to(GHOST, "ghost-title", title);
         let _ = g.set_position(PhysicalPosition::new(x + 14, y + 14));
         let _ = g.show();
+        #[cfg(target_os = "linux")]
+        let _ = g.set_ignore_cursor_events(true);
     }
 }
 
@@ -812,6 +853,9 @@ mod tests {
     #[test]
     fn argumentos_viram_caminhos_absolutos() {
         let args: Vec<String> = ["fullpad.exe", "--flag", "nota.md", "C:\\x\\y.txt"].iter().map(|s| s.to_string()).collect();
+        let uri = vec!["fullpad".to_string(), "file:///home/a/meu%20arquivo%C3%A9.md".to_string(), "file://host/x".to_string()];
+        let got = paths_from_args(&uri, std::path::Path::new("/pasta"));
+        assert_eq!(got, vec![PathBuf::from("/home/a/meu arquivoé.md"), PathBuf::from("/pasta/file://host/x")]);
         let got = paths_from_args(&args, std::path::Path::new("/pasta"));
         assert_eq!(got.len(), 2);
         assert_eq!(got[0], std::path::Path::new("/pasta").join("nota.md"));
@@ -1503,7 +1547,35 @@ fn open_url(app: AppHandle, url: String) -> Result<(), String> {
     app.opener().open_url(url, None::<&str>).map_err(err)
 }
 
+/// Ajustes do ambiente gráfico do Linux, antes de o GTK/WebKit iniciarem.
+///
+/// - Sessão Wayland: usa o backend X11 (XWayland). O Wayland não deixa o app posicionar as próprias
+///   janelas, mantê-las no topo nem registrar atalho global, e o Fullpad depende disso (arrastar aba
+///   para fora, post-it, "Manter no topo", Ctrl+Alt+N). `FULLPAD_WAYLAND=1` mantém o Wayland nativo
+///   (perde esses recursos); um `GDK_BACKEND` já definido pela pessoa sempre vale.
+/// - `WEBKIT_DISABLE_DMABUF_RENDERER=1`: o renderizador DMABUF do WebKitGTK dá tela em branco em
+///   vários drivers (NVIDIA, WSLg). Se a pessoa já definiu a variável, vale a dela.
+#[cfg(target_os = "linux")]
+fn linux_env() {
+    use std::env::{set_var, var_os};
+    // SAFETY: roda no início do `main`, antes de qualquer outra thread.
+    unsafe {
+        if var_os("GDK_BACKEND").is_none()
+            && var_os("FULLPAD_WAYLAND").is_none()
+            && var_os("WAYLAND_DISPLAY").is_some()
+            && var_os("DISPLAY").is_some()
+        {
+            set_var("GDK_BACKEND", "x11");
+        }
+        if var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "linux")]
+    linux_env();
     let store = Store::open_default().expect("diretório de dados indisponível");
 
     tauri::Builder::default()
