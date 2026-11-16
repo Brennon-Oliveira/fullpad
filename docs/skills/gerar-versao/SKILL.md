@@ -152,13 +152,12 @@ Precisa mostrar a versão nova (o GitHub pode levar alguns segundos). Se a publi
 
 ## 10. Fechar as issues entregues
 
-Esta etapa só trata das issues; **não decide o que entra nas notas** (isso vem de todos os commits, passo 4). Issues citadas por `Refs #n` nos commits desde a última tag (`git log "$LAST"..HEAD --format=%B | grep -oE 'Refs #[0-9]+'`) saíram nesta versão. Para cada uma ainda aberta: garanta o milestone `<nova>` (crie se faltar, método em [../../rules/issues.md](../../rules/issues.md)) e feche com comentário:
+Esta etapa só trata das issues; **não decide o que entra nas notas** (isso vem de todos os commits, passo 4). Issues citadas por `Refs #n` nos commits desde a última tag (`git log "$LAST"..HEAD --format=%B | grep -oE 'Refs #[0-9]+'`) saíram nesta versão. Para cada uma ainda aberta: feche com comentário citando a versão (o projeto não usa milestones):
 
 ```sh
-gh issue edit <n> -R Brennon-Oliveira/fullpad --milestone "<nova>"
 gh issue close <n> -R Brennon-Oliveira/fullpad --reason completed --comment "Entregue na <nova>."
 ```
 
-Feche também o milestone `<nova>` quando todas as issues dele estiverem fechadas. Não feche issue que o usuário não citou nos commits; na dúvida, liste e pergunte.
+Não feche issue que o usuário não citou nos commits; na dúvida, liste e pergunte.
 
 Relate ao usuário a versão, o link do release, a tag, as notas e as issues fechadas, e lembre que os apps instalados oferecem a atualização ao abrir (ou em Ajuda > "Verificar atualizações…").

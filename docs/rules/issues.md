@@ -1,6 +1,6 @@
 # Issues: bugs, melhorias e novidades
 
-As ideias, melhorias e bugs do Fullpad vivem nas **Issues** do repositório (`Brennon-Oliveira/fullpad`), não em arquivos do projeto. Skills: criar [criar-issue](../skills/criar-issue/SKILL.md), editar [editar-issue](../skills/editar-issue/SKILL.md) (labels, prioridade, milestone, refinar rascunhos) e implementar [implementar-issue](../skills/implementar-issue/SKILL.md).
+As ideias, melhorias e bugs do Fullpad vivem nas **Issues** do repositório (`Brennon-Oliveira/fullpad`), não em arquivos do projeto. Skills: criar [criar-issue](../skills/criar-issue/SKILL.md), editar [editar-issue](../skills/editar-issue/SKILL.md) (labels, prioridade, refinar rascunhos) e implementar [implementar-issue](../skills/implementar-issue/SKILL.md).
 
 ## Tipos (label obrigatória, uma só)
 
@@ -115,14 +115,14 @@ Para ideias cruas: o mínimo, com a label `refinar`.
 - <o que falta definir antes de planejar>
 ```
 
-## Milestones
+## Sem milestones
 
-Um milestone é uma **versão** (`2.1.0`, sem `v`). Serve para planejar ("vai na 2.1.0") e, fechado, para registrar em que versão a issue saiu. `criar-issue --milestone=2.1.0` e `editar-issue --milestone=2.1.0` criam o milestone se ele não existir.
+O projeto **não usa milestones**: reservar uma versão para cada issue não funcionou, porque a versão é consequência do que foi entregue (major = recurso grande e/ou que quebra algo; minor = recurso menor; patch = correção). A ordem de trabalho vem da prioridade e do ranking (#35). A ordem que existia nos milestones antigos está arquivada em [../ordem-planejada.md](../ordem-planejada.md). Os milestones das versões já lançadas (1.1.0 a 3.1.0) ficaram só como registro; não crie nem use outros.
 
 ## Ciclo de vida
 
 - **Implementou**: `implementar-issue` liga os commits à issue com `Refs #12` (nunca `Closes`: fechar antes da versão sair esconderia o que ainda não foi entregue) e comenta nela.
-- **Entregou**: ao gerar a versão, a `gerar-versao` fecha as issues citadas por `Refs #n` nos commits, com o **milestone da versão** (`2.0.0`). Comente o que mudou de natureza em relação à ideia original, se mudou.
+- **Entregou**: ao gerar a versão, a `gerar-versao` fecha as issues citadas por `Refs #n` nos commits, com um comentário "Entregue na <versão>". Comente o que mudou de natureza em relação à ideia original, se mudou.
 - **Mudou de ideia**: feche com `wontfix` e um comentário com o motivo; não apague.
 - **Refinar**: a conversa vai em comentários da própria issue; quando a ideia ganha forma, reescreva o corpo no formato do tipo e tire a label `refinar`.
 - O comportamento final de uma feature entregue passa a ser documentado em `docs/AGENTS.md` (arquitetura), como sempre.

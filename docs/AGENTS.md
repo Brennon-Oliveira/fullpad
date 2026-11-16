@@ -4,7 +4,7 @@ Editor de notas e markdown rápido, estilo Notepad++: nada se perde ao fechar. M
 
 O roteiro de entrega por fases está em [PLANO.md](PLANO.md). Siga-o: cada fase termina numa PARADA em que o usuário valida antes de seguir.
 
-Ideias futuras, melhorias e bugs ficam nas **issues** do GitHub, não em arquivos do projeto: padrão em [rules/issues.md](rules/issues.md), ranking na issue fixada #35. Ao entregar uma, a `gerar-versao` a fecha com o milestone da versão.
+Ideias futuras, melhorias e bugs ficam nas **issues** do GitHub, não em arquivos do projeto: padrão em [rules/issues.md](rules/issues.md), ranking na issue fixada #35. Ao entregar uma, a `gerar-versao` a fecha citando a versão. Não há milestones; a ordem antiga está em [ordem-planejada.md](ordem-planejada.md).
 
 ## Arquitetura
 
@@ -100,7 +100,7 @@ Não há pipeline de CI por enquanto (nenhum workflow do GitHub); testes e build
 - Licenças e dependências (nada de copyleft forte; `THIRD_PARTY_LICENSES.md` é gerado por `scripts/gerar-licencas.py`): [rules/licencas.md](rules/licencas.md).
 - Contribuições externas: [CONTRIBUTING.md](../CONTRIBUTING.md).
 - Publicar uma versão (tag, notas, instalador, release): skill [gerar-versao](skills/gerar-versao/SKILL.md).
-- Bugs, melhorias e novidades: issues do GitHub, no padrão de [rules/issues.md](rules/issues.md); skills [criar-issue](skills/criar-issue/SKILL.md) (`--bug`, `--improvement`, `--feature`, `--draft`, `--milestone=`), [editar-issue](skills/editar-issue/SKILL.md) (`--milestone=`, `--label=+x,-y`, `--priority=`, `--refinar`) e [implementar-issue](skills/implementar-issue/SKILL.md) (`--approve`, `--commit`; os commits levam `Refs #n` e a `gerar-versao` fecha a issue).
+- Bugs, melhorias e novidades: issues do GitHub, no padrão de [rules/issues.md](rules/issues.md); skills [criar-issue](skills/criar-issue/SKILL.md) (`--bug`, `--improvement`, `--feature`, `--draft`), [editar-issue](skills/editar-issue/SKILL.md) (`--label=+x,-y`, `--priority=`, `--refinar`) e [implementar-issue](skills/implementar-issue/SKILL.md) (`--approve`, `--commit`; os commits levam `Refs #n` e a `gerar-versao` fecha a issue).
 - Ao terminar qualquer ajuste, gere o build de Windows e reporte o resultado: [rules/build-windows.md](rules/build-windows.md). Linux (nativo, pacotes AppImage/deb/rpm, Wayland/X11, atualização): [rules/build-linux.md](rules/build-linux.md); `cargo check -p fullpad` basta para conferir que o ajuste compila lá.
 
 ## Segurança

@@ -6,7 +6,7 @@ argument-hint: "<número> [--approve] [--commit]"
 
 # Implementar issue
 
-Implementa uma issue de `Brennon-Oliveira/fullpad`. Esta skill **só implementa**: não cria versão (isso é a `gerar-versao`) nem fecha a issue (quem fecha, com o milestone da versão, é a `gerar-versao`, pelos `Refs #n` dos commits). Padrão das issues: [../../rules/issues.md](../../rules/issues.md). Regras do projeto: `docs/AGENTS.md`, [../../rules/commits.md](../../rules/commits.md), [../../rules/persistencia.md](../../rules/persistencia.md), [../../rules/build-windows.md](../../rules/build-windows.md).
+Implementa uma issue de `Brennon-Oliveira/fullpad`. Esta skill **só implementa**: não cria versão (isso é a `gerar-versao`) nem fecha a issue (quem fecha, citando a versão, é a `gerar-versao`, pelos `Refs #n` dos commits). Padrão das issues: [../../rules/issues.md](../../rules/issues.md). Regras do projeto: `docs/AGENTS.md`, [../../rules/commits.md](../../rules/commits.md), [../../rules/persistencia.md](../../rules/persistencia.md), [../../rules/build-windows.md](../../rules/build-windows.md).
 
 ## Argumentos
 
@@ -21,7 +21,7 @@ Implementa uma issue de `Brennon-Oliveira/fullpad`. Esta skill **só implementa*
 ## 1. Ler e conferir se está pronta
 
 ```sh
-gh issue view <n> -R Brennon-Oliveira/fullpad --json number,title,state,labels,milestone,body,comments
+gh issue view <n> -R Brennon-Oliveira/fullpad --json number,title,state,labels,body,comments
 git status --porcelain && git branch --show-current
 ```
 
@@ -70,11 +70,11 @@ Falhou teste ou build: **não está concluído**; conserte ou relate a saída. M
 
 ## 6. Commits (com `--commit`)
 
-Um commit por mudança lógica ([commits.md](../../rules/commits.md)): `tipo(escopo): resumo` em português, corpo explicando o que e por quê, e **`Refs #<n>`** no rodapé (nunca `Closes`: fechar a issue é da `gerar-versao`, com o milestone da versão). `bug` → `fix`; `feature` → `feat`; `improvement` → `feat`/`perf`/`refactor` conforme o efeito. Termine com as linhas de atribuição da sessão. Sem push.
+Um commit por mudança lógica ([commits.md](../../rules/commits.md)): `tipo(escopo): resumo` em português, corpo explicando o que e por quê, e **`Refs #<n>`** no rodapé (nunca `Closes`: fechar a issue é da `gerar-versao`, citando a versão). `bug` → `fix`; `feature` → `feat`; `improvement` → `feat`/`perf`/`refactor` conforme o efeito. Termine com as linhas de atribuição da sessão. Sem push.
 
 ## 7. Registrar na issue e relatar
 
-Comente na issue (`gh issue comment <n> -R Brennon-Oliveira/fullpad`): o que foi feito, como testar na mão, o que ficou de fora ou bloqueado, e os commits (hash). Não feche e não mude o milestone.
+Comente na issue (`gh issue comment <n> -R Brennon-Oliveira/fullpad`): o que foi feito, como testar na mão, o que ficou de fora ou bloqueado, e os commits (hash). Não feche a issue.
 
 Relate ao usuário: o que entrou, testes e build (passou ou falhou, com a saída se falhou), o que ficou de fora, sugestões, e lembre que a issue fecha na próxima `gerar-versao`.
 
