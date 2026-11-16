@@ -9,6 +9,7 @@ célula, a palavra RARA). Os arquivos grandes de verdade nunca são criados aqui
 import csv
 import io
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -123,6 +124,34 @@ class Geradores(unittest.TestCase):
     def test_saida_padrao_fica_em_examples_large_e_fora_do_git(self):
         r = subprocess.run(["git", "check-ignore", "-q", str(AQUI / "grande.csv")], cwd=AQUI)
         self.assertEqual(r.returncode, 0, "examples/large/grande.* tem de estar no .gitignore")
+
+
+def pico_de_memoria_kb(nome: str, mb: float, saida: pathlib.Path, *extra: str) -> int:
+    """Roda o gerador e devolve o pico de memória (RSS) do processo dele, em KB."""
+    p = subprocess.Popen([sys.executable, str(AQUI / nome), str(mb), "-o", str(saida), *extra], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _, status, uso = os.wait4(p.pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0, f"{nome} falhou"
+    return uso.ru_maxrss  # KB no Linux
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"), "mede o RSS pelo wait4 (Linux)")
+class MemoriaConstante(unittest.TestCase):
+    """O gerador grava em blocos: a memória não pode acompanhar o tamanho do arquivo (senão não serviria para gerar
+    arquivos de GB). Um arquivo de 160 MB gerado inteiro em memória passaria de 160 MB de pico; em blocos, fica nos
+    poucos MB do interpretador mais o bloco."""
+
+    CASOS = [("gerar_txt.py", ()), ("gerar_md.py", ()), ("gerar_csv.py", ()), ("gerar_json.py", ()), ("gerar_json.py", ("--minificado",))]
+
+    def test_o_pico_de_memoria_nao_cresce_com_o_tamanho_do_arquivo(self):
+        with tempfile.TemporaryDirectory() as d:
+            for nome, extra in self.CASOS:
+                out = pathlib.Path(d) / "saida"
+                pequeno = pico_de_memoria_kb(nome, 40, out, *extra)
+                grande = pico_de_memoria_kb(nome, 160, out, *extra)
+                rotulo = f"{nome} {' '.join(extra)}".strip()
+                self.assertLess(grande, 100_000, f"{rotulo}: pico de {grande / 1024:.0f} MB gerando 160 MB (tudo na memória?)")
+                self.assertLess(grande - pequeno, 20_000, f"{rotulo}: 4x o tamanho custou {(grande - pequeno) / 1024:.0f} MB a mais de memória")
+                self.assertGreater(out.stat().st_size, 150 * 1024 * 1024)
 
 
 if __name__ == "__main__":
