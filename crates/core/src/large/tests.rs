@@ -1015,3 +1015,125 @@ fn volume_indexes_reads_searches_edits_and_saves() {
     eprintln!("salvar (~280 MB, 1 lote): {:?}", t.elapsed());
     assert_eq!(std::fs::metadata(&p).unwrap().len(), size);
 }
+
+// ---- CSV em modo grande: abre como texto e continua sendo um CSV válido depois de editar e salvar ------
+
+fn csv_text(rows: usize) -> String {
+    let mut s = String::from("id,nome,cidade,valor,observacao\n");
+    for i in 0..rows {
+        let obs = if i % 7 == 0 {
+            "\"primeira linha\nsegunda linha, com vírgula e \"\"aspas\"\"\"".to_string()
+        } else if i % 5 == 0 {
+            "\"com vírgula, \"\"aspas\"\" e ação\"".to_string()
+        } else {
+            String::new()
+        };
+        s.push_str(&format!("{i},Ana {i},São Paulo,{}.{:02},{obs}\n", i * 3, i % 100));
+    }
+    s
+}
+
+#[test]
+fn csv_is_accepted_for_large_mode_by_extension_and_opens_as_text() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["a.csv", "a.tsv", "a.CSV"] {
+        let p = dir.path().join(name);
+        std::fs::write(&p, csv_text(50)).unwrap();
+        assert!(matches!(probe(&p, 100).unwrap(), Probe::Large(_)), "{name}");
+    }
+    // abaixo do limite o CSV segue o caminho de sempre (a tabela)
+    let p = dir.path().join("pequeno.csv");
+    std::fs::write(&p, csv_text(5)).unwrap();
+    assert_eq!(probe(&p, LARGE_THRESHOLD).unwrap(), Probe::Normal);
+}
+
+#[test]
+fn csv_with_quoted_newlines_and_commas_is_read_back_exactly() {
+    let text = csv_text(200);
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("a.csv");
+    std::fs::write(&p, &text).unwrap();
+    let l = open(&p, small());
+    assert_eq!(whole(&l), text, "o texto sem os cortes virtuais é o arquivo");
+    assert_consistent(&l, text.as_bytes());
+    // o parser de CSV do app lê o mesmo número de registros
+    let csv = crate::csv::Csv::parse(whole(&l), ',');
+    assert_eq!(csv.row_count(), crate::csv::Csv::parse(text, ',').row_count());
+    assert!(!csv.unterminated());
+}
+
+#[test]
+fn csv_stays_valid_after_editing_many_batches_and_saving() {
+    let text = csv_text(300);
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("a.csv");
+    std::fs::write(&p, &text).unwrap();
+    let l = open(&p, small());
+    let before = crate::csv::Csv::parse(text.clone(), ',');
+    let n = l.info().unwrap().batches;
+    let mut changed_batches = 0;
+    for i in 0..n {
+        let t = file_text_of(&l, i);
+        if t.contains("Ana") {
+            // troca o nome (uma edição de célula), sem mexer em aspas nem em quebras de linha
+            l.edit(i, &t.replace("Ana", "ANA")).unwrap();
+            changed_batches += 1;
+        }
+    }
+    assert!(changed_batches > 10, "o teste só vale se editar muitos lotes ({changed_batches})");
+    l.save(None).unwrap();
+    let saved = std::fs::read_to_string(&p).unwrap();
+    let after = crate::csv::Csv::parse(saved.clone(), ',');
+    assert!(!after.unterminated(), "uma aspa ficou aberta: o CSV quebrou");
+    assert_eq!(after.row_count(), before.row_count(), "mesmo número de registros");
+    assert_eq!(after.cols(), before.cols());
+    for r in 0..before.row_count() {
+        for c in 0..before.cols() {
+            let (a, b) = (before.cell(r, c).unwrap().value, after.cell(r, c).unwrap().value);
+            if c == 1 && r > 0 {
+                assert_eq!(b, a.replace("Ana", "ANA"), "linha {r}");
+            } else {
+                assert_eq!(b, a, "linha {r}, coluna {c} não devia mudar");
+            }
+        }
+    }
+    assert_eq!(saved, text.replace("Ana", "ANA"), "só os nomes mudaram, byte a byte");
+}
+
+#[test]
+fn csv_edit_inside_a_giant_quoted_cell_keeps_the_record_count() {
+    let giant = "célula enorme 😀 ".repeat(40); // bem acima de 16 bytes por segmento
+    let text = format!("id,nome,obs\n1,Ana,\"{giant}\"\n2,Bia,ok\n");
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("a.csv");
+    std::fs::write(&p, &text).unwrap();
+    let l = open(&p, Limits { batch_bytes: 4096, ..small() });
+    assert!(batches(&l).iter().any(|b| !b.breaks.is_empty()), "a célula foi cortada em segmentos virtuais");
+    let t = file_text_of(&l, 0);
+    l.edit(0, &t.replacen("enorme", "ENORME", 1)).unwrap();
+    l.save(None).unwrap();
+    let saved = std::fs::read_to_string(&p).unwrap();
+    assert_eq!(saved, text.replacen("enorme", "ENORME", 1));
+    let csv = crate::csv::Csv::parse(saved, ',');
+    assert_eq!(csv.row_count(), 3);
+    assert!(!csv.unterminated());
+}
+
+#[test]
+fn csv_with_crlf_rows_keeps_untouched_batches_byte_identical() {
+    // linhas em CRLF, como o Excel grava; o lote editado volta a usar CRLF, os outros ficam como estão
+    let text = csv_text(60).replace('\n', "\r\n");
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("a.csv");
+    std::fs::write(&p, &text).unwrap();
+    let l = open(&p, small());
+    assert_eq!(l.eol, Eol::Crlf);
+    let t = file_text_of(&l, 2).replacen("Ana", "ANA", 1);
+    let expected = expected_after(text.as_bytes(), &l, 2, &t, l.eol, l.encoding);
+    l.edit(2, &t).unwrap();
+    l.save(None).unwrap();
+    let saved = std::fs::read(&p).unwrap();
+    assert_eq!(saved, expected, "só o lote 2 foi regravado; os outros saem idênticos, em CRLF");
+    assert_eq!(saved.iter().filter(|&&b| b == b'\n').count(), text.matches('\n').count(), "nenhuma quebra a mais nem a menos");
+    assert!(!crate::csv::Csv::parse(String::from_utf8(saved).unwrap(), ',').unterminated());
+}
