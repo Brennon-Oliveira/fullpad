@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod largefile;
+
 use fullpad_core::dbmlx;
 use fullpad_core::windows::place_postit;
 use fullpad_core::changelog;
@@ -49,6 +51,10 @@ struct AppState {
     positions_lock: Mutex<()>,
     /// EPUBs abertos (só metadados e sumário), por aba: `epub_chapter` lê os capítulos sob demanda.
     epubs: Mutex<std::collections::HashMap<Uuid, fullpad_core::epub::Epub>>,
+    /// Arquivos grandes abertos (modo de lotes), por aba: o texto fica no disco e só o lote pedido é lido.
+    larges: Mutex<std::collections::HashMap<Uuid, std::sync::Arc<fullpad_core::large::Large>>>,
+    /// Buscas em arquivo grande em andamento, por id da busca: `large_cancel` as interrompe.
+    searches: Mutex<std::collections::HashMap<String, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
     /// CSVs indexados, por aba: a tabela pede faixas de linhas sem reenviar o texto a cada rolagem.
     csvs: Mutex<std::collections::HashMap<Uuid, CsvEntry>>,
     /// Abas fechadas nesta execução: uma gravação atrasada de uma janela não pode ressuscitá-las.
@@ -353,6 +359,7 @@ fn close_note(state: State<AppState>, id: String) -> Result<(), String> {
     state.closed.lock().unwrap().insert(id);
     state.epubs.lock().unwrap().remove(&id);
     state.csvs.lock().unwrap().remove(&id);
+    largefile::forget(&state, id);
     let _g = state.session_lock.lock().unwrap();
     let mut session = state.store.load_session().map_err(err)?;
     match session.tabs.iter().find(|t| t.id == id) {
@@ -1613,7 +1620,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
-        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), epubs: Mutex::new(Default::default()), csvs: Mutex::new(Default::default()), closed: Mutex::new(HashSet::new()),
+        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), epubs: Mutex::new(Default::default()), larges: Mutex::new(Default::default()), searches: Mutex::new(Default::default()), csvs: Mutex::new(Default::default()), closed: Mutex::new(HashSet::new()),
         open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()),
         update: Mutex::new(None), update_bytes: Mutex::new(None), just_updated: Mutex::new(false), previous_version: Mutex::new(None) })
         .setup(|app| {
@@ -1658,6 +1665,19 @@ fn main() {
             restore_tab,
             open_file,
             open_reader,
+            largefile::large_probe,
+            largefile::large_open,
+            largefile::large_attach,
+            largefile::large_info,
+            largefile::large_batch,
+            largefile::large_locate,
+            largefile::large_edit,
+            largefile::large_check,
+            largefile::large_save,
+            largefile::large_reload,
+            largefile::large_discard,
+            largefile::large_search,
+            largefile::large_cancel,
             reader_info,
             reader_check,
             epub_open,
