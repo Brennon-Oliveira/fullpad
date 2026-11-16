@@ -62,6 +62,12 @@ export interface CsvInfo {
   unterminated: boolean;
   types: CsvColType[];
   header: CsvRowOut | null;
+  /** Só no CSV de arquivo grande: a varredura ainda corre (`rows` é "pelo menos isto") enquanto `done` é falso. */
+  done?: boolean;
+  /** Bytes que a varredura já percorreu, e o tamanho do arquivo (para "indexando 43%"). */
+  scanned?: number;
+  size?: number;
+  error?: string | null;
 }
 export interface CsvStats {
   count: number;
@@ -380,6 +386,15 @@ export const api = {
   csvEdit: (tab: string, edits: { row: number; col: number; value: string }[]) => invoke<CsvEditOut[]>("csv_edit", { tab, edits }),
   /** Uma célula do arquivo, para levar o cursor do código até ela. */
   csvCell: (tab: string, row: number, col: number) => invoke<CsvCellOut | null>("csv_cell", { tab, row, col }),
+  // ---- tabela de um CSV de arquivo grande (as linhas vêm do disco, por faixas) ----
+  /** Abre a tabela da aba grande. `delimiter` "auto" detecta pelo começo do arquivo; a varredura corre em segundo plano. */
+  largeCsvOpen: (id: string, delimiter: string, header: boolean, decimal: string) => invoke<CsvInfo>("large_csv_open", { id, delimiter, header, decimal }),
+  largeCsvInfo: (id: string) => invoke<CsvInfo>("large_csv_info", { id }),
+  /** Linhas de dados `[from, from + count)` (o cabeçalho não conta). */
+  largeCsvRows: (id: string, from: number, count: number) => invoke<CsvRowOut[]>("large_csv_rows", { id, from, count }),
+  largeCsvCell: (id: string, row: number, col: number) => invoke<CsvCellOut | null>("large_csv_cell", { id, row, col }),
+  largeCsvStats: (id: string, r0: number, r1: number, c0: number, c1: number) => invoke<CsvStats>("large_csv_stats", { id, r0, r1, c0, c1 }),
+  largeCsvClose: (id: string) => invoke<void>("large_csv_close", { id }),
   /** Bytes de uma imagem local citada no JSON (só extensões de imagem, até 8 MB). */
   jsonPreviewImage: (value: string, base: string | null) => invoke<ArrayBuffer>("json_preview_image", { value, base }),
   /** Abre um link (http, https ou mailto) no navegador do sistema. */
