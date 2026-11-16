@@ -40,17 +40,19 @@ fn utf16_len(s: &str) -> usize {
 }
 
 /// Um registro encontrado pela varredura.
-struct Rec {
+pub(crate) struct Rec {
     /// Fim do registro, sem o terminador.
-    end: usize,
+    pub(crate) end: usize,
     /// Onde começa o próximo (depois do terminador).
-    next: usize,
-    cells: u32,
+    pub(crate) next: usize,
+    pub(crate) cells: u32,
     /// Terminou o texto com uma aspa ainda aberta.
-    open: bool,
+    pub(crate) open: bool,
 }
 
-fn scan_record(b: &[u8], start: usize, delim: u8) -> Rec {
+/// A varredura de um registro a partir de `start` (a mesma do índice de `Csv::parse`, que o CSV de
+/// arquivo grande usa para achar o começo de cada linha sem ler o arquivo todo de uma vez).
+pub(crate) fn scan_record(b: &[u8], start: usize, delim: u8) -> Rec {
     let n = b.len();
     let mut i = start;
     let mut cells = 1u32;

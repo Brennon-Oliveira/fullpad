@@ -669,6 +669,11 @@ impl Large {
         Ok(self.read()?.path.clone())
     }
 
+    /// Bytes do BOM no começo do arquivo (0 ou 3).
+    pub fn bom(&self) -> u64 {
+        self.bom
+    }
+
     pub fn stamp(&self) -> Result<DiskStamp> {
         Ok(self.read()?.stamp)
     }
