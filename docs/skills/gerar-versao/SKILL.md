@@ -1,6 +1,6 @@
 ---
 name: gerar-versao
-description: "Gera e publica uma versão do Fullpad: lê os commits desde a última tag, usa a versão pedida (argumento ou --bug/--minor/--major) ou pergunta qual, escreve as notas, sobe a versão, gera localmente, em paralelo, o instalador de Windows e os pacotes de Linux (AppImage, deb e rpm; a versão só sai se os dois sistemas compilarem), cria a tag no git e publica o release no repositório público de releases (de onde a atualização automática baixa). Use quando pedirem para gerar, lançar ou publicar uma versão."
+description: "Gera e publica uma versão do Fullpad: lê os commits desde a última tag, usa a versão pedida (argumento ou --bug/--minor/--major) ou pergunta qual, escreve as notas, sobe a versão, gera localmente, em paralelo, o instalador de Windows e os pacotes de Linux (AppImage, deb, rpm e o pacote do Arch; a versão só sai se os dois sistemas compilarem), cria a tag no git e publica o release no repositório público de releases (de onde a atualização automática baixa). Use quando pedirem para gerar, lançar ou publicar uma versão."
 ---
 
 # Gerar versão
@@ -120,7 +120,7 @@ sed -i 's/^version = ".*"/version = "<nova>"/' crates/app/Cargo.toml   # só a p
 cargo check -p fullpad -q          # atualiza o Cargo.lock
 cargo test -p fullpad-core -p fullpad
 pnpm --dir ui exec vitest run
-PUBLISH=0 scripts/release.sh       # build local, Windows e Linux em paralelo: instalador + AppImage/deb/rpm assinados + latest.json
+PUBLISH=0 scripts/release.sh       # build local, Windows e Linux em paralelo: instalador + AppImage/deb/rpm assinados + pacote do Arch (`.pkg.tar.zst`, sem assinatura) + latest.json
 ```
 
 Confira que a primeira linha `version` do `Cargo.toml` é a do `[package]`. Falhou um teste ou o build (de Windows **ou** de Linux): pare, desfaça a mudança de versão e as notas (`git checkout crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md crates/app/CHANGELOG.md`) e relate a saída.
@@ -142,7 +142,7 @@ A tag anotada guarda as notas: `git show v<nova>` diz o que entrou em cada vers�
 BUILD=0 scripts/release.sh
 ```
 
-Publica o instalador de Windows, o AppImage, o `.deb`, o `.rpm` já gerados e o `latest.json` (com as chaves `windows-x86_64` e `linux-x86_64-appimage`/`-deb`/`-rpm`) como release `v<nova>`.
+Publica o instalador de Windows, o AppImage, o `.deb`, o `.rpm`, o pacote do Arch já gerados e o `latest.json` (com as chaves `windows-x86_64` e `linux-x86_64-appimage`/`-deb`/`-rpm`) como release `v<nova>`.
 
 ## 9. Conferir
 

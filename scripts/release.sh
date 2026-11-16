@@ -5,7 +5,7 @@
 #   scripts/release.sh            gera e publica a versão do crates/app/Cargo.toml
 #   PUBLISH=0 scripts/release.sh  só gera (instalador, .sig e latest.json), sem publicar
 #   BUILD=0 scripts/release.sh    publica o que já foi gerado (sem compilar de novo)
-#   LINUX=0 scripts/release.sh    só Windows (o padrão gera também AppImage, .deb e .rpm, nativos)
+#   LINUX=0 scripts/release.sh    só Windows (o padrão gera também AppImage, .deb, .rpm e o pacote do Arch, nativos)
 #   NOTES="..." / NOTES_FILE=arq  notas da versão (padrão: crates/app/release-notes.md, que também
 #                                 vai embutido no app como a nota de versão)
 set -euo pipefail
@@ -22,6 +22,9 @@ LINUX="${LINUX:-1}"
 # o Linux compila num diretório próprio: o cargo trava o `target/` inteiro e os dois builds esperariam um ao outro
 LTARGET="$ROOT/target/linux"
 LDIR="$LTARGET/release/bundle"
+# pacote do Arch (pacman -U): montado por scripts/pacman.py a partir da árvore do .deb; sem .sig nem chave no
+# latest.json (o atualizador do Tauri não conhece pacman)
+PKG="fullpad-${VERSION}-1-x86_64.pkg.tar.zst"
 LFILES=("appimage/Fullpad_${VERSION}_amd64.AppImage" "deb/Fullpad_${VERSION}_amd64.deb" "rpm/Fullpad-${VERSION}-1.x86_64.rpm")
 
 # chave privada das atualizações: fora do repositório (perdê-la = não dá mais para atualizar quem já instalou)
@@ -52,6 +55,9 @@ if [ "${BUILD:-1}" = 1 ]; then
   if [ -n "$LIN" ]; then
     wait "$LIN" || { echo "build de Linux falhou:" >&2; tail -n 40 "$LOGDIR/linux.log" >&2; FAIL=1; }
   fi
+  if [ "$FAIL" = 0 ] && [ "$LINUX" = 1 ]; then
+    python3 "$ROOT/scripts/pacman.py" "$LDIR" "$VERSION" "$LDIR/pacman" >/dev/null || { echo "pacote do Arch falhou" >&2; FAIL=1; }
+  fi
   [ "$FAIL" = 0 ] || { echo "nada foi publicado (logs completos em $LOGDIR)" >&2; exit 1; }
   echo "builds ok (logs em $LOGDIR)"
 fi
@@ -60,6 +66,7 @@ if [ "$LINUX" = 1 ]; then
   for f in "${LFILES[@]}"; do
     [ -f "$LDIR/$f" ] && [ -f "$LDIR/$f.sig" ] || { echo "falta $LDIR/$f (ou o .sig): gere antes de publicar (ou LINUX=0)" >&2; exit 1; }
   done
+  [ -f "$LDIR/pacman/$PKG" ] || { echo "falta $LDIR/pacman/$PKG: gere antes de publicar (ou LINUX=0)" >&2; exit 1; }
 fi
 
 NOTES="${NOTES:-$(cat "${NOTES_FILE:-crates/app/release-notes.md}")}"
@@ -96,6 +103,6 @@ echo "gerado: $DIR/$EXE"
 [ "${PUBLISH:-1}" = 1 ] || exit 0
 
 ASSETS=("$DIR/$EXE" "$DIR/latest.json")
-if [ "$LINUX" = 1 ]; then for f in "${LFILES[@]}"; do ASSETS+=("$LDIR/$f"); done; fi
+if [ "$LINUX" = 1 ]; then for f in "${LFILES[@]}"; do ASSETS+=("$LDIR/$f"); done; ASSETS+=("$LDIR/pacman/$PKG"); fi
 gh release create "$TAG" -R "$REPO" --title "Fullpad $VERSION" --notes "$NOTES" "${ASSETS[@]}"
 echo "publicado: https://github.com/$REPO/releases/tag/$TAG"
