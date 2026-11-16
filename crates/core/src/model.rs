@@ -170,6 +170,11 @@ pub struct TabState {
     /// que se percebe que o arquivo mudou fora do app. Quem decide é o Rust; a UI só repassa.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disk: Option<crate::disk::DiskStamp>,
+    /// Arquivo de texto grande em modo de lotes (`large.rs`): o texto não está em `notes/` (a nota é só
+    /// um marcador vazio), o arquivo fica no disco e só os lotes perto da tela são lidos. Quem decide
+    /// é o Rust, ao abrir; a UI não o troca (`apply_window`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub large: bool,
 }
 
 fn is_text(kind: &TabKind) -> bool {
@@ -199,6 +204,7 @@ impl TabState {
             pinned: false,
             code_lang: None,
             disk: None,
+            large: false,
         }
     }
 }

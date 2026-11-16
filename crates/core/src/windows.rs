@@ -136,6 +136,8 @@ impl Session {
                 }
                 // o tipo da aba não muda por gravação da UI: uma aba de PDF nunca vira texto editável
                 t.kind = stored.kind;
+                // idem o modo de arquivo grande: o texto da aba grande não está em `notes/`
+                t.large = stored.large;
                 // o carimbo do arquivo é do Rust (gravar e recarregar o atualizam); a UI pode estar atrasada
                 t.disk = stored.disk.or(t.disk);
             }
@@ -280,6 +282,21 @@ mod tests {
         let got = &s.window_tabs("main")[0];
         assert_eq!(got.kind, crate::model::TabKind::Pdf);
         assert_eq!(got.reader, Some(serde_json::json!({ "page": 3 })), "a posição de leitura é atualizada");
+    }
+
+    #[test]
+    fn save_window_cannot_turn_a_large_tab_into_a_normal_one_nor_the_reverse() {
+        let mut big = tab("main");
+        big.large = true;
+        let normal = tab("main");
+        let mut s = session(vec![big.clone(), normal.clone()]);
+        let (mut f1, mut f2) = (big.clone(), normal.clone());
+        f1.large = false; // a UI atrasada ou adulterada tentaria gravar o texto da janela como se fosse o arquivo
+        f2.large = true;
+        s.apply_window("main", vec![f1, f2], None, &HashSet::new());
+        let tabs = s.window_tabs("main");
+        assert!(tabs.iter().find(|t| t.id == big.id).unwrap().large);
+        assert!(!tabs.iter().find(|t| t.id == normal.id).unwrap().large);
     }
 
     #[test]

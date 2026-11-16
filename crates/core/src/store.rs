@@ -1,6 +1,7 @@
 use crate::atomic::write_atomic;
 use crate::disk::{self, DiskState, DiskStamp};
 use crate::fileio;
+use crate::large;
 use crate::error::{Error, IoContext, Result};
 use crate::model::{ClosedTab, Encoding, Eol, Language, Session, TabKind, TabState, ViewMode};
 use crate::reader;
@@ -95,6 +96,15 @@ impl Store {
 
     fn trash_layout_path(&self, id: Uuid) -> PathBuf {
         self.root.join("trash").join(format!("{id}.layout.json"))
+    }
+
+    /// Alterações pendentes de um arquivo grande (`large.rs`): uma pasta por aba.
+    pub fn large_dir(&self, id: Uuid) -> PathBuf {
+        self.root.join("large").join(id.to_string())
+    }
+
+    fn trash_large_dir(&self, id: Uuid) -> PathBuf {
+        self.root.join("trash").join(format!("{id}.large"))
     }
 
     fn trash_meta_path(&self, id: Uuid) -> PathBuf {
@@ -209,6 +219,33 @@ impl Store {
         Ok((tab, decoded.text))
     }
 
+    /// Abre um arquivo de texto grande em modo de lotes (`large.rs`). **Não lê o arquivo** (só a
+    /// amostra do começo): a nota em `notes/` fica vazia, só como marcador (a aba segue o caminho das
+    /// outras: sessão, lixeira, mover entre janelas), e o índice é construído em segundo plano por
+    /// quem chama (`start_index`). Quem decide se o arquivo vale é `large::probe`.
+    pub fn open_large(&self, path: &Path) -> Result<(TabState, std::sync::Arc<large::Large>)> {
+        let mut tab = self.create_note()?;
+        let l = large::Large::open(path, large::Limits::default(), Some(self.large_dir(tab.id)))?;
+        tab.path = Some(path.to_path_buf());
+        tab.title = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        tab.encoding = l.encoding;
+        tab.eol = l.eol;
+        tab.large = true;
+        tab.disk = Some(l.stamp()?);
+        tab.dirty = l.is_dirty();
+        Ok((tab, l))
+    }
+
+    /// Reabre o arquivo grande de uma aba que já existe (ao reiniciar o app, ao reabrir da lixeira,
+    /// ao recarregar do disco): índice novo e o diário de alterações dela, se houver.
+    pub fn attach_large(&self, tab: &TabState) -> Result<std::sync::Arc<large::Large>> {
+        if !tab.large {
+            return Err(Error::Invalid("a aba não é de um arquivo grande".into()));
+        }
+        let path = tab.path.as_ref().ok_or_else(|| Error::Invalid("a aba não está ligada a um arquivo".into()))?;
+        large::Large::open(path, large::Limits::default(), Some(self.large_dir(tab.id)))
+    }
+
     /// Como o arquivo da aba está em relação ao que o Fullpad leu ou gravou por último. Devolve também
     /// o carimbo a guardar (data nova de um arquivo de mesmo conteúdo, ou o primeiro carimbo de uma
     /// aba antiga que ainda não tinha um). Uma mudança (`Changed`) **não** vira carimbo: continua
@@ -217,6 +254,10 @@ impl Store {
         let Some(path) = tab.path.as_ref().filter(|_| tab.kind == TabKind::Text && !tab.release_notes) else {
             return Ok((DiskState::Unchanged, None));
         };
+        if tab.large {
+            // arquivo grande: nunca se lê o arquivo inteiro para conferir (`large::check_stamp`)
+            return Ok((tab.disk.map_or(Ok(DiskState::Unchanged), |k| large::check_stamp(path, &k))?, None));
+        }
         match tab.disk {
             // só uma data nova de conteúdo igual vira carimbo; uma mudança de verdade continua apontada
             Some(known) => disk::check(path, &known).map(|(s, n)| (s, n.filter(|_| s == DiskState::Unchanged))),
@@ -432,6 +473,12 @@ impl Store {
             std::fs::create_dir_all(dir).at(dir)?;
         }
         let _ = std::fs::rename(self.layout_internal_path(id), self.trash_layout_path(id));
+        // alterações pendentes de um arquivo grande vão junto (nada se perde ao fechar)
+        let large = self.large_dir(id);
+        if large.is_dir() {
+            let _ = std::fs::remove_dir_all(self.trash_large_dir(id));
+            let _ = std::fs::rename(&large, self.trash_large_dir(id));
+        }
         match std::fs::rename(&from, &to) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -491,6 +538,13 @@ impl Store {
             let _ = std::fs::create_dir_all(dir);
         }
         let _ = std::fs::rename(self.trash_layout_path(id), layout);
+        if self.trash_large_dir(id).is_dir() {
+            let dir = self.large_dir(id);
+            if let Some(parent) = dir.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::rename(self.trash_large_dir(id), dir);
+        }
         let _ = std::fs::remove_file(&meta_path);
         let text = self.read_note(id)?;
         Ok((meta.tab, text))
@@ -1224,5 +1278,116 @@ mod tests {
         s.write_layout(tab.id, "x").unwrap();
         assert_eq!(s.commit_layout(tab.id, &d.path().join("a.dbml"), None, false).unwrap(), None);
         assert!(work(&s, tab.id).exists());
+    }
+
+    // ---- arquivos grandes -----------------------------------------------------------------
+
+    fn big_file(dir: &Path, name: &str) -> PathBuf {
+        let p = dir.join(name);
+        std::fs::write(&p, "linha de log\n".repeat(3000)).unwrap();
+        p
+    }
+
+    #[test]
+    fn open_large_does_not_read_the_file_nor_copy_it_to_notes() {
+        let (d, s) = store();
+        let p = big_file(d.path(), "a.log");
+        let (tab, l) = s.open_large(&p).unwrap();
+        assert!(tab.large && tab.path.as_deref() == Some(p.as_path()));
+        assert_eq!(s.read_note(tab.id).unwrap(), "", "a nota é só um marcador vazio");
+        assert_eq!(std::fs::metadata(s.note_path(tab.id)).unwrap().len(), 0);
+        assert!(tab.disk.is_some());
+        l.close();
+    }
+
+    #[test]
+    fn a_normal_file_still_opens_whole_and_is_not_a_large_tab() {
+        let (d, s) = store();
+        let p = big_file(d.path(), "normal.log"); // 39 KB, muito abaixo do limite de 20 MB
+        assert_eq!(large::probe(&p, large::LARGE_THRESHOLD).unwrap(), large::Probe::Normal);
+        let (tab, text) = s.open_file(&p).unwrap();
+        assert!(!tab.large);
+        assert_eq!(text.lines().count(), 3000);
+        assert_eq!(s.read_note(tab.id).unwrap(), text, "o caminho normal grava a cópia em notes/, como sempre");
+    }
+
+    #[test]
+    fn the_large_flag_is_only_written_to_the_session_when_true() {
+        let (_d, s) = store();
+        let normal = s.create_note().unwrap();
+        assert!(!serde_json::to_string(&normal).unwrap().contains("large"));
+        let mut big = s.create_note().unwrap();
+        big.large = true;
+        let mut session = Session::empty();
+        session.tabs.push(big.clone());
+        session.tabs.push(normal);
+        s.save_session(&session).unwrap();
+        let loaded = s.load_session().unwrap();
+        assert!(loaded.tabs[0].large && !loaded.tabs[1].large);
+    }
+
+    #[test]
+    fn large_tab_survives_session_close_and_reopen_with_its_pending_edits() {
+        let (d, s) = store();
+        let p = big_file(d.path(), "a.log");
+        let (tab, l) = s.open_large(&p).unwrap();
+        l.index_blocking();
+        let text = l.read_batch(0).unwrap().text;
+        l.edit(0, &text.replacen("linha", "LINHA", 1)).unwrap();
+        l.close();
+        let mut session = Session::empty();
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        // "reinicia": a sessão vem do disco, o arquivo grande é reaberto e o diário volta
+        let loaded = s.load_session().unwrap();
+        let again = s.attach_large(&loaded.tabs[0]).unwrap();
+        again.index_blocking();
+        assert_eq!(again.info().unwrap().edited_batches, 1);
+        assert!(again.read_batch(0).unwrap().text.starts_with("LINHA de log"));
+        assert_eq!(std::fs::read_to_string(&p).unwrap().chars().take(5).collect::<String>(), "linha", "o arquivo não mudou");
+    }
+
+    #[test]
+    fn closing_a_large_tab_keeps_its_edits_in_the_trash_and_reopening_brings_them_back() {
+        let (d, s) = store();
+        let p = big_file(d.path(), "a.log");
+        let (tab, l) = s.open_large(&p).unwrap();
+        l.index_blocking();
+        l.edit(0, "novo texto\n").unwrap();
+        l.close();
+        let mut session = Session::empty();
+        session.tabs.push(tab.clone());
+        s.save_session(&session).unwrap();
+        s.close_tab(&tab).unwrap();
+        assert!(!s.large_dir(tab.id).exists());
+        assert!(s.trash_large_dir(tab.id).is_dir(), "as alterações vão para a lixeira junto com a aba");
+        assert_eq!(s.list_closed(10).len(), 1);
+        let (back, _) = s.restore_note(tab.id).unwrap();
+        assert!(back.large);
+        assert!(s.large_dir(tab.id).is_dir());
+        let l2 = s.attach_large(&back).unwrap();
+        l2.index_blocking();
+        assert_eq!(l2.read_batch(0).unwrap().text, "novo texto\n");
+    }
+
+    #[test]
+    fn disk_state_of_a_large_tab_follows_date_and_size_without_reading_the_file() {
+        let (d, s) = store();
+        let p = big_file(d.path(), "a.log");
+        let (tab, l) = s.open_large(&p).unwrap();
+        l.close();
+        assert_eq!(s.disk_state(&tab).unwrap().0, DiskState::Unchanged);
+        std::fs::write(&p, "outra coisa\n").unwrap();
+        assert_eq!(s.disk_state(&tab).unwrap().0, DiskState::Changed);
+        std::fs::remove_file(&p).unwrap();
+        assert_eq!(s.disk_state(&tab).unwrap().0, DiskState::Missing);
+    }
+
+    #[test]
+    fn attach_large_refuses_a_normal_tab() {
+        let (d, s) = store();
+        let p = big_file(d.path(), "a.log");
+        let (tab, _) = s.open_file(&p).unwrap();
+        assert!(s.attach_large(&tab).is_err());
     }
 }
