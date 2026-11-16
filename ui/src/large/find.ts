@@ -88,6 +88,8 @@ export function mountLargeFind(parent: HTMLElement, deps: FindDeps): LargeFind {
   let retry = 0;
   let searchId = "";
   let isStale = false;
+  /** Já mostrou um resultado desta busca (os resultados chegam em ordem do arquivo, não do cursor). */
+  let revealed = false;
   let unlisten: (() => void) | null = null;
   let counter = 0;
   let disposed = false;
@@ -95,17 +97,20 @@ export function mountLargeFind(parent: HTMLElement, deps: FindDeps): LargeFind {
   void Promise.resolve(
     deps.listen((sid, found) => {
       if (sid !== searchId) return;
-      const first = hits.length === 0;
       hits.push(...found);
-      if (first && idx < 0 && hits.length > 0) {
-        // o primeiro resultado a partir do cursor (a busca vem em ordem; se não há, vale o primeiro)
+      if (!revealed) {
+        // o primeiro resultado a partir do cursor, assim que ele chegar: os do começo do arquivo vêm antes e
+        // não podem tirar a pessoa de onde está (se não houver nenhum depois do cursor, vale o primeiro, no fim)
         const from = deps.cursorLine();
         const at = hits.findIndex((h) => h.line >= from);
-        idx = at < 0 ? 0 : at;
-        show();
-      } else {
-        label();
+        if (at >= 0) {
+          revealed = true;
+          idx = at;
+          show();
+          return;
+        }
       }
+      label();
     }),
   ).then((u) => {
     if (disposed) u();
@@ -144,6 +149,7 @@ export function mountLargeFind(parent: HTMLElement, deps: FindDeps): LargeFind {
     idx = -1;
     truncated = false;
     isStale = false;
+    revealed = false;
     current = q;
     if (!q) {
       running = false;
@@ -171,7 +177,13 @@ export function mountLargeFind(parent: HTMLElement, deps: FindDeps): LargeFind {
       return;
     }
     running = false;
-    if (idx < 0 && hits.length > 0) idx = 0;
+    if (!revealed && hits.length > 0) {
+      // nenhum resultado depois do cursor: dá a volta e mostra o primeiro
+      revealed = true;
+      idx = 0;
+      show();
+      return;
+    }
     label();
   }
 

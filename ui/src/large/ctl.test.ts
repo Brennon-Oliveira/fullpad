@@ -234,6 +234,40 @@ describe("ir para a linha", () => {
   });
 });
 
+describe("o cursor nunca passa por uma posição errada ao trocar a janela", () => {
+  it("ao saltar para longe, nenhum estado intermediário tem o cursor fora da linha pedida", async () => {
+    const rust = FakeRust.lines(200);
+    const info = await rust.info();
+    const seen: number[] = [];
+    let ctl!: LargeTab;
+    ctl = new LargeTab("t1", info, rust, { onDirty() {}, onChange() {}, onError() {} });
+    const { EditorView: EV } = await import("@codemirror/view");
+    const st = await ctl.createState(0, (doc, cursor, extra) => createState(doc, cursor, (u) => ctl.onUpdate(u), [extra, EV.updateListener.of(() => seen.push(ctl.cursorLine()))]));
+    const view = createView(document.createElement("div"), st);
+    ctl.attach(view);
+    seen.length = 0;
+    await ctl.goto(450);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(new Set(seen)).toEqual(new Set([450])); // o autosave nunca vê o começo da janela
+  });
+
+  it("depois de salvar com lotes renumerados também não", async () => {
+    const rust = FakeRust.lines(40);
+    const info = await rust.info();
+    const seen: number[] = [];
+    let ctl!: LargeTab;
+    ctl = new LargeTab("t1", info, rust, { onDirty() {}, onChange() {}, onError() {} });
+    const { EditorView: EV } = await import("@codemirror/view");
+    const st = await ctl.createState(60, (doc, cursor, extra) => createState(doc, cursor, (u) => ctl.onUpdate(u), [extra, EV.updateListener.of(() => seen.push(ctl.cursorLine()))]));
+    const view = createView(document.createElement("div"), st);
+    ctl.attach(view);
+    seen.length = 0;
+    rust.batches.splice(0, 1); // o salvar emendou linhas: o índice agora tem outra numeração
+    await ctl.afterWrite(await rust.info(), true);
+    expect(new Set(seen)).toEqual(new Set([60]));
+  });
+});
+
 describe("deslizar ao rolar", () => {
   it("o lote seguinte entra no fim sem mexer no começo", async () => {
     const { ctl, view } = await rig(FakeRust.lines(12), 0);

@@ -144,13 +144,31 @@ describe("busca no arquivo grande", () => {
     expect(r.count.textContent).toBe("3 de 4+");
   });
 
-  it("sem nenhum resultado depois do cursor, vale o primeiro", async () => {
+  it("sem nenhum resultado depois do cursor, vale o primeiro, mas só quando a busca termina", async () => {
     vi.useFakeTimers();
     const r = rig({ cursorLine: () => 100 });
     r.find.open();
     await r.type("x");
     r.push(r.calls[0].id, [hit(1), hit(5)]);
-    expect(r.revealed[0].line).toBe(1);
+    expect(r.revealed).toEqual([]); // a busca ainda corre: pode haver um depois do cursor mais adiante
+    r.finish({ total: 2, truncated: false, cancelled: false });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(r.revealed.map((h) => h.line)).toEqual([1]);
+    expect(r.count.textContent).toBe("1 de 2");
+  });
+
+  it("os resultados do começo do arquivo não tiram a pessoa de onde está: espera o primeiro depois do cursor", async () => {
+    vi.useFakeTimers();
+    const r = rig({ cursorLine: () => 1_500_000 });
+    r.find.open();
+    await r.type("x");
+    r.push(r.calls[0].id, [hit(2), hit(250_002)]); // chegam primeiro, lá no começo
+    expect(r.revealed).toEqual([]);
+    r.push(r.calls[0].id, [hit(1_750_002)]); // o primeiro depois do cursor
+    expect(r.revealed.map((h) => h.line)).toEqual([1_750_002]);
+    expect(r.count.textContent).toBe("3 de 3+");
+    r.push(r.calls[0].id, [hit(2_000_002)]);
+    expect(r.revealed).toHaveLength(1); // não pula de novo
   });
 
   it("nenhum resultado e resultado cortado no teto", async () => {

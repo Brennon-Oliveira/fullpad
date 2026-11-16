@@ -341,7 +341,7 @@ export class LargeTab {
   // ---- ir para a linha -------------------------------------------------------------------
 
   /** Troca a janela inteira por outra em volta do lote `batch` (as edições vão ao Rust antes). */
-  private async loadWindow(batch: number, commit = true): Promise<void> {
+  private async loadWindow(batch: number, commit = true, line?: number): Promise<void> {
     const v = this.view;
     if (commit) await this.doCommit();
     const [lo, hi] = windowAround(batch, this.info.batches);
@@ -349,7 +349,10 @@ export class LargeTab {
     const { doc, win } = LargeTab.windowOf(batches);
     this.remember(batches);
     if (!v) return;
-    v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: doc }, effects: resetWindow.of(win), selection: EditorSelection.cursor(0), annotations: loadSpec });
+    // o cursor já nasce na linha pedida: um estado intermediário com o cursor no começo da janela seria
+    // gravado na sessão pelo autosave e restauraria a posição errada
+    const at = line === undefined ? 0 : offsetOfLine(doc, Math.max(0, line - win.startLine));
+    v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: doc }, effects: resetWindow.of(win), selection: EditorSelection.cursor(at), annotations: loadSpec });
   }
 
   /**
@@ -368,7 +371,7 @@ export class LargeTab {
       if (target < w.startLine || target >= w.startLine + v.state.doc.lines) {
         const loc = await this.locate(target, token);
         if (!loc || token !== this.goToken) return false;
-        await this.loadWindow(loc.batch);
+        await this.loadWindow(loc.batch, true, target);
       }
       const w2 = v.state.field(largeField);
       const doc = v.state.doc;
@@ -455,7 +458,7 @@ export class LargeTab {
     await this.firstBatch();
     const loc = await this.locate(line);
     // os lotes mudaram de numeração: nada do que o Rust não viu pode ir com os índices de antes
-    await this.enqueue(() => this.loadWindow(loc?.batch ?? 0, false));
+    await this.enqueue(() => this.loadWindow(loc?.batch ?? 0, false, line));
     await this.goto(line, { focus: false });
   }
 
