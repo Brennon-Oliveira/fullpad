@@ -16,6 +16,9 @@ import sys
 import tempfile
 import unittest
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import _comum  # noqa: E402
+
 AQUI = pathlib.Path(__file__).resolve().parent
 MB = 1024 * 1024
 
@@ -126,11 +129,92 @@ class Geradores(unittest.TestCase):
         self.assertEqual(r.returncode, 0, "examples/large/grande.* tem de estar no .gitignore")
 
 
+class Fluxo:
+    """Um `stderr` de mentira, com ou sem terminal e com a codificação escolhida."""
+
+    def __init__(self, tty: bool, encoding: str = "utf-8"):
+        self._buf = io.StringIO()
+        self._tty = tty
+        self.encoding = encoding
+
+    def isatty(self) -> bool:
+        return self._tty
+
+    def write(self, texto: str) -> int:
+        return self._buf.write(texto)
+
+    def flush(self) -> None:
+        pass
+
+    def getvalue(self) -> str:
+        return self._buf.getvalue()
+
+
+class BarraDeProgresso(unittest.TestCase):
+    def test_formatos(self):
+        self.assertEqual(_comum.formatar_tamanho(512 * MB), "512 MB")
+        self.assertEqual(_comum.formatar_tamanho(1536 * MB), "1,50 GB")
+        self.assertEqual(_comum.formatar_tempo(7), "0:07")
+        self.assertEqual(_comum.formatar_tempo(332), "5:32")
+        self.assertEqual(_comum.formatar_tempo(3729), "1:02:09")
+        self.assertEqual(_comum.formatar_barra(0.5, 10), "█████░░░░░")
+        self.assertEqual(_comum.formatar_barra(2, 4), "████", "passou de 100%: não estoura")
+        self.assertEqual(_comum.formatar_barra(-1, 4), "░░░░")
+
+    def test_sem_terminal_escreve_uma_linha_a_cada_10_por_cento_e_o_100_so_uma_vez(self):
+        f = Fluxo(tty=False)
+        p = _comum.Progresso("teste", 100 * MB, f)
+        for mb in range(0, 101, 1):
+            p.atualizar(mb * MB)
+        p.terminar(100 * MB)
+        linhas = f.getvalue().splitlines()
+        self.assertEqual(len(linhas), 10, linhas)
+        self.assertIn(" 10%", linhas[0])
+        self.assertIn("100%", linhas[-1])
+        self.assertTrue(linhas[-1].rstrip().endswith("pronto"))
+        self.assertNotIn("\r", f.getvalue())
+
+    def test_com_terminal_redesenha_a_mesma_linha_e_fecha_com_quebra(self):
+        f = Fluxo(tty=True)
+        p = _comum.Progresso("teste", 10 * MB, f)
+        p.atualizar(1 * MB)  # o primeiro quadro sai na hora
+        p.atualizar(5 * MB, fim=False)  # dentro dos 0,25 s: não redesenha
+        p.terminar(10 * MB)
+        saida = f.getvalue()
+        self.assertEqual(saida.count("\n"), 1, "uma quebra só, no fim")
+        self.assertEqual(saida.count("\r"), 2, "o primeiro quadro e o final, sem repetir os do meio")
+        self.assertTrue(saida.endswith("\n"))
+        self.assertIn("100%", saida)
+
+    def test_primeiros_instantes_nao_inventam_um_tempo_restante(self):
+        f = Fluxo(tty=True)
+        p = _comum.Progresso("teste", 100 * MB, f)
+        p.atualizar(0)
+        self.assertIn("calculando", f.getvalue())
+        self.assertNotIn("faltam", f.getvalue())
+
+    def test_sem_unicode_usa_caracteres_simples(self):
+        f = Fluxo(tty=False, encoding="ascii")  # um console que não escreve o bloco cheio
+        p = _comum.Progresso("teste", MB, f)
+        p.terminar(MB)
+        self.assertNotIn("█", f.getvalue())
+        self.assertIn("#", f.getvalue())
+
+    def test_o_gerador_mostra_progresso_no_stderr_e_so_o_resumo_no_stdout(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = subprocess.run([sys.executable, str(AQUI / "gerar_txt.py"), "2", "-o", str(pathlib.Path(d) / "x.txt")], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("100%", r.stderr)
+        self.assertEqual(len(r.stdout.strip().splitlines()), 1, "o stdout é só o resumo")
+        self.assertIn("MB em", r.stdout)
+
+
 def pico_de_memoria_kb(nome: str, mb: float, saida: pathlib.Path, *extra: str) -> int:
     """Roda o gerador e devolve o pico de memória (RSS) do processo dele, em KB."""
     p = subprocess.Popen([sys.executable, str(AQUI / nome), str(mb), "-o", str(saida), *extra], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     _, status, uso = os.wait4(p.pid, 0)
-    assert os.waitstatus_to_exitcode(status) == 0, f"{nome} falhou"
+    p.returncode = os.waitstatus_to_exitcode(status)  # o Popen não sabe que o processo já foi coletado
+    assert p.returncode == 0, f"{nome} falhou"
     return uso.ru_maxrss  # KB no Linux
 
 

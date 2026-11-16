@@ -25,6 +25,14 @@ Opções:
 
 **Memória constante.** Os geradores gravam em blocos (cerca de 2.000 linhas por vez, com buffer de 4 MB) e nunca montam o arquivo na memória: o pico fica em 37 a 57 MB gerando 300 MB, e é o mesmo para 2 GB ou 15 GB. Só o tamanho do disco limita (e o tempo: cerca de 20 s por GB para o CSV). Há teste disso (`MemoriaConstante`, que mede o pico de cada gerador em dois tamanhos).
 
+**Barra de progresso.** Enquanto gera, o script mostra no terminal uma linha que se atualiza sozinha, com porcentagem, quanto já foi, a velocidade e o tempo que falta:
+
+```
+  gerar_csv  [██████████████░░░░░░░░░░░░░░░░░░░░░░░░░]   35%  139 MB / 400 MB  46 MB/s  faltam 0:06
+```
+
+Ela sai no `stderr`; se você redirecionar a saída (ou o console não escrever os blocos), vira uma linha a cada 10% (`#` e `-` no lugar dos blocos). O `stdout` fica só com o resumo final (`caminho (tamanho em tempo, velocidade)`). Ctrl+C interrompe e avisa que o arquivo ficou incompleto: apague-o.
+
 Em Windows use `py` no lugar de `python3`. O tamanho sai a poucos por cento do pedido; o mesmo pedido gera sempre
 o mesmo arquivo. Para o Fullpad abrir em modo de lotes o arquivo precisa ter **mais de 20 MB**; abaixo disso ele
 abre pelo caminho normal (útil para comparar). Um arquivo de 300 MB leva alguns segundos para gerar e ocupa 300 MB
