@@ -2,6 +2,12 @@
 
 Uma seção por versão, da mais nova para a mais antiga. A skill `gerar-versao` acrescenta a versão nova no topo; o app embute este arquivo (Ajuda > "Histórico de versões…"). As versões até a 2.0.0 foram reconstruídas das mensagens das tags.
 
+## 3.1.3 · 2026-11-16
+
+### Novidades
+
+- **Tema escolhido por você**: Visualizar > Tema tem Claro, Escuro e Sistema. O padrão agora é o **escuro**, mesmo que o sistema esteja no claro, e a escolha é lembrada e vale para todas as janelas.
+
 ## 3.1.2 · 2026-11-15
 
 ### Novidades

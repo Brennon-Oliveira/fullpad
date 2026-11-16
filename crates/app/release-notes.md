@@ -1,3 +1,3 @@
 ## Novidades
 
-- **"Somente diagrama"** no menu de visão dos arquivos DBML e Mermaid (Visualizar e botão "Visão" da barra de status): o editor some e o diagrama ocupa o painel inteiro. O código continua lá, escondido, com o texto e o histórico de desfazer.
+- **Tema escolhido por você**: Visualizar > Tema tem Claro, Escuro e Sistema. O padrão agora é o **escuro**, mesmo que o sistema esteja no claro, e a escolha é lembrada e vale para todas as janelas.
