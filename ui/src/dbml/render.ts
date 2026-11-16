@@ -34,8 +34,8 @@ function withNote<T extends SVGElement>(e: T, note?: string): T {
   return e;
 }
 
-/** Ícone de documento que marca uma nota; o chamador põe o tooltip e o clique (`data-note` = onde a declaração começa). */
-function noteIcon(kind: "table" | "column", decl: number | undefined, note: string, x: number, y: number): SVGGElement {
+/** Ícone de documento que marca uma nota; o chamador põe o tooltip e o clique (`data-note` = onde a declaração começa; sem ele o ícone só mostra a nota, como no enum). */
+function noteIcon(kind: "table" | "column" | "enum", decl: number | undefined, note: string, x: number, y: number): SVGGElement {
   const g = el("g", { class: "dbml-noteicon", "data-note-kind": kind, "data-note-text": note, transform: `translate(${x} ${y})` });
   if (decl !== undefined) g.setAttribute("data-note", String(decl));
   g.append(
@@ -140,7 +140,8 @@ function enumNode(e: DEnum, x: number, y: number, w: number, h: number): SVGGEle
   g.append(el("path", { class: "dbml-head dbml-enum-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` }));
   const enumTitle = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, `enum ${e.schema ? `${e.schema}.` : ""}${e.name}`);
   if (e.span) enumTitle.setAttribute("data-off", String(e.span.from));
-  g.append(withNote(enumTitle, e.note));
+  g.append(enumTitle);
+  if (e.note) g.append(noteIcon("enum", undefined, e.note, w - 24, (HEADER_H - 13) / 2)); // só leitura: editar a nota do enum pelo diagrama ainda não existe
   e.values.forEach((v, i) => {
     g.append(el("rect", { class: "dbml-vrow", "data-v": colKey(enumKey(e.id), v.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H, ...(v.span ? { "data-pick": v.span.from } : {}) }));
     const valName = el("text", { class: "dbml-col", x: 10, y: HEADER_H + i * ROW_H + ROW_H / 2 + 4 }, v.name);
@@ -169,7 +170,7 @@ export interface RenderHooks {
   /** Mouse sobre um elemento: trechos do texto que ele representa (`null` ao sair). */
   onHover?(spans: Span[] | null): void;
   /** Mouse sobre o ícone de uma nota (`null` ao sair): o texto e o retângulo do ícone na tela. */
-  onNoteHover?(note: { text: string; rect: DOMRect } | null): void;
+  onNoteHover?(note: { text: string; rect: DOMRect; editable: boolean } | null): void;
 }
 
 export interface Rendered {
@@ -321,7 +322,7 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
   }
 
   for (const icon of into.querySelectorAll<SVGElement>(".dbml-noteicon")) {
-    icon.addEventListener("mouseenter", () => hooks.onNoteHover?.({ text: icon.getAttribute("data-note-text") ?? "", rect: icon.getBoundingClientRect() }));
+    icon.addEventListener("mouseenter", () => hooks.onNoteHover?.({ text: icon.getAttribute("data-note-text") ?? "", rect: icon.getBoundingClientRect(), editable: icon.hasAttribute("data-note") }));
     icon.addEventListener("mouseleave", () => hooks.onNoteHover?.(null));
   }
 

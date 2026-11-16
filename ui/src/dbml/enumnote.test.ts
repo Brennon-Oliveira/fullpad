@@ -116,33 +116,63 @@ describe("o patch não afrouxou o resto", () => {
 });
 
 describe("a nota do enum no diagrama", () => {
-  const desenhar = (texto: string) => {
+  const desenhar = (texto: string, hooks: Parameters<typeof renderDiagram>[3] = {}) => {
     const d = parseDbml(interpret, texto).diagram!;
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g);
+    renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g, hooks);
     return g;
   };
+  const icone = (g: Element) => g.querySelector(".dbml-enum .dbml-noteicon");
 
-  it("vira tooltip no título do enum, sem mudar o texto do título", () => {
+  it("ganha o mesmo ícone de documento da tabela, no cabeçalho do enum", () => {
+    const g = desenhar("enum status {\n  ativo\n  Note: 'Ciclo de vida'\n}\nTable t { s status }");
+    const i = icone(g)!;
+    expect(i).not.toBeNull();
+    expect(i.getAttribute("data-note-text")).toBe("Ciclo de vida");
+    expect(i.getAttribute("data-note-kind")).toBe("enum");
+    expect(i.querySelector("path")).not.toBeNull(); // o desenho do documento
+    expect(i.parentElement?.classList.contains("dbml-enum")).toBe(true);
+    // fica na mesma altura que na tabela (cabeçalho), no canto direito
+    const t = desenhar("Table t { id int\n Note: 'x' }").querySelector(".dbml-table .dbml-noteicon")!;
+    const y = (e: Element) => e.getAttribute("transform")!.match(/translate\(([\d.]+) ([\d.]+)\)/)![2];
+    expect(y(i)).toBe(y(t));
+  });
+
+  it("o título do enum fica intacto (sem <title> nativo no texto)", () => {
     const g = desenhar("enum status {\n  ativo\n  Note: 'Ciclo de vida'\n}\nTable t { s status }");
     const titulo = g.querySelector(".dbml-enum .dbml-title")!;
-    expect(titulo.firstChild?.textContent).toBe("enum status");
-    expect(titulo.querySelector("title")?.textContent).toBe("Ciclo de vida");
+    expect(titulo.textContent).toBe("enum status");
+    expect(titulo.querySelector("title")).toBeNull();
   });
 
-  it("enum sem nota não ganha tooltip", () => {
+  it("enum sem nota não ganha ícone", () => {
     const g = desenhar("enum status {\n  ativo\n}\nTable t { s status }");
-    expect(g.querySelector(".dbml-enum .dbml-title title")).toBeNull();
+    expect(icone(g)).toBeNull();
   });
 
-  it("não aparece o ícone de nota editável (só tabela e coluna editam)", () => {
+  it("o ícone do enum é só leitura: sem `data-note`, então o clique do painel não o trata como coluna", () => {
     const g = desenhar("enum status {\n  ativo\n  Note: 'x'\n}\nTable t { s status }");
-    expect(g.querySelectorAll(".dbml-enum .dbml-noteicon")).toHaveLength(0);
+    expect(icone(g)!.hasAttribute("data-note")).toBe(false);
+    // a tabela, que se edita, continua com ele
+    const t = desenhar("Table t { id int\n Note: 'x' }");
+    expect(t.querySelector(".dbml-table .dbml-noteicon")!.hasAttribute("data-note")).toBe(true);
   });
 
-  it("a nota de valor continua com o próprio tooltip", () => {
+  it("passar o mouse mostra o texto e avisa que não dá para editar; na tabela avisa que dá", () => {
+    const vistos: { text: string; editable: boolean }[] = [];
+    const g = desenhar("enum status {\n  ativo\n  Note: 'do enum'\n}\nTable t [note: 'da tabela'] { s status }", {
+      onNoteHover: (n) => n && vistos.push({ text: n.text, editable: n.editable }),
+    });
+    for (const i of g.querySelectorAll(".dbml-noteicon")) i.dispatchEvent(new Event("mouseenter"));
+    expect(vistos.sort((a, b) => a.text.localeCompare(b.text))).toEqual([
+      { text: "da tabela", editable: true },
+      { text: "do enum", editable: false },
+    ]);
+  });
+
+  it("a nota de valor continua com o próprio tooltip nativo, sem ícone", () => {
     const g = desenhar("enum status {\n  ativo [note: 'ligado']\n  Note: 'enum'\n}\nTable t { s status }");
-    const tooltips = [...g.querySelectorAll(".dbml-enum title")].map((t) => t.textContent);
-    expect(tooltips.sort()).toEqual(["enum", "ligado"]);
+    expect(g.querySelectorAll(".dbml-enum .dbml-noteicon")).toHaveLength(1); // só o do enum
+    expect([...g.querySelectorAll(".dbml-enum title")].map((t) => t.textContent)).toEqual(["ligado"]);
   });
 });

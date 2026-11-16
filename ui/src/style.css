@@ -685,7 +685,7 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .dbml-noteicon path { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; }
 .dbml-noteicon-hit { fill: transparent; }
 .dbml-noteicon:hover path { stroke: var(--accent); }
-.dbml-svg:not(.view-only) .dbml-noteicon { cursor: pointer; }
+.dbml-svg:not(.view-only) .dbml-noteicon[data-note] { cursor: pointer; }
 .dbml-notetip { position: absolute; z-index: 5; max-width: min(420px, 80%); padding: 8px 10px; background: var(--bar); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); font: 12px/1.45 var(--sans); pointer-events: none; }
 .dbml-notetip[hidden] { display: none; }
 .dbml-notetip-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 40vh; overflow: hidden; }

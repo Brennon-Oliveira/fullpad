@@ -165,13 +165,13 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
 
   // ---- editar ou só ver ----
   let editable = true;
-  const showNoteTip = (n: { text: string; rect: DOMRect } | null) => {
+  const showNoteTip = (n: { text: string; rect: DOMRect; editable: boolean } | null) => {
     if (!n) {
       noteTip.hidden = true;
       return;
     }
     noteTip.replaceChildren(div("dbml-notetip-text", n.text));
-    if (editable && hooks.onNote) noteTip.append(div("dbml-notetip-hint", "Clique no ícone para editar"));
+    if (editable && n.editable && hooks.onNote) noteTip.append(div("dbml-notetip-hint", "Clique no ícone para editar"));
     noteTip.hidden = false;
     const h = host.getBoundingClientRect();
     const w = noteTip.offsetWidth;
