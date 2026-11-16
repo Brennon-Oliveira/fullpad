@@ -1,11 +1,11 @@
 ---
 name: gerar-versao
-description: "Gera e publica uma versão do Fullpad: lê os commits desde a última tag, usa a versão pedida (argumento ou --bug/--minor/--major) ou pergunta qual, escreve as notas, sobe a versão, gera o instalador de Windows localmente, cria a tag no git e publica o release no repositório público de releases (de onde a atualização automática baixa). Use quando pedirem para gerar, lançar ou publicar uma versão."
+description: "Gera e publica uma versão do Fullpad: lê os commits desde a última tag, usa a versão pedida (argumento ou --bug/--minor/--major) ou pergunta qual, escreve as notas, sobe a versão, gera localmente, em paralelo, o instalador de Windows e os pacotes de Linux (AppImage, deb e rpm; a versão só sai se os dois sistemas compilarem), cria a tag no git e publica o release no repositório público de releases (de onde a atualização automática baixa). Use quando pedirem para gerar, lançar ou publicar uma versão."
 ---
 
 # Gerar versão
 
-Publica uma versão nova do Fullpad. Quem já tem o app instalado recebe a versão pela atualização automática (o app lê o `latest.json` do release mais recente). Detalhes do instalador, da chave e do `scripts/release.sh`: [../../rules/build-windows.md](../../rules/build-windows.md).
+Publica uma versão nova do Fullpad. Quem já tem o app instalado recebe a versão pela atualização automática (o app lê o `latest.json` do release mais recente). Cada versão leva **Windows e Linux**: o Linux compilar e empacotar é critério para publicar (falhou, nada é publicado). Detalhes do instalador, da chave e do `scripts/release.sh`: [../../rules/build-windows.md](../../rules/build-windows.md) e [../../rules/build-linux.md](../../rules/build-linux.md).
 
 - Código: este repositório (público, aberto a contribuições). Tag `v<versão>` no commit que gerou a versão.
 - Releases: `Brennon-Oliveira/fullpad-releases` (público para ler, mas só o mantenedor publica: instaladores e `latest.json`, sem código). É de lá que o app instalado se atualiza, então ninguém além do mantenedor deve ter permissão de escrita nele.
@@ -43,10 +43,12 @@ git branch --show-current         # main
 git fetch origin && git status -sb   # sem divergir de origin/main
 ls ~/.tauri/fullpad.key           # chave privada das atualizações
 command -v gh cargo-tauri cargo-xwin makensis
+pkg-config --exists webkit2gtk-4.1 gtk+-3.0 && echo "libs do Linux ok"   # o build nativo de Linux precisa delas
 gh auth status
 ```
 
 - Árvore suja: **não publique código que não está em commit**. Com `--commit`: commite o que houver (um commit por mudança lógica, [../../rules/commits.md](../../rules/commits.md)), dê `git push origin main` e siga. Sem a flag: mostre o que falta e pergunte se é para commitar antes (e dar push) ou parar.
+- Faltando `cargo-xwin`/`makensis` (Windows) **ou** as libs do Linux (`libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, ver [../../rules/build-linux.md](../../rules/build-linux.md)): pare e diga o que instalar; não publique só uma das plataformas (nem use `LINUX=0`, a não ser que o usuário peça).
 - Sem a chave: pare. Sem ela, os apps instalados recusam a versão; não gere outra chave sem o usuário saber que isso quebra a atualização de quem já instalou.
 
 ## 2. Última versão e commits desde ela
@@ -96,7 +98,7 @@ Escreva em `crates/app/release-notes.md` (substituindo o conteúdo da versão an
 
 - Fonte: o resumo e o corpo dos commits. **Entra tudo o que muda algo para quem usa, tenha ou não issue**: uma correção feita na conversa, sem `Refs`, entra como qualquer outra. Issue não é critério para a nota. Reescreva para o efeito visível ("Abas arrastadas entre janelas caem no lugar exato"), sem jargão (nada de "refatora", nomes de função ou arquivo).
 - Junte commits que tratam da mesma coisa. Omita seções vazias.
-- `docs`, `test`, `build`, `ci`, `chore` ficam de fora, a não ser que mudem algo para o usuário (ex.: o instalador).
+- `docs`, `test`, `build`, `ci`, `chore` ficam de fora, a não ser que mudem algo para o usuário (ex.: o instalador ou os pacotes de Linux).
 - **Não cite números de issue** (`#12`) nem links do repositório de código nas notas: elas aparecem como texto puro no diálogo de atualização e na página do release, que fica em **outro repositório** (`fullpad-releases`), onde `#12` apontaria para uma issue que não existe ou para outra.
 - Mudança incompatível: diga o que muda e o que a pessoa precisa fazer.
 
@@ -118,10 +120,10 @@ sed -i 's/^version = ".*"/version = "<nova>"/' crates/app/Cargo.toml   # só a p
 cargo check -p fullpad -q          # atualiza o Cargo.lock
 cargo test -p fullpad-core -p fullpad
 pnpm --dir ui exec vitest run
-PUBLISH=0 scripts/release.sh       # build local: instalador assinado + latest.json
+PUBLISH=0 scripts/release.sh       # build local, Windows e Linux em paralelo: instalador + AppImage/deb/rpm assinados + latest.json
 ```
 
-Confira que a primeira linha `version` do `Cargo.toml` é a do `[package]`. Falhou um teste ou o build: pare, desfaça a mudança de versão e as notas (`git checkout crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md crates/app/CHANGELOG.md`) e relate a saída.
+Confira que a primeira linha `version` do `Cargo.toml` é a do `[package]`. Falhou um teste ou o build (de Windows **ou** de Linux): pare, desfaça a mudança de versão e as notas (`git checkout crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md crates/app/CHANGELOG.md`) e relate a saída.
 
 ## 7. Commit e tag
 
@@ -140,12 +142,12 @@ A tag anotada guarda as notas: `git show v<nova>` diz o que entrou em cada vers�
 BUILD=0 scripts/release.sh
 ```
 
-Publica o instalador já gerado e o `latest.json` como release `v<nova>`.
+Publica o instalador de Windows, o AppImage, o `.deb`, o `.rpm` já gerados e o `latest.json` (com as chaves `windows-x86_64` e `linux-x86_64-appimage`/`-deb`/`-rpm`) como release `v<nova>`.
 
 ## 9. Conferir
 
 ```sh
-curl -sL "https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest/download/latest.json?n=$RANDOM" | grep '"version"'
+curl -sL "https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest/download/latest.json?n=$RANDOM" | grep -E '"version"|"(windows|linux)-x86_64''
 ```
 
 Precisa mostrar a versão nova (o GitHub pode levar alguns segundos). Se a publicação falhar depois da tag, não apague a tag: corrija e rode o passo 8 de novo.
