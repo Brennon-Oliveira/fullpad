@@ -124,6 +124,37 @@ describe("abrir em volta de uma linha", () => {
   });
 });
 
+describe("abrir longe, com o índice ainda indo (restaurar a aba depois de reiniciar)", () => {
+  it("esperar o índice não pergunta a posição antes de o editor existir", async () => {
+    vi.useFakeTimers();
+    const rust = FakeRust.lines(50);
+    const real = rust.locate.bind(rust);
+    let tries = 0;
+    rust.done = false; // o índice ainda está indo
+    rust.locate = async (id, line) => {
+      if (tries++ < 3) throw new Error("o índice ainda não chegou a essa linha");
+      rust.done = true;
+      return real(id, line);
+    };
+    const info = { ...(await rust.info()), done: false };
+    let asked = 0;
+    let ctl!: LargeTab;
+    const hooks: LargeHooks = {
+      onDirty() {},
+      // como o app: a cada avanço do índice a barra de status pergunta onde está o cursor
+      onChange: () => void (asked++, ctl.cursorLine(), ctl.topLine()),
+      onError() {},
+    };
+    ctl = new LargeTab("t1", info, rust, hooks);
+    const p = ctl.createState(120, (doc, cursor, extra) => createState(doc, cursor, () => {}, extra));
+    await vi.advanceTimersByTimeAsync(3000);
+    const st = await p;
+    expect(st.doc.toString()).toContain("L120");
+    expect(ctl.cursorLine()).toBe(120);
+    expect(asked).toBeLessThanOrEqual(1); // só depois de o editor existir (o acompanhamento do índice)
+  });
+});
+
 describe("ir para a linha", () => {
   it("dentro da janela só move o cursor, sem ler nada", async () => {
     const { ctl, view, rust } = await rig(FakeRust.lines(12), 20);
@@ -264,6 +295,46 @@ describe("deslizar ao rolar", () => {
     await ctl.growDown();
     expect(hooks.dirty).toEqual([]);
     expect(ctl.dirty).toBe(false);
+  });
+});
+
+describe("deslizar só quando a pessoa rola", () => {
+  const nearBottom = (view: EditorView) => {
+    const el = view.scrollDOM;
+    Object.defineProperty(el, "clientHeight", { configurable: true, value: 800 });
+    Object.defineProperty(el, "scrollHeight", { configurable: true, value: 100_000 });
+    Object.defineProperty(el, "scrollTop", { configurable: true, writable: true, value: 99_000 });
+  };
+  const frames = () => new Promise((r) => setTimeout(r, 80));
+
+  it("rolagem causada pelo próprio app (salto, restauração) não carrega o lote vizinho", async () => {
+    const { view, rust } = await rig(FakeRust.lines(40), 60);
+    nearBottom(view);
+    rust.batchCalls = [];
+    view.scrollDOM.dispatchEvent(new Event("scroll"));
+    await frames();
+    expect(rust.batchCalls).toEqual([]);
+    expect(win(view).bounds.length - 1).toBe(3);
+  });
+
+  it("depois de a pessoa girar a roda, a rolagem perto da borda carrega o próximo lote", async () => {
+    const { view, rust } = await rig(FakeRust.lines(40), 60);
+    nearBottom(view);
+    rust.batchCalls = [];
+    view.scrollDOM.dispatchEvent(new Event("wheel"));
+    view.scrollDOM.dispatchEvent(new Event("scroll"));
+    await frames();
+    expect(rust.batchCalls).toEqual([22]); // a janela ia de 19 a 21 (linha 60 = lote 20): vem o 22
+  });
+
+  it("segurar o botão do mouse (arrastar a seleção) também vale como rolagem da pessoa", async () => {
+    const { view, rust } = await rig(FakeRust.lines(40), 60);
+    nearBottom(view);
+    rust.batchCalls = [];
+    view.scrollDOM.dispatchEvent(new Event("pointerdown"));
+    view.scrollDOM.dispatchEvent(new Event("scroll"));
+    await frames();
+    expect(rust.batchCalls.length).toBe(1);
   });
 });
 

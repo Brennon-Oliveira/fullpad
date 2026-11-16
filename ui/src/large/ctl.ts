@@ -58,7 +58,15 @@ export class LargeTab {
   private pollTimer: number | undefined;
   private sliding = false;
   private goToken = 0;
+  /** O estado do editor já existe (antes disso, ninguém pode perguntar a posição). */
+  private ready = false;
   private onScroll = () => this.scrolled();
+  /** Última vez que a pessoa rolou, digitou ou clicou: só então a janela desliza (nunca por conta própria). */
+  private lastUser = 0;
+  private pointerDown = false;
+  private onUser = () => void (this.lastUser = Date.now());
+  private onDown = () => void ((this.pointerDown = true), (this.lastUser = Date.now()));
+  private onUp = () => void ((this.pointerDown = false), (this.lastUser = Date.now()));
   private raf = 0;
   dirty: boolean;
 
@@ -83,7 +91,7 @@ export class LargeTab {
   /** Atualiza o que se sabe do arquivo (índice, total de linhas). */
   async refreshInfo(): Promise<LargeInfo> {
     this.info = await this.io.info(this.id);
-    this.hooks.onChange();
+    if (this.ready) this.hooks.onChange(); // durante a montagem o app ainda não tem o que mostrar
     return this.info;
   }
 
@@ -159,6 +167,7 @@ export class LargeTab {
     this.remember(batches);
     const cursor = offsetOfLine(doc, Math.max(0, line - win.startLine));
     this.state = build(doc, cursor, [largeExtensions, largeField.init(() => win)]);
+    this.ready = true;
     this.startPolling();
     return this.state;
   }
@@ -167,14 +176,27 @@ export class LargeTab {
   attach(view: EditorView | null) {
     if (this.view) {
       this.state = this.view.state; // o que a janela tinha ao sair
-      this.view.scrollDOM.removeEventListener("scroll", this.onScroll);
+      const old = this.view.scrollDOM;
+      old.removeEventListener("scroll", this.onScroll);
+      old.removeEventListener("wheel", this.onUser);
+      old.removeEventListener("keydown", this.onUser);
+      old.removeEventListener("pointerdown", this.onDown);
+      window.removeEventListener("pointerup", this.onUp);
     }
     this.view = view;
-    view?.scrollDOM.addEventListener("scroll", this.onScroll, { passive: true });
+    this.pointerDown = false;
+    if (view) {
+      const el = view.scrollDOM;
+      el.addEventListener("scroll", this.onScroll, { passive: true });
+      el.addEventListener("wheel", this.onUser, { passive: true });
+      el.addEventListener("keydown", this.onUser);
+      el.addEventListener("pointerdown", this.onDown);
+      window.addEventListener("pointerup", this.onUp);
+    }
   }
 
   /** O estado de agora: o do editor, se ele mostra esta aba, ou o último conhecido. */
-  private current(): EditorState {
+  private current(): EditorState | undefined {
     return this.view ? this.view.state : this.state;
   }
 
@@ -201,7 +223,7 @@ export class LargeTab {
   /** A linha do arquivo (a partir de 0) do cursor. */
   cursorLine(): number {
     const st = this.current();
-    return fileLineAt(st, st.selection.main.head);
+    return st ? fileLineAt(st, st.selection.main.head) : 0;
   }
 
   /** A linha do arquivo que está no topo da tela. */
@@ -231,9 +253,14 @@ export class LargeTab {
     });
   }
 
+  /** A pessoa está rolando agora (roda, teclas, ou o botão do mouse apertado). */
+  private userScrolling(): boolean {
+    return this.pointerDown || Date.now() - this.lastUser < 1500;
+  }
+
   private async maybeSlide() {
     const v = this.view;
-    if (!v || this.sliding) return;
+    if (!v || this.sliding || !this.userScrolling()) return; // rolagem causada por nós mesmos não carrega nada
     const e = v.scrollDOM;
     const edge = nearEdge(e.scrollTop, e.scrollHeight, e.clientHeight);
     if (!edge) return;
@@ -245,18 +272,6 @@ export class LargeTab {
     } finally {
       this.sliding = false;
     }
-  }
-
-  /** Marca onde a tela está para recolocá-la depois de mexer no que está acima. */
-  private anchor(v: EditorView) {
-    const top = v.scrollDOM.scrollTop - v.documentPadding.top;
-    const block = v.lineBlockAtHeight(Math.max(0, top));
-    return { pos: block.from, offset: top - block.top };
-  }
-
-  private restore(v: EditorView, a: { pos: number; offset: number }, pos: number) {
-    const block = v.lineBlockAt(Math.min(Math.max(0, pos), v.state.doc.length));
-    v.scrollDOM.scrollTop = block.top + a.offset + v.documentPadding.top;
   }
 
   /** Acrescenta o lote seguinte no fim da janela. */
@@ -292,13 +307,12 @@ export class LargeTab {
     const idx = w.first - 1;
     const b = await this.io.batch(this.id, idx);
     if (v.state.field(largeField).first !== w.first) return false;
-    const a = this.anchor(v);
+    // o `scrollSnapshot` do CodeMirror acompanha o texto que entra acima: o que se vê não se mexe
     v.dispatch({
       changes: { from: 0, insert: b.text },
-      effects: prependBatch.of({ length: b.text.length, breaks: b.breaks, lossy: b.lossy, lines: countNl(b.text) }),
+      effects: [prependBatch.of({ length: b.text.length, breaks: b.breaks, lossy: b.lossy, lines: countNl(b.text) }), v.scrollSnapshot()],
       annotations: loadSpec,
     });
-    this.restore(v, a, a.pos + b.text.length);
     this.sent.set(idx, stripBreaks(b.text, b.breaks));
     if (v.state.field(largeField).bounds.length - 1 > MAX_WINDOW_BATCHES) await this.trim("last");
     this.hooks.onChange();
@@ -314,11 +328,9 @@ export class LargeTab {
     if (w.bounds.length - 1 <= 1) return;
     if (side === "first") {
       const cut = w.bounds[1];
-      const a = this.anchor(v);
       const lines = countNl(v.state.sliceDoc(0, cut));
-      v.dispatch({ changes: { from: 0, to: cut, insert: "" }, effects: dropFirst.of({ lines }), annotations: loadSpec });
+      v.dispatch({ changes: { from: 0, to: cut, insert: "" }, effects: [dropFirst.of({ lines }), v.scrollSnapshot()], annotations: loadSpec });
       this.sent.delete(w.first);
-      this.restore(v, a, a.pos - cut);
     } else {
       const n = w.bounds.length - 1;
       v.dispatch({ changes: { from: w.bounds[n - 1], to: w.bounds[n], insert: "" }, effects: dropLast.of(null), annotations: loadSpec });
@@ -376,8 +388,9 @@ export class LargeTab {
   /** Texto do arquivo (sem os cortes virtuais) de cada lote da janela. */
   private windowTexts(): { index: number; text: string }[] {
     const st = this.current();
-    const w = st.field(largeField);
     const out: { index: number; text: string }[] = [];
+    if (!st) return out;
+    const w = st.field(largeField);
     let vb = 0;
     for (let i = 0; i < w.bounds.length - 1; i++) {
       const [a, b] = [w.bounds[i], w.bounds[i + 1]];

@@ -92,6 +92,8 @@ export const largeField = StateField.define<WindowState>({
 export function lineNumberFormat(n: number, state: EditorState): string {
   const w = state.field(largeField, false);
   if (!w) return String(n);
+  // o CodeMirror também chama isto para medir a largura da margem, com números além das linhas do documento
+  if (n > state.doc.lines) return String(w.startLine + n);
   const from = state.doc.line(n).from;
   if (from > 0) {
     const i = lowerBound(w.vbreaks, from - 1);

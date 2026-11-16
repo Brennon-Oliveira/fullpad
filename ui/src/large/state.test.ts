@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
 import { EditorState, Transaction } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
+import { createState, createView, tabEffects } from "../editor";
 import { appendBatch, dropFirst, dropLast, fileLineAt, largeExtensions, largeField, lineNumberFormat, loadSpec, prependBatch, resetWindow, windowLoad, type WindowState } from "./state";
 
 /** Três lotes: "a1\na2\n" | "b1\nb2\n" | "c1\n", começando na linha 100. */
@@ -97,6 +99,20 @@ describe("número de linha da margem", () => {
     expect(lineNumberFormat(1, s)).toBe("101");
     expect(lineNumberFormat(2, s)).toBe("↳");
     expect(lineNumberFormat(3, s)).toBe("103");
+  });
+
+  it("o CodeMirror mede a margem com números além das linhas do documento: não pode lançar erro", () => {
+    const s = make();
+    expect(() => lineNumberFormat(9999, s)).not.toThrow();
+    expect(lineNumberFormat(9999, s)).toBe(String(100 + 9999));
+  });
+
+  it("a margem aparece de verdade no editor, com os números do arquivo", () => {
+    const parent = document.createElement("div");
+    const view = createView(parent, createState("a\nb\nc", 0, () => {}, [largeExtensions, largeField.init(() => ({ first: 3, startLine: 100, bounds: [0, 5], vbreaks: [], lossy: [false] }))]));
+    view.dispatch({ effects: tabEffects({ markdown: false, dbml: false, json: false, dark: true, preview: false, wrap: false, overwrite: false, mdFormat: false, lineNumbers: true, lineNumberFormat }) });
+    const nums = [...parent.querySelectorAll(".cm-lineNumbers .cm-gutterElement")].map((e) => e.textContent);
+    expect(nums).toEqual(expect.arrayContaining(["101", "102", "103"]));
   });
 
   it("estado sem janela mostra o número do editor", () => {
