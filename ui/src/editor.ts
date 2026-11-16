@@ -191,6 +191,8 @@ export interface TabConfig {
   overwrite: boolean;
   /** Números de linha na margem (só onde o código aparece: o markdown renderizado e a tabela não têm). */
   lineNumbers: boolean;
+  /** Como escrever o número de uma linha (arquivo grande: o da linha do arquivo, não o da janela). */
+  lineNumberFormat?: (n: number, state: EditorState) => string;
   /** Barra de formatação ao selecionar e Ctrl+B/I/K (markdown, onde o texto é editável). */
   mdFormat: boolean;
   /** Texto que não aceita alteração (digitar, colar, recortar, substituir, formatar); seleção e cópia seguem. */
@@ -221,7 +223,7 @@ export function tabEffects(c: TabConfig): StateEffect<unknown>[] {
     themeC.reconfigure(EditorView.darkTheme.of(c.dark)),
     wrapC.reconfigure(c.wrap ? EditorView.lineWrapping : []),
     overwriteC.reconfigure(c.overwrite ? overwriteExt : []),
-    gutterC.reconfigure(c.lineNumbers ? lineNumbers() : []),
+    gutterC.reconfigure(c.lineNumbers ? (c.lineNumberFormat ? lineNumbers({ formatNumber: c.lineNumberFormat }) : lineNumbers()) : []),
     mdFormatC.reconfigure(c.mdFormat && !c.readOnly ? mdFormatExtension : []),
     readOnlyC.reconfigure(EditorState.readOnly.of(!!c.readOnly)),
   ];
@@ -233,6 +235,8 @@ export function createState(
   doc: string,
   cursor: number,
   onUpdate: (u: ViewUpdate) => void,
+  /** Extensões só desta aba (o modo de arquivo grande acrescenta a janela de lotes). */
+  extra: Extension = [],
 ): EditorState {
   return EditorState.create({
     doc,
@@ -261,6 +265,7 @@ export function createState(
       fullpadSearch,
       keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
       EditorView.updateListener.of(onUpdate),
+      extra,
     ],
   });
 }

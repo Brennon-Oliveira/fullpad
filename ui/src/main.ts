@@ -10,7 +10,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { createFileDrop } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
-import { api, type ClosedTab, type Encoding, type Eol, type Language, type LayoutEdit, type LayoutState, type Session, type TabState, type ViewMode } from "./api";
+import { api, type ClosedTab, type Encoding, type Eol, type Language, type LargeHit, type LayoutEdit, type LayoutState, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import { mermaidLanguage } from "./mermaidlang";
 
@@ -56,6 +56,11 @@ import { attachTabDrag, insertionIndex, type TearPoint } from "./tabdrag";
 import { type DockGroup, type DockTile, type Rect, SIDES, dockTiles, tileAt } from "./dock";
 import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, normalize, pathTo, removeLeaf, resizeSizes, splitLeaf, splitPath, swapAdjacent, wrapCandidates } from "./grid";
 import { mountPostitBar, type PostitBar } from "./postit";
+import { LargeTab, type LargeHooks, type LargeIo } from "./large/ctl";
+import { type LargeFind, mountLargeFind } from "./large/find";
+import { humanSize, statusText } from "./large/model";
+import { type LargeScroll, mountLargeScroll } from "./large/scrollbar";
+import { largeKeys, lineNumberFormat, windowLoad } from "./large/state";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -71,6 +76,9 @@ const pendingIn: TabState[] = []; // abas que chegaram antes de a janela termina
 let exiting = false; // o app está fechando: janelas flutuantes só gravam, sem devolver as abas
 let session: Session;
 const states = new Map<string, EditorState>(); // abas já carregadas (guarda undo/seleção)
+const larges = new Map<string, LargeTab>(); // arquivos grandes abertos nesta janela (modo de lotes)
+const largeFailed = new Set<string>(); // aba grande cujo arquivo não pôde ser aberto: fica só leitura
+let largeWrap = false; // quebra de linha das abas grandes (desligada: um segmento chega a 1 MB)
 const detected = new Map<string, Lang>(); // linguagem detectada no modo automático
 const dirtyNotes = new Set<string>();
 let sessionDirty = false;
@@ -141,6 +149,11 @@ interface Group {
   readerLoading?: Promise<void>;
   /** Texto da barra de status enquanto o leitor está na tela. */
   readerInfo?: string | null;
+  /** Arquivo grande (modo de lotes): barra de rolagem do arquivo, barra de busca e aviso fixo. */
+  largeScroll: LargeScroll;
+  largeFind: LargeFind;
+  largeNoteEl: HTMLElement;
+  largeTab: string | null; // aba grande cuja barra de busca está montada
   /** Sumário lateral deste painel (barrinhas ou fixo ao lado do arquivo). */
   outlineEl: HTMLElement;
   outline: Outline;
@@ -205,7 +218,11 @@ const isReader = (tab: TabState) => tab.kind !== undefined && tab.kind !== "text
 /** Aba de texto que não aceita alteração: a nota de versão (o texto vem embutido no app). */
 const isReadOnlyText = (tab: TabState) => !!tab.release_notes;
 
+/** Arquivo grande em modo de lotes: texto puro, sem visão renderizada, árvore, diagrama nem tabela. */
+const largeOf = (tab: TabState | undefined | null) => (tab?.large ? larges.get(tab.id) : undefined);
+
 function effectiveLang(tab: TabState): Lang {
+  if (tab.large) return "plain"; // só o destaque pela extensão; nada que precise do texto inteiro
   if (tab.kind === "pdf") return "pdf";
   if (tab.kind === "epub") return "epub";
   return tab.language === "auto" ? (detected.get(tab.id) ?? "plain") : tab.language;
@@ -244,7 +261,7 @@ function viewLabel(tab: TabState): string {
 
 function redetect(tab: TabState) {
   const st = states.get(tab.id);
-  if (!st || tab.language !== "auto") return;
+  if (!st || tab.language !== "auto" || tab.large) return;
   detected.set(tab.id, detectLanguage(st.sliceDoc(0, 20_000), tab.path));
 }
 
@@ -260,11 +277,12 @@ function applyTabConfig() {
       dark: isDark(),
       support: supportFor(tab),
       preview: viewKind(tab) === "inline" && effectiveLang(tab) === "markdown",
-      wrap,
+      wrap: tab.large ? largeWrap : wrap,
       overwrite,
       lineNumbers: lineNumbers && viewKind(tab) !== "inline",
+      lineNumberFormat: tab.large ? lineNumberFormat : undefined,
       mdFormat: effectiveLang(tab) === "markdown",
-      readOnly: isReadOnlyText(tab),
+      readOnly: isReadOnlyText(tab) || (!!tab.large && largeFailed.has(tab.id)),
     }),
   });
   ensureDbmlSupport();
@@ -275,6 +293,7 @@ function applyTabConfig() {
   cur.mdPane?.setDark(isDark());
   reconcileDetached();
   syncDiagram();
+  syncLarge(cur);
   refreshStatus();
 }
 
@@ -1224,6 +1243,28 @@ function refreshStatus(recomputeSize = true) {
   const st = cur.view.state;
   const head = st.selection.main.head;
   const line = st.doc.lineAt(head);
+  const lt = largeOf(tab);
+  if (lt) {
+    // arquivo grande: o editor só tem a janela, então tamanho, total de linhas e posição são os do arquivo
+    const fileLine = lt.cursorLine();
+    menubar?.refresh();
+    status.update({
+      languageLabel: langLabel(tab),
+      viewLabel: "Código",
+      viewAvailable: false,
+      codeLang: codeLangOf(tab)?.name ?? null,
+      size: lt.info.size,
+      lines: lt.info.lines,
+      ln: fileLine + 1,
+      col: head - line.from + 1,
+      pos: null,
+      eolLabel: EOL_LABEL[tab.eol],
+      encodingLabel: ENC_LABEL[tab.encoding],
+      overwrite,
+      path: statusText(fileLine, lt.info),
+    });
+    return;
+  }
   if (recomputeSize) lastSize = computeSize();
   menubar?.refresh();
   status.update({
@@ -1288,6 +1329,7 @@ const status = mountStatusBar(statusEl, {
         action: () => {
           const tab = activeTab();
           if (tab.eol === e) return;
+          if (tab.large) return flashLarge("A quebra de linha de um arquivo grande não muda aqui.");
           tab.eol = e;
           markModified(tab);
           refreshStatus();
@@ -1305,6 +1347,7 @@ const status = mountStatusBar(statusEl, {
         action: () => {
           const tab = activeTab();
           if (tab.encoding === e) return;
+          if (tab.large) return flashLarge("A codificação de um arquivo grande não muda aqui.");
           tab.encoding = e;
           markModified(tab);
           refreshStatus();
@@ -1334,6 +1377,12 @@ function snapshotGroup(g: Group) {
   if (!tab) return; // janela reserva, ainda sem aba
   if (isReader(tab)) return; // sem texto: a posição de leitura é gravada pelo próprio leitor
   states.set(tab.id, g.view.state);
+  const lt = largeOf(tab);
+  if (lt) {
+    tab.cursor = lt.cursorLine(); // arquivo grande: o cursor é a linha do arquivo (a janela não tem posição fixa)
+    tab.scroll = 0;
+    return;
+  }
   tab.cursor = g.view.state.selection.main.head;
   tab.scroll = g.view.scrollDOM.scrollTop;
 }
@@ -1342,6 +1391,7 @@ async function flush() {
   window.clearTimeout(timer);
   timer = undefined;
   for (const g of groups.values()) snapshotGroup(g);
+  await Promise.all([...larges.values()].map((l) => l.commit())); // as alterações dos lotes vão ao Rust antes de gravar a sessão
   const ids = [...dirtyNotes];
   dirtyNotes.clear();
   const writes = ids.map((id) => {
@@ -1370,6 +1420,17 @@ function scheduleSave() {
 function onEditorUpdate(u: ViewUpdate) {
   const g = cur;
   if (u.view !== g.view) return; // só o painel com o foco recebe digitação
+  const big = tabOf(g);
+  if (big?.large) {
+    // arquivo grande: o texto do editor é só uma janela; vai ao Rust por lote (nunca para `notes/`)
+    largeOf(big)?.onUpdate(u);
+    if (u.docChanged && !u.transactions.some((t) => t.annotation(windowLoad))) {
+      g.rev++;
+      g.largeFind.stale();
+    }
+    if (u.docChanged || u.selectionSet) refreshStatus(false);
+    return;
+  }
   if (u.docChanged) {
     g.rev++;
     scheduleOutline(g, 500);
@@ -1394,6 +1455,208 @@ function onEditorUpdate(u: ViewUpdate) {
     void emitTo(`preview-${session.active}`, "pv-cursor", { offset: u.state.selection.main.head, rev: g.rev }).catch(() => {});
   }
   if (u.docChanged || u.selectionSet) refreshStatus(false);
+}
+
+// ---- arquivos grandes (modo de lotes) --------------------------------------------
+//
+// Um arquivo de texto acima de 20 MB abre sem ser lido (`large_open`): o Rust o divide em lotes e o editor
+// só tem alguns deles (`ui/src/large/`, `crates/core/src/large.rs`). Aqui ficam o que liga isso às abas:
+// carregar a janela, a barra de rolagem do arquivo, o Ctrl+F, o salvar e a conferência do disco. O texto
+// de uma aba grande nunca vai para `notes/` (a nota é só um marcador) e a busca global não a lê.
+
+const largeIo: LargeIo = {
+  info: (id) => api.largeInfo(id),
+  batch: (id, index) => api.largeBatch(id, index),
+  locate: (id, line) => api.largeLocate(id, line),
+  edit: (id, index, text) => api.largeEdit(id, index, text),
+};
+
+function largeHooks(tab: TabState): LargeHooks {
+  return {
+    onDirty(dirty) {
+      tab.dirty = dirty;
+      renderTabs();
+      sessionDirty = true;
+      scheduleSave();
+    },
+    onChange() {
+      const g = groupShowing(tab.id);
+      if (!g) return;
+      g.largeScroll.update();
+      if (g === cur && tab.id === session.active) {
+        refreshStatus(false);
+        renderLargeNote(g, tab);
+      }
+    },
+    onError: (msg) => flashDiskInfo(tab, msg),
+  };
+}
+
+/** Monta a janela de lotes da aba grande (ou, se o arquivo não abre, um editor vazio e só de leitura). */
+async function loadLargeState(tab: TabState): Promise<EditorState> {
+  try {
+    let ctl = larges.get(tab.id);
+    if (!ctl) {
+      // outra janela pode já ter aberto o arquivo (a aba foi movida): o Rust é um só
+      const info = await api.largeInfo(tab.id).catch(() => api.largeAttach(tab.id));
+      ctl = new LargeTab(tab.id, info, largeIo, largeHooks(tab));
+      larges.set(tab.id, ctl);
+      if (info.edited_batches > 0 && !tab.dirty) {
+        tab.dirty = true; // há alterações guardadas de antes de fechar o app
+        sessionDirty = true;
+      }
+    }
+    largeFailed.delete(tab.id);
+    const st = await ctl.createState(tab.cursor, (doc, cursor, extra) => createState(doc, cursor, onEditorUpdate, extra));
+    states.set(tab.id, st);
+    return st;
+  } catch (e) {
+    largeFailed.add(tab.id);
+    larges.delete(tab.id);
+    void message(`Não foi possível abrir "${tab.title}" em modo de arquivo grande.\n\n${e}`, { title: "Arquivo grande", kind: "error" });
+    const st = createState("", 0, onEditorUpdate);
+    states.set(tab.id, st);
+    return st;
+  }
+}
+
+/** Aviso fixo da aba grande (tamanho, e o que é diferente neste modo). */
+function renderLargeNote(g: Group, tab: TabState) {
+  const lt = largeOf(tab);
+  g.largeNoteEl.hidden = !lt;
+  if (!lt) return;
+  const orphan = lt.info.orphaned ? " As alterações guardadas são de outra versão do arquivo e não foram aplicadas." : "";
+  g.largeNoteEl.textContent = `Arquivo grande (${humanSize(lt.info.size)}): só o trecho da tela fica na memória. Localizar e ir para a linha leem o disco; substituir e a busca global não valem aqui.${orphan}`;
+  if (lt.info.orphaned && !g.largeNoteEl.querySelector("button")) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "Descartar as alterações guardadas";
+    b.addEventListener("click", () => void api.largeDiscard(tab.id).then((i) => ((lt.info = i), renderLargeNote(g, tab))));
+    g.largeNoteEl.append(b);
+  }
+}
+
+/** Liga ou desliga o que só existe numa aba grande (rolagem do arquivo, aviso, busca) conforme a aba do painel. */
+function syncLarge(g: Group) {
+  const tab = tabOf(g);
+  const on = !!tab?.large && !!largeOf(tab);
+  g.bodyEl.classList.toggle("large", !!tab?.large);
+  g.largeScroll.show(on);
+  if (!tab || g.largeTab !== tab.id) {
+    g.largeFind.reset();
+    g.largeTab = tab?.large ? tab.id : null;
+  }
+  if (tab) renderLargeNote(g, tab);
+  else g.largeNoteEl.hidden = true;
+}
+
+/** Ctrl+F numa aba grande: a busca roda no Rust, em fluxo, e é cancelável. */
+function findLarge() {
+  const g = cur;
+  if (!largeOf(tabOf(g))) return;
+  const sel = g.view.state.selection.main;
+  const text = sel.empty ? "" : g.view.state.sliceDoc(sel.from, sel.to);
+  g.largeFind.open(text && !text.includes("\n") && text.length <= 200 ? text : undefined);
+}
+
+function flashLarge(text: string) {
+  if (session.active) flashDiskInfo(activeTab(), text);
+}
+
+/** UTF-16 grande não tem índice por byte: a pessoa escolhe carregar tudo (o caminho de sempre) ou desistir. */
+async function confirmWholeLoad(path: string, size: number): Promise<boolean> {
+  const r = await message(`"${baseName(path)}" tem ${humanSize(size)} e está em UTF-16, que o modo de arquivo grande não abre. Carregar o arquivo inteiro na memória pode deixar o Fullpad lento.`, {
+    title: "Arquivo grande",
+    kind: "warning",
+    buttons: { ok: "Carregar inteiro", cancel: "Cancelar" },
+  });
+  return r === "Carregar inteiro";
+}
+
+/** Salvar de uma aba grande: copia o original em fluxo trocando só os lotes editados (escrita atômica). */
+async function saveLarge(tab: TabState, forceDialog: boolean): Promise<boolean> {
+  const ctl = largeOf(tab);
+  if (!ctl) {
+    await message("O arquivo grande desta aba não está aberto.", { title: "Erro ao salvar", kind: "error" });
+    return false;
+  }
+  let dest: string | null = null;
+  if (forceDialog) {
+    dest = await saveDialog({ defaultPath: tab.path ?? undefined, filters: FILTERS });
+    if (!dest) return false;
+  }
+  const showing = groupShowing(tab.id);
+  if (showing) snapshotGroup(showing);
+  await ctl.commit();
+  let saved: Awaited<ReturnType<typeof api.largeSave>>;
+  try {
+    saved = await enqueue(() => api.largeSave(tab.id, dest));
+  } catch (e) {
+    if (isConflict(e)) {
+      // o arquivo mudou fora do Fullpad: os lotes editados não valem sobre outro conteúdo, então não há "sobrescrever"
+      const r = await message(`"${tab.title}" foi alterado fora do Fullpad. As suas alterações não podem ser aplicadas a ele.`, {
+        title: "Arquivo alterado",
+        kind: "warning",
+        buttons: { ok: "Recarregar do disco", cancel: "Cancelar" },
+      });
+      if (r === "Recarregar do disco") await reloadLarge(tab);
+    } else {
+      await message(String(e), { title: "Erro ao salvar", kind: "error" });
+    }
+    return false;
+  }
+  tab.disk = saved.stamp;
+  tab.path = saved.path;
+  tab.title = saved.title;
+  tab.dirty = false;
+  diskIssue.delete(tab.id);
+  rememberPath(saved.path);
+  await ctl.afterWrite(saved.info, true);
+  renderTabs();
+  refreshStatus(false);
+  sessionDirty = true;
+  scheduleSave();
+  const g = groupShowing(tab.id);
+  if (g) renderDiskBar(g);
+  return true;
+}
+
+/** Descarta as alterações e relê o arquivo do disco (a janela volta para a mesma linha, se ela ainda existir). */
+async function reloadLarge(tab: TabState): Promise<boolean> {
+  const ctl = largeOf(tab);
+  if (!ctl) return false;
+  try {
+    const info = await api.largeReload(tab.id);
+    await ctl.afterWrite(info, false);
+  } catch (e) {
+    await message(String(e), { title: "Não foi possível recarregar", kind: "error" });
+    return false;
+  }
+  tab.dirty = false;
+  diskIssue.delete(tab.id);
+  const g = groupShowing(tab.id);
+  if (g) renderDiskBar(g);
+  renderTabs();
+  refreshStatus(false);
+  sessionDirty = true;
+  scheduleSave();
+  flashDiskInfo(tab, `"${tab.title}" recarregado do disco.`);
+  return true;
+}
+
+/** Confere (só data e tamanho) se o arquivo grande mudou. Nunca recarrega sozinho: um log que cresce moveria a tela. */
+async function checkLargeDisk(tab: TabState, g: Group) {
+  const state = await api.largeCheck(tab.id);
+  if (state === "unchanged") {
+    if (diskIssue.delete(tab.id)) renderDiskBar(g);
+    diskDismissed.delete(tab.id);
+    return;
+  }
+  if (diskIssue.get(tab.id) !== state) {
+    diskIssue.set(tab.id, state);
+    diskDismissed.delete(tab.id);
+  }
+  renderDiskBar(g);
 }
 
 // ---- abas -------------------------------------------------------------------
@@ -1494,6 +1757,7 @@ function renderStrip(g: Group) {
 async function loadState(tab: TabState, text?: string): Promise<EditorState> {
   const cached = states.get(tab.id);
   if (cached) return cached;
+  if (tab.large) return loadLargeState(tab);
   const doc = text ?? (await api.readNote(tab.id));
   const st = createState(doc, tab.cursor, onEditorUpdate);
   states.set(tab.id, st);
@@ -1541,11 +1805,14 @@ const forEachGroup = (fn: () => void) => {
 async function show(tab: TabState, text?: string) {
   const g = groups.get(tab.group) ?? cur;
   if (g !== cur) enterGroup(g);
+  const prev = g.active && g.active !== tab.id ? session.tabs.find((t) => t.id === g.active) : undefined;
+  largeOf(prev)?.attach(null); // a aba grande que sai guarda o estado da janela
   const st = await loadState(tab, text);
   session.active = tab.id;
   g.active = tab.id;
   g.rev++;
   g.view.setState(st);
+  largeOf(tab)?.attach(g.view);
   redetect(tab);
   applyTabConfig();
   void syncCsv(tab);
@@ -1553,7 +1820,8 @@ async function show(tab: TabState, text?: string) {
   renderDiskBar(g);
   void checkDisk(tab); // o arquivo pode ter mudado enquanto a aba não estava à vista (ou o app, fechado)
   requestAnimationFrame(() => {
-    g.view.scrollDOM.scrollTop = tab.scroll;
+    if (tab.large) largeOf(tab)?.reveal();
+    else g.view.scrollDOM.scrollTop = tab.scroll;
     g.view.focus();
   });
 }
@@ -1650,6 +1918,12 @@ function rememberPath(path: string) {
 
 /** Vai para a linha/coluna (1 = primeira) do editor do painel atual. */
 function gotoLineCol(line: number, col?: number) {
+  const big = largeOf(tabOf(cur));
+  if (big) {
+    // arquivo grande: a conta de qual lote tem a linha é só somar as linhas dos lotes (sem ler o arquivo)
+    void big.goto(line - 1, { col: Math.max(0, (col ?? 1) - 1) });
+    return;
+  }
   const v = cur.view;
   const doc = v.state.doc;
   const ln = doc.line(Math.min(Math.max(line, 1), doc.lines));
@@ -1716,7 +1990,7 @@ async function openPaletteWith(initial: string) {
       recents: loadRecents,
       commands: paletteCommands,
       symbols: symbolsOfActive,
-      lineCount: () => (session.active && !isReader(activeTab()) ? cur.view.state.doc.lines : null),
+      lineCount: () => (session.active && !isReader(activeTab()) ? (largeOf(activeTab())?.totalLines ?? cur.view.state.doc.lines) : null),
       gotoLine: gotoLineCol,
       gotoPos,
       openTab: (id, line, col) => void activate(id).then(() => jump(line, col)),
@@ -1744,6 +2018,7 @@ async function closeTab(id: string, ask = true) {
     if (r === "Salvar" && !(await save(tab))) return;
   }
 
+  await largeOf(tab)?.commit(); // as alterações de um arquivo grande vão ao Rust, que as guarda com a aba na lixeira
   // grava o conteúdo pendente antes de mover para a lixeira
   if (dirtyNotes.has(id)) {
     dirtyNotes.delete(id);
@@ -1809,7 +2084,7 @@ async function saveAll() {
 
 // ---- busca global (todas as abas desta janela) ----------------------------------------
 
-const textTabIds = () => session.tabs.filter((t) => !isReader(t)).map((t) => t.id);
+const textTabIds = () => session.tabs.filter((t) => !isReader(t) && !t.large).map((t) => t.id); // a busca global não lê arquivo grande
 
 /** Ativa a aba e seleciona o resultado nela. */
 async function gotoMatch(id: string, m: { start: number; end: number }) {
@@ -1987,9 +2262,28 @@ function createGroup(id: number): Group {
   noteEl.hidden = true;
   const diskEl = div("diskbar");
   diskEl.hidden = true;
-  el.append(tabsEl, diskEl, noteEl, bodyEl);
+  const largeNoteEl = div("largenote");
+  largeNoteEl.hidden = true;
+  el.append(tabsEl, diskEl, noteEl, largeNoteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0 };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
+  const bigOf = () => largeOf(tabOf(g));
+  g.largeScroll = mountLargeScroll(editorEl, {
+    total: () => bigOf()?.totalLines ?? 0,
+    line: () => bigOf()?.topLine() ?? 0,
+    visible: () => Math.max(1, Math.floor(view.scrollDOM.clientHeight / Math.max(1, view.defaultLineHeight))),
+    jump: (line) => void bigOf()?.goto(line, { focus: false }),
+  });
+  g.largeFind = mountLargeFind(el, {
+    search: (id, q, o) => api.largeSearch(g.active!, id, q, o),
+    cancel: (id) => void api.largeCancel(id),
+    listen: (h) => listen<{ search: string; hits: LargeHit[] }>("large-hits", (e) => h(e.payload.search, e.payload.hits)),
+    reveal: (hit) => void bigOf()?.goto(hit.line, { col: hit.col, len: hit.len, focus: false }),
+    cursorLine: () => bigOf()?.cursorLine() ?? 0,
+    indexed: () => bigOf()?.info.done ?? true,
+    refocus: () => view.focus(),
+  });
+  el.insertBefore(g.largeFind.el, bodyEl);
   g.outline = createOutline(outlineEl, { goto: (pos) => gotoPosIn(g, pos), togglePinned: toggleOutlinePinned, focusEditor: () => g.view.focus() });
   g.outline.config({ enabled: outlineOn, pinned: outlinePinned, side: outlineSide });
   groups.set(id, g);
@@ -2200,6 +2494,9 @@ async function dropLocalTab(id: string) {
   states.delete(id);
   detected.delete(id);
   csvDetected.delete(id);
+  larges.get(id)?.dispose();
+  larges.delete(id);
+  largeFailed.delete(id);
   const rest = tabsOf(g);
   if (rest.length > 0) {
     if (wasActive) await show(rest[Math.min(idx, rest.length - 1)]);
@@ -2295,6 +2592,7 @@ async function prepareToLeave(id: string): Promise<TabState | null> {
   if (!tab) return null;
   const showing = groupShowing(id);
   if (showing) snapshotGroup(showing);
+  await largeOf(tab)?.commit(); // o Rust é de todas as janelas: a outra lê o arquivo grande dele
   if (dirtyNotes.has(id)) {
     dirtyNotes.delete(id);
     const text = states.get(id)!.doc.toString();
@@ -2308,7 +2606,7 @@ async function prepareToLeave(id: string): Promise<TabState | null> {
 }
 
 /** A aba pode virar nota adesiva: texto editável, e não já dentro de um post-it. */
-const canPostit = (tab: TabState) => !isPostit && !isReader(tab) && !isReadOnlyText(tab);
+const canPostit = (tab: TabState) => !isPostit && !isReader(tab) && !isReadOnlyText(tab) && !tab.large;
 
 /** Manda a aba para uma nota adesiva (post-it) nova: sai desta janela como em `sendTab`. */
 async function sendToPostit(id: string) {
@@ -2878,7 +3176,10 @@ async function openPaths(paths: string[]) {
     try {
       // PDF/EPUB abrem como aba de leitura (o arquivo só é lido quando o usuário clicar em "Carregar")
       const reader = /\.(pdf|epub)$/i.test(path);
-      const { tab, text } = reader ? { tab: await api.openReader(path), text: "" } : await api.openFile(path);
+      // arquivo de texto muito grande: modo de lotes (o arquivo nem é lido; os comuns seguem o caminho de sempre)
+      const probe = reader ? ({ kind: "normal" } as const) : await api.largeProbe(path);
+      if (probe.kind === "utf16" && !(await confirmWholeLoad(path, probe.size))) continue;
+      const { tab, text } = probe.kind === "large" ? { tab: (await api.largeOpen(path)).tab, text: "" } : reader ? { tab: await api.openReader(path), text: "" } : await api.openFile(path);
       session.tabs.push(tab);
       await show(tab, text);
       rememberPath(path);
@@ -2938,7 +3239,16 @@ function renderDiskBar(g: Group, info?: string) {
     bar.append(b);
   };
   const name = tab.title || "este arquivo";
-  if (issue === "changed") {
+  if (tab.large && issue === "changed") {
+    msg.textContent = tab.dirty ? `"${name}" foi alterado fora do Fullpad. As suas alterações não podem ser aplicadas a ele.` : `"${name}" foi alterado fora do Fullpad (um log, por exemplo, pode ter crescido).`;
+    btn("Recarregar do disco", tab.dirty ? "Relê o arquivo e descarta as alterações guardadas" : "Relê o arquivo", () => void reloadLarge(tab));
+  } else if (tab.large && issue === "missing") {
+    msg.textContent = `O arquivo de "${name}" foi apagado ou movido. As alterações ficam guardadas, mas não há de onde copiar o resto do arquivo.`;
+    btn("Dispensar", "Esconde este aviso", () => {
+      diskDismissed.add(tab.id);
+      renderDiskBar(g);
+    });
+  } else if (issue === "changed") {
     msg.textContent = `"${name}" foi alterado fora do Fullpad, e você também tem alterações aqui.`;
     btn("Recarregar do disco", "Troca o texto pelo do arquivo (suas alterações ficam no Ctrl+Z)", () => void reloadFromDisk(tab));
     btn("Manter o meu", "Fica com o texto da aba; o próximo Salvar grava por cima do arquivo", () => void keepMine(tab));
@@ -2969,6 +3279,7 @@ async function checkDisk(tab: TabState) {
   if (!g || !hasDiskFile(tab) || diskChecking.has(tab.id)) return;
   diskChecking.add(tab.id);
   try {
+    if (tab.large) return await checkLargeDisk(tab, g);
     const state = await api.fileCheck(tab.id);
     if (state === "unchanged") {
       if (diskIssue.delete(tab.id)) renderDiskBar(g); // voltou ao normal (o arquivo reapareceu, ou a mudança foi desfeita)
@@ -3078,7 +3389,8 @@ async function reloadActive() {
     if (r !== "Recarregar") return;
   }
   snapshotActive();
-  await reloadFromDisk(tab);
+  if (tab.large) await reloadLarge(tab);
+  else await reloadFromDisk(tab);
 }
 
 // Ao voltar para a janela (alt+tab) e de tempos em tempos enquanto ela está em foco.
@@ -3088,6 +3400,7 @@ window.setInterval(() => document.hasFocus() && checkAllDisks(), DISK_POLL_MS);
 async function save(tab: TabState = activeTab(), forceDialog = false): Promise<boolean> {
   if (isReadOnlyText(tab)) return false; // nota de versão: o texto é do app e é refeito em Ajuda; não vira arquivo do usuário
   if (isReader(tab)) return false; // PDF/EPUB são só de leitura: nada a gravar, e o arquivo nunca é tocado
+  if (tab.large) return saveLarge(tab, forceDialog);
   let path = tab.path;
   if (!path || forceDialog) {
     path = await saveDialog({ defaultPath: tab.path ?? suggestedName(tab), filters: FILTERS });
@@ -3211,8 +3524,11 @@ function setJsonIndent(v: string) {
 }
 
 function toggleWrap() {
-  wrap = !wrap;
-  writeSetting("wrap", wrap);
+  if (session.active && activeTab().large) largeWrap = !largeWrap;
+  else {
+    wrap = !wrap;
+    writeSetting("wrap", wrap);
+  }
   applyTabConfig();
   cur.view.focus();
 }
@@ -3247,6 +3563,10 @@ function toggleOverwrite() {
 
 function setLanguage(l: Language) {
   const tab = activeTab();
+  if (tab.large) {
+    flashLarge("Arquivos grandes abrem só como texto (o destaque de sintaxe segue a extensão, em Lang).");
+    return;
+  }
   tab.language = l;
   redetect(tab);
   sessionDirty = true;
@@ -3288,8 +3608,8 @@ const menuActions = {
   undo: () => (undo(cur.view), cur.view.focus()),
   redo: () => (redo(cur.view), cur.view.focus()),
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
-  find: () => void (readerZoom((r) => r.find()) || openSearch(cur.view)),
-  replace: () => openSearch(cur.view, true),
+  find: () => void (readerZoom((r) => r.find()) || (largeOf(tabOf(cur)) ? (findLarge(), true) : openSearch(cur.view))),
+  replace: () => (largeOf(tabOf(cur)) ? flashLarge("Substituir não está disponível em arquivo grande.") : openSearch(cur.view, true)),
   formatMd: (id: string) => void (session.active && effectiveLang(activeTab()) === "markdown" && runFormat(cur.view, id as FormatId)),
   gotoLine: () => openPaletteWith(":"),
   openPalette: () => openPaletteWith(""),
@@ -3338,7 +3658,7 @@ const menuActions = {
       layout: layoutAvailable(tab) ? (layoutShown(tab) ? ("open" as const) : ("closed" as const)) : null,
       canSave: !isReadOnlyText(tab) && !isReader(tab),
       canReload: hasDiskFile(tab),
-      wrap,
+      wrap: tab.large ? largeWrap : wrap,
       lineNumbers,
       onTop,
       canPostit: canPostit(tab),
@@ -3474,6 +3794,8 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function boot() {
+  largeKeys.find = findLarge;
+  largeKeys.replace = () => flashLarge("Substituir não está disponível em arquivo grande.");
   document.body.classList.toggle("floating", !isMain); // janelas flutuantes: sem menu superior
   document.body.classList.toggle("postit", isPostit);
   await incomingReady; // ouvindo antes de ler a sessão: nenhuma aba que chegue se perde
@@ -3510,10 +3832,16 @@ async function boot() {
   for (const g of groups.values()) {
     const tab = tabOf(g);
     if (!tab) continue;
-    const text = tab.id === startTab?.id ? startup.active_text : await api.readNote(tab.id);
-    const st = createState(text, tab.cursor, onEditorUpdate);
-    states.set(tab.id, st);
+    let st: EditorState;
+    if (tab.large) {
+      st = await loadLargeState(tab); // o arquivo grande não passa por `notes/`
+    } else {
+      const text = tab.id === startTab?.id ? startup.active_text : await api.readNote(tab.id);
+      st = createState(text, tab.cursor, onEditorUpdate);
+      states.set(tab.id, st);
+    }
     g.view.setState(st);
+    largeOf(tab)?.attach(g.view);
     redetect(tab);
   }
   void refreshClosed();
@@ -3525,7 +3853,8 @@ async function boot() {
     requestAnimationFrame(() => {
       for (const g of groups.values()) {
         const tab = tabOf(g);
-        if (tab) g.view.scrollDOM.scrollTop = tab.scroll;
+        if (tab?.large) largeOf(tab)?.reveal();
+        else if (tab) g.view.scrollDOM.scrollTop = tab.scroll;
       }
       cur.view.focus();
     });

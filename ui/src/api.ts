@@ -175,6 +175,11 @@ export interface TabState {
   pinned?: boolean;
   /** Linguagem de código escolhida à mão (só destaque de sintaxe); ausente = a da extensão. */
   code_lang?: string;
+  /**
+   * Arquivo de texto grande em modo de lotes: o texto não está em `notes/`, fica no disco e o editor só
+   * tem os lotes perto da tela. `cursor` guarda a **linha** (a partir de 0), não um deslocamento.
+   */
+  large?: boolean;
 }
 
 export interface Session {
@@ -202,6 +207,66 @@ export interface ClosedTab {
 export interface WindowInfo {
   label: string;
   name: string;
+}
+
+/** Arquivo grande aberto (`large_*`): o que o índice já sabe dele. */
+export interface LargeInfo {
+  size: number;
+  encoding: Encoding;
+  eol: Eol;
+  /** Lotes já indexados. */
+  batches: number;
+  /** Linhas contadas até agora (definitivo quando `done`). */
+  lines: number;
+  done: boolean;
+  /** Bytes que o índice já percorreu. */
+  indexed: number;
+  edited_batches: number;
+  /** Há alterações guardadas de outra versão do arquivo: não se aplicam. */
+  orphaned: boolean;
+  error: string | null;
+  path: string;
+}
+/** Um lote para o editor. `breaks` são os `\n` virtuais (cortes de linha gigante), em UTF-16 dentro de `text`. */
+export interface LargeBatch {
+  index: number;
+  /** Linha (a partir de 0) em que o lote começa. */
+  start_line: number;
+  lines: number;
+  text: string;
+  breaks: number[];
+  /** Bytes inválidos para a codificação: o lote só pode ser lido. */
+  lossy: boolean;
+  edited: boolean;
+  count: number;
+  done: boolean;
+}
+export interface LargeEdit {
+  edited: boolean;
+  lines: number;
+  total_lines: number;
+  dirty: boolean;
+}
+export interface LargeHit {
+  /** Linha e coluna (UTF-16), a partir de 0. */
+  line: number;
+  col: number;
+  len: number;
+  preview: string;
+  preview_start: number;
+  preview_end: number;
+}
+export type LargeProbe = { kind: "normal" } | { kind: "large" } | { kind: "utf16"; size: number };
+export interface LargeSaved {
+  stamp: DiskStamp;
+  info: LargeInfo;
+  path: string;
+  title: string;
+}
+export interface LargeSearchEnd {
+  total: number;
+  truncated: boolean;
+  cancelled: boolean;
 }
 
 export const api = {
@@ -332,6 +397,28 @@ export const api = {
   fileReload: (id: string) => invoke<Reloaded>("file_reload", { id }),
   /** Ficar com o texto da aba: o arquivo de agora vira a referência e o próximo Salvar não pergunta. */
   fileKeep: (id: string) => invoke<DiskStamp | null>("file_keep", { id }),
+  // ---- arquivos grandes (modo de lotes) ----
+  /** O arquivo abre em modo grande? Só metadados quando é pequeno. */
+  largeProbe: (path: string) => invoke<LargeProbe>("large_probe", { path }),
+  largeOpen: (path: string) => invoke<{ tab: TabState; info: LargeInfo }>("large_open", { path }),
+  /** Liga o arquivo de uma aba grande que já está na sessão (reinício, lixeira). */
+  largeAttach: (id: string) => invoke<LargeInfo>("large_attach", { id }),
+  largeInfo: (id: string) => invoke<LargeInfo>("large_info", { id }),
+  largeBatch: (id: string, index: number) => invoke<LargeBatch>("large_batch", { id, index }),
+  /** Em que lote está a linha (a partir de 0): só soma as linhas dos lotes. */
+  largeLocate: (id: string, line: number) => invoke<{ batch: number; start_line: number }>("large_locate", { id, line }),
+  largeEdit: (id: string, index: number, text: string) => invoke<LargeEdit>("large_edit", { id, index, text }),
+  /** Só data e tamanho do arquivo no disco; nunca o lê. */
+  largeCheck: (id: string) => invoke<DiskState>("large_check", { id }),
+  /** Salva (copia o original em fluxo trocando só os lotes editados). `path` diferente: "Salvar como". */
+  largeSave: (id: string, path: string | null) => invoke<LargeSaved>("large_save", { id, path }),
+  /** Descarta as alterações e relê o arquivo do disco. */
+  largeReload: (id: string) => invoke<LargeInfo>("large_reload", { id }),
+  largeDiscard: (id: string) => invoke<LargeInfo>("large_discard", { id }),
+  /** Busca em fluxo: os resultados chegam pelo evento `large-hits`; devolve o fim. */
+  largeSearch: (id: string, search: string, query: string, opts: SearchOptions) =>
+    invoke<LargeSearchEnd>("large_search", { id, search, query, opts }),
+  largeCancel: (search: string) => invoke<void>("large_cancel", { search }),
   /** Layout do diagrama (`.dbmlx`): a cópia de trabalho (alterações não salvas) ou o arquivo ao lado. */
   layoutLoad: (id: string) => invoke<LayoutState>("layout_load", { id }),
   /** Entende um texto de layout sem tocar no disco. */

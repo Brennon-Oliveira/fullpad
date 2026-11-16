@@ -4,3 +4,4 @@ ui/dist/
 crates/app/gen/
 ui/public/pdfjs/
 ui/public/katex/
+examples/grande.log

@@ -14,7 +14,8 @@ export interface StatusInfo {
   lines: number;
   ln: number;
   col: number;
-  pos: number;
+  /** Posição no texto; `null` esconde (arquivo grande: a posição da janela não é a do arquivo). */
+  pos: number | null;
   eolLabel: string;
   encodingLabel: string;
   overwrite: boolean;
@@ -121,7 +122,7 @@ export function mountStatusBar(root: HTMLElement, h: StatusHandlers) {
       path.hidden = !path.textContent;
       path.title = reading ? "Posição de leitura" : i.path ? "Caminho do nó sob o cursor" : "";
       size.textContent = `tamanho: ${nf.format(i.size)}   linhas: ${nf.format(i.lines)}`;
-      cursor.textContent = `Ln: ${nf.format(i.ln)}   Col: ${nf.format(i.col)}   Pos: ${nf.format(i.pos)}`;
+      cursor.textContent = `Ln: ${nf.format(i.ln)}   Col: ${nf.format(i.col)}${i.pos === null ? "" : `   Pos: ${nf.format(i.pos)}`}`;
       eol.textContent = i.eolLabel;
       enc.textContent = i.encodingLabel;
       ins.textContent = i.overwrite ? "OVR" : "INS";

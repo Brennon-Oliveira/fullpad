@@ -404,6 +404,21 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .diskbar button:hover { background: var(--tab); }
 .group > .note { flex: none; width: 100%; box-sizing: border-box; padding: 3px 10px; font-size: 12px; line-height: 18px; background: var(--code-bg); border-bottom: 1px solid var(--border); color: var(--muted); }
 .group > .note[hidden] { display: none; }
+
+/* Arquivo grande (modo de lotes): aviso fixo, busca em fluxo e a barra de rolagem do ARQUIVO (a do editor só veria os lotes carregados) */
+.group > .largenote { flex: none; width: 100%; box-sizing: border-box; padding: 3px 10px; font-size: 12px; line-height: 20px; background: var(--code-bg); border-bottom: 1px solid var(--border); color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.group > .largenote[hidden] { display: none; }
+.largenote button { font: 12px var(--sans); padding: 1px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bar); color: var(--fg); cursor: pointer; }
+.group > .lfind { width: 100%; box-sizing: border-box; }
+.lfind[hidden] { display: none; }
+.lfind .rd-tool.on { background: var(--tab); border-color: var(--accent); color: var(--fg); }
+.editor { position: relative; }
+.body.large .cm-scroller { scrollbar-width: none; padding-right: 14px; }
+.body.large .cm-scroller::-webkit-scrollbar { display: none; }
+.lscroll { position: absolute; top: 0; right: 0; bottom: 0; width: 14px; z-index: 6; background: color-mix(in srgb, var(--bar) 60%, transparent); border-left: 1px solid var(--border); cursor: default; touch-action: none; user-select: none; }
+.lscroll[hidden] { display: none; }
+.lthumb { position: absolute; left: 2px; right: 2px; top: 0; min-height: 28px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 45%, transparent); }
+.lscroll:hover .lthumb, .lscroll.dragging .lthumb { background: color-mix(in srgb, var(--muted) 75%, transparent); }
 .csvview { display: none; flex: 1; min-width: 0; min-height: 0; position: relative; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg); }
 .csvview.on { display: flex; }
 .body.tableonly > .editor { display: none !important; }
