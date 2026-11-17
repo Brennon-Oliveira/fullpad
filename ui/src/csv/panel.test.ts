@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   csvCell: vi.fn(),
   csvEdit: vi.fn(),
   csvStructure: vi.fn(),
+  csvRowForLine: vi.fn(),
 }));
 vi.mock("../api", () => ({ api }));
 
@@ -21,6 +22,7 @@ const NAMES = ["Ana", "Bia", "Caio", "Dani", "Edu"];
 
 const row = (index: number, vals: string[]): CsvRowOut => ({
   index,
+  line: index,
   from: 0,
   to: 0,
   cells: vals.map((value, i) => ({ from: i * 4, to: i * 4 + value.length, value, quoted: false })),
@@ -891,5 +893,225 @@ describe("coluna do número da linha", () => {
     expect(host.style.getPropertyValue("--csv-num-w")).toBe("120px");
     host.querySelector(".csv-hnum .csv-grip")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     expect(host.style.getPropertyValue("--csv-num-w")).toBe("80px");
+  });
+});
+
+// ---- CSV de arquivo grande: a tabela é outra visão da janela de lotes (o mesmo texto do editor) ----------
+
+describe("tabela de arquivo grande (o trecho carregado do texto)", () => {
+  // o trecho começa na linha 9.999 do arquivo; os registros começam nas linhas 0, 1, 2, 4 e 5 do texto (o 3º tem quebra dentro)
+  const LINES = [0, 1, 2, 4, 5];
+  const big = (over: Partial<{ lineBase: number; headerPrefix: boolean; topLine: number }> = {}) => ({ lineBase: 9_999, ...over });
+  const rowAtLine = (i: number) => ({ ...row(i + 1, [NAMES[i], String(20 + i)]), line: LINES[i] });
+
+  beforeEach(() => {
+    api.csvLoad.mockImplementation(async () => info({ header: row(0, ["nome", "idade"]) }));
+    api.csvRows.mockImplementation(async (_t: string, from: number, count: number) => NAMES.slice(from, from + count).map((_, i) => rowAtLine(from + i)));
+    api.csvRowForLine.mockImplementation(async (_t: string, line: number) => {
+      const r = LINES.filter((l) => l <= line).length - 1;
+      return r < 0 ? 0 : r;
+    });
+  });
+
+  const numbers = () => [...host.querySelectorAll(".csv-rnum")].map((e) => e.textContent);
+
+  it("a primeira coluna mostra a linha do arquivo (de 1 em diante), não o número do registro", async () => {
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    expect(numbers()).toEqual(["10000", "10001", "10002", "10004", "10005"]);
+    expect(numbers()).not.toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("sem o contexto de arquivo grande (CSV comum) a numeração segue sendo a do registro", async () => {
+    api.csvRows.mockImplementation(async (_t: string, from: number, count: number) => NAMES.slice(from, from + count).map((n, i) => row(from + i + 1, [n, "1"])));
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1);
+    await flush();
+    expect(numbers()).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("a caixa de filtro some e ordenar, filtrar e mexer em colunas avisam, sem pedir nada ao Rust", async () => {
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    expect(host.querySelector<HTMLElement>(".csv-filter")!.hidden).toBe(true);
+    click(host.querySelectorAll(".csv-hcell")[1]);
+    await flush();
+    expect(api.csvView).not.toHaveBeenCalled();
+    expect(host.querySelector(".csv-toast")?.textContent).toContain("não dá para ordenar");
+    rightClick(host.querySelectorAll(".csv-hcell")[0]);
+    expect(menuLabels()).toEqual(["Renomear coluna", "Copiar nome da coluna"]);
+  });
+
+  it("o botão direito na célula ainda oferece colar e mexer em linhas (é edição do texto)", async () => {
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    rightClick(host.querySelectorAll(".csv-cell")[0], { clientX: 60, clientY: 30 });
+    expect(menuLabels()).toEqual(expect.arrayContaining(["Copiar", "Colar", "Inserir linha acima", "Inserir linha abaixo"]));
+  });
+
+  it("editar uma célula chega ao app como troca de texto (a tabela de arquivo grande edita)", async () => {
+    const onEdit = vi.fn(() => true);
+    const p = createCsvPanel(host, { onEdit });
+    p.show("t1", "x", CFG, 7, big());
+    await flush();
+    const cell = host.querySelectorAll(".csv-cell")[0];
+    click(cell, { clientX: 60, clientY: 30 });
+    await flush();
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    await flush();
+    const ta = host.querySelector<HTMLTextAreaElement>(".csv-edit")!;
+    expect(ta).not.toBeNull();
+    ta.value = "Novo";
+    ta.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    await flush();
+    expect(api.csvEdit).toHaveBeenCalled();
+    expect(onEdit).toHaveBeenCalledWith([{ from: 0, to: 3, insert: "Novo" }], 7);
+  });
+
+  it("renomear coluna fica desligado quando o cabeçalho foi posto na frente do trecho", async () => {
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1, big({ headerPrefix: true }));
+    await flush();
+    rightClick(host.querySelectorAll(".csv-hcell")[0]);
+    const item = document.querySelector<HTMLElement>(".menu .menu-item")!;
+    expect(item.textContent).toContain("Renomear coluna");
+    expect(item.classList.contains("disabled") || item.getAttribute("aria-disabled") === "true").toBe(true);
+  });
+
+  it("topLine é a linha do arquivo do primeiro registro à vista, e avisa o app ao rolar", async () => {
+    const onTopLine = vi.fn();
+    const p = createCsvPanel(host, { onTopLine });
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    expect(p.topLine()).toBe(9_999);
+    const sc = host.querySelector<HTMLElement>(".csv-scroll")!;
+    sc.scrollTop = 24 * 3; // o 4º registro (linha 4 do texto) no topo
+    sc.dispatchEvent(new Event("scroll"));
+    await flush();
+    expect(p.topLine()).toBe(10_003);
+    expect(onTopLine).toHaveBeenLastCalledWith(10_003);
+  });
+
+  it("rolar para uma região cujas linhas ainda não chegaram avisa a linha do topo quando elas chegam", async () => {
+    const onTopLine = vi.fn();
+    const many = (from: number, count: number) => Array.from({ length: count }, (_, i) => ({ ...row(from + i + 1, ["x", "1"]), line: from + i }));
+    api.csvLoad.mockResolvedValue(info({ rows: 5000, total: 5000 }));
+    api.csvRows.mockImplementation(async (_t: string, from: number, count: number) => many(from, Math.min(count, 5000 - from)));
+    const p = createCsvPanel(host, { onTopLine });
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    onTopLine.mockClear();
+    const sc = host.querySelector<HTMLElement>(".csv-scroll")!;
+    sc.scrollTop = 24 * 3000; // longe: a faixa dessa região não está carregada
+    sc.dispatchEvent(new Event("scroll"));
+    await flush();
+    expect(onTopLine).toHaveBeenLastCalledWith(9_999 + 3000);
+    expect(p.topLine()).toBe(9_999 + 3000);
+  });
+
+  it("a mesma linha de topo não é avisada duas vezes seguidas", async () => {
+    const onTopLine = vi.fn();
+    const p = createCsvPanel(host, { onTopLine });
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    const sc = host.querySelector<HTMLElement>(".csv-scroll")!;
+    sc.scrollTop = 24;
+    for (let i = 0; i < 4; i++) {
+      sc.dispatchEvent(new Event("scroll"));
+      await flush();
+    }
+    expect(onTopLine.mock.calls.filter((c) => c[0] === 10_000)).toHaveLength(1);
+  });
+
+  it("topLine é nulo no CSV comum e os avisos de rolagem só valem para arquivo grande", async () => {
+    const onTopLine = vi.fn();
+    const onEdge = vi.fn();
+    const p = createCsvPanel(host, { onTopLine, onEdge });
+    p.show("t1", "x", CFG, 1);
+    await flush();
+    expect(p.topLine()).toBeNull();
+    host.querySelector(".csv-scroll")!.dispatchEvent(new Event("scroll"));
+    await flush();
+    expect(onTopLine).not.toHaveBeenCalled();
+    expect(onEdge).not.toHaveBeenCalled();
+  });
+
+  it("perto da borda de cima ou de baixo do trecho pede o lote vizinho", async () => {
+    const onEdge = vi.fn();
+    const p = createCsvPanel(host, { onEdge });
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    const sc = host.querySelector<HTMLElement>(".csv-scroll")!;
+    Object.defineProperty(sc, "clientHeight", { configurable: true, value: 400 });
+    Object.defineProperty(sc, "scrollHeight", { configurable: true, value: 100_000 });
+    sc.scrollTop = 100;
+    sc.dispatchEvent(new Event("scroll"));
+    await flush();
+    expect(onEdge).toHaveBeenLastCalledWith("up");
+    sc.scrollTop = 99_500;
+    sc.dispatchEvent(new Event("scroll"));
+    await flush();
+    expect(onEdge).toHaveBeenLastCalledWith("down");
+    onEdge.mockClear();
+    sc.scrollTop = 50_000;
+    sc.dispatchEvent(new Event("scroll"));
+    await flush();
+    expect(onEdge).not.toHaveBeenCalled();
+  });
+
+  it("scrollToLine rola até o registro que cobre a linha do arquivo", async () => {
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    p.scrollToLine(10_004); // linha 5 do texto: o último registro
+    await flush();
+    expect(api.csvRowForLine).toHaveBeenLastCalledWith("t1", 5);
+    expect(host.querySelector<HTMLElement>(".csv-scroll")!.scrollTop).toBe(24 * 4);
+    p.scrollToLine(10_002); // a 2ª linha do registro de 2 linhas (o 3º, que cobre as linhas 10.001 e 10.002): é ele
+    await flush();
+    expect(api.csvRowForLine).toHaveBeenLastCalledWith("t1", 3);
+    expect(host.querySelector<HTMLElement>(".csv-scroll")!.scrollTop).toBe(24 * 2);
+  });
+
+  it("abrir a aba já na linha que a pessoa estava (topLine) rola depois de carregar", async () => {
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1, big({ topLine: 10_004 }));
+    await flush();
+    expect(api.csvRowForLine).toHaveBeenCalledWith("t1", 5);
+    expect(host.querySelector<HTMLElement>(".csv-scroll")!.scrollTop).toBe(24 * 4);
+  });
+
+  it("scrollToLine durante uma carga espera o trecho novo e então rola", async () => {
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    p.update("texto novo", 2, big({ lineBase: 20_000 })); // o trecho trocou (a janela de lotes andou)
+    p.scrollToLine(20_004);
+    expect(api.csvRowForLine).not.toHaveBeenCalledWith("t1", 4); // ainda não: a tabela está atualizando
+    await flush(600);
+    expect(api.csvRowForLine).toHaveBeenLastCalledWith("t1", 4);
+    expect(numbers()[0]).toBe("20001");
+  });
+
+  it("trocar o trecho mantém na tela a mesma linha do arquivo (o que estava no topo)", async () => {
+    const p = createCsvPanel(host);
+    p.show("t1", "x", CFG, 1, big());
+    await flush();
+    const sc = host.querySelector<HTMLElement>(".csv-scroll")!;
+    sc.scrollTop = 24 * 3; // topo: linha 10.003 do arquivo
+    sc.dispatchEvent(new Event("scroll"));
+    await flush();
+    expect(p.topLine()).toBe(10_003);
+    // o lote de antes entrou: o novo texto começa 5.000 linhas antes, e as de agora estão 5.000 linhas mais embaixo
+    api.csvRows.mockImplementation(async (_t: string, from: number, count: number) =>
+      Array.from({ length: Math.max(0, Math.min(count, 5 - from)) }, (_, i) => ({ ...rowAtLine(from + i), line: LINES[from + i] + 5_000 })),
+    );
+    api.csvRowForLine.mockImplementation(async (_t: string, line: number) => Math.min(4, Math.max(0, LINES.map((l) => l + 5_000).filter((l) => l <= line).length - 1)));
+    p.update("texto com o lote de antes", 2, big({ lineBase: 4_999 }));
+    await flush(600);
+    expect(p.topLine()).toBe(10_003);
   });
 });

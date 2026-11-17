@@ -102,6 +102,25 @@ export function lineNumberFormat(n: number, state: EditorState): string {
   return String(w.startLine + n);
 }
 
+/**
+ * Posição no texto do **arquivo** da janela (sem os `\n` virtuais dos cortes de linha gigante) → posição no documento do
+ * editor. É o que traduz uma troca pedida pela tabela, que vê o texto sem os cortes. `end`: a posição é o fim de um
+ * trecho, então um corte virtual logo ali não entra (um trecho que o atravessa por dentro, sim).
+ */
+export function docPos(w: Pick<WindowState, "vbreaks">, file: number, end = false): number {
+  let d = file;
+  for (const vb of w.vbreaks) {
+    if (end ? vb < d : vb <= d) d++;
+    else break;
+  }
+  return d;
+}
+
+/** O inverso de `docPos`: posição no documento → posição no texto do arquivo. */
+export function filePos(w: Pick<WindowState, "vbreaks">, doc: number): number {
+  return doc - lowerBound(w.vbreaks, doc);
+}
+
 /** A linha do arquivo (a partir de 0) em que está a posição `pos` do documento. */
 export function fileLineAt(state: EditorState, pos: number): number {
   const w = state.field(largeField);

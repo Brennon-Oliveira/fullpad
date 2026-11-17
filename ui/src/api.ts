@@ -47,6 +47,8 @@ export interface CsvCellOut {
 export interface CsvRowOut {
   /** Linha do arquivo (a posição na tabela pode ser outra, se ordenada ou filtrada). */
   index: number;
+  /** Linha do texto (a partir de 0) em que o registro começa (com quebra de linha dentro de uma célula, não é `index`). */
+  line: number;
   from: number;
   to: number;
   cells: CsvCellOut[];
@@ -62,12 +64,6 @@ export interface CsvInfo {
   unterminated: boolean;
   types: CsvColType[];
   header: CsvRowOut | null;
-  /** Só no CSV de arquivo grande: a varredura ainda corre (`rows` é "pelo menos isto") enquanto `done` é falso. */
-  done?: boolean;
-  /** Bytes que a varredura já percorreu, e o tamanho do arquivo (para "indexando 43%"). */
-  scanned?: number;
-  size?: number;
-  error?: string | null;
 }
 export interface CsvStats {
   count: number;
@@ -380,21 +376,14 @@ export const api = {
   csvStats: (tab: string, from: number, to: number, colFrom: number, colTo: number, decimal: string) =>
     invoke<CsvStats>("csv_stats", { tab, from, to, colFrom, colTo, decimal }),
   /** A célula sob uma posição do código e onde ela está na tabela. */
+  /** A linha da tabela do registro que cobre a linha `line` do texto (a partir de 0); liga a rolagem do código à da tabela. */
+  csvRowForLine: (tab: string, line: number) => invoke<number | null>("csv_row_for_line", { tab, line }),
   csvLocate: (tab: string, pos: number) => invoke<CsvLocated | null>("csv_locate", { tab, pos }),
   /** O que trocar no texto para gravar estes valores (`row` é a linha do arquivo, `RowOut.index`). */
   csvStructure: (tab: string, op: CsvOp) => invoke<CsvEditOut[]>("csv_structure", { tab, op }),
   csvEdit: (tab: string, edits: { row: number; col: number; value: string }[]) => invoke<CsvEditOut[]>("csv_edit", { tab, edits }),
   /** Uma célula do arquivo, para levar o cursor do código até ela. */
   csvCell: (tab: string, row: number, col: number) => invoke<CsvCellOut | null>("csv_cell", { tab, row, col }),
-  // ---- tabela de um CSV de arquivo grande (as linhas vêm do disco, por faixas) ----
-  /** Abre a tabela da aba grande. `delimiter` "auto" detecta pelo começo do arquivo; a varredura corre em segundo plano. */
-  largeCsvOpen: (id: string, delimiter: string, header: boolean, decimal: string) => invoke<CsvInfo>("large_csv_open", { id, delimiter, header, decimal }),
-  largeCsvInfo: (id: string) => invoke<CsvInfo>("large_csv_info", { id }),
-  /** Linhas de dados `[from, from + count)` (o cabeçalho não conta). */
-  largeCsvRows: (id: string, from: number, count: number) => invoke<CsvRowOut[]>("large_csv_rows", { id, from, count }),
-  largeCsvCell: (id: string, row: number, col: number) => invoke<CsvCellOut | null>("large_csv_cell", { id, row, col }),
-  largeCsvStats: (id: string, r0: number, r1: number, c0: number, c1: number) => invoke<CsvStats>("large_csv_stats", { id, r0, r1, c0, c1 }),
-  largeCsvClose: (id: string) => invoke<void>("large_csv_close", { id }),
   /** Bytes de uma imagem local citada no JSON (só extensões de imagem, até 8 MB). */
   jsonPreviewImage: (value: string, base: string | null) => invoke<ArrayBuffer>("json_preview_image", { value, base }),
   /** Abre um link (http, https ou mailto) no navegador do sistema. */

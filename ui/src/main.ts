@@ -26,7 +26,7 @@ interface DiagramPanel {
   /** Só o diagrama DBML: liga/desliga a edição pelo diagrama (desligado, só se vê). */
   setEditable?(on: boolean): void;
 }
-import type { CsvPanel } from "./csv/panel";
+import type { CsvPanel, LargeCtx } from "./csv/panel";
 import type { LayoutView } from "./dbml/layoutview";
 import type { JsonPanel, TreeFormat } from "./json/panel";
 import { mapCursor } from "./json/format";
@@ -58,9 +58,9 @@ import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, n
 import { mountPostitBar, type PostitBar } from "./postit";
 import { LargeTab, type LargeHooks, type LargeIo } from "./large/ctl";
 import { type LargeFind, mountLargeFind } from "./large/find";
-import { humanSize, statusText } from "./large/model";
+import { firstRecord, humanSize, statusText, stripBreaks as stripBreaksOf } from "./large/model";
 import { type LargeScroll, mountLargeScroll } from "./large/scrollbar";
-import { largeKeys, lineNumberFormat, windowLoad } from "./large/state";
+import { docPos, filePos, largeField, largeKeys, lineNumberFormat, windowLoad } from "./large/state";
 import "./style.css";
 
 const AUTOSAVE_MS = 400;
@@ -78,6 +78,9 @@ let session: Session;
 const states = new Map<string, EditorState>(); // abas já carregadas (guarda undo/seleção)
 const larges = new Map<string, LargeTab>(); // arquivos grandes abertos nesta janela (modo de lotes)
 const largeFailed = new Set<string>(); // aba grande cujo arquivo não pôde ser aberto: fica só leitura
+const largeHeaders = new Map<string, string>(); // CSV grande: o cabeçalho do arquivo (a janela de lotes nem sempre começa nele)
+let syncLock = 0; // tabela e texto rolam juntos: quem acabou de ser rolado pelo outro não devolve o eco
+const lockSync = () => void (syncLock = performance.now() + 300);
 let largeWrap = false; // quebra de linha das abas grandes (desligada: um segmento chega a 1 MB)
 const detected = new Map<string, Lang>(); // linguagem detectada no modo automático
 const dirtyNotes = new Set<string>();
@@ -143,6 +146,9 @@ interface Group {
   csv?: CsvPanel;
   csvLoading?: Promise<void>;
   csvTab: string | null; // aba cuja tabela está na tela
+  /** CSV de arquivo grande: quanto texto (o cabeçalho do arquivo, posto na frente do trecho) precede o trecho na tabela, e a linha do arquivo no topo dela. */
+  csvPrefix: number;
+  csvTopLine: number | null;
   /** Leitor de PDF/EPUB (aba só de leitura): carregado sob demanda, cobre o editor. */
   readerEl: HTMLElement;
   reader?: ReaderPanel;
@@ -217,12 +223,14 @@ const baseName = (p: string) => p.split(/[\\/]/).pop() ?? p;
 const isReader = (tab: TabState) => tab.kind !== undefined && tab.kind !== "text";
 /** Aba de texto que não aceita alteração: a nota de versão (o texto vem embutido no app). */
 const isReadOnlyText = (tab: TabState) => !!tab.release_notes;
+/** CSV/TSV de arquivo grande: o único tipo que, nesse modo, também mostra a visão renderizada (a tabela do trecho de lotes que o editor tem). */
+const largeCsv = (tab: TabState) => !!tab.large && (tab.language === "csv" || (tab.language === "auto" && /\.(csv|tsv)$/i.test(tab.path ?? "")));
 
 /** Arquivo grande em modo de lotes: texto puro, sem visão renderizada, árvore, diagrama nem tabela. */
 const largeOf = (tab: TabState | undefined | null) => (tab?.large ? larges.get(tab.id) : undefined);
 
 function effectiveLang(tab: TabState): Lang {
-  if (tab.large) return "plain"; // só o destaque pela extensão; nada que precise do texto inteiro
+  if (tab.large) return largeCsv(tab) ? "csv" : "plain"; // o resto: só o destaque pela extensão; nada que precise do texto inteiro
   if (tab.kind === "pdf") return "pdf";
   if (tab.kind === "epub") return "epub";
   return tab.language === "auto" ? (detected.get(tab.id) ?? "plain") : tab.language;
@@ -423,6 +431,7 @@ function ensureCsvSupport() {
  */
 async function syncCsv(tab: TabState) {
   if (effectiveLang(tab) !== "csv" || csvSettings(tab).delimiter !== "auto") return;
+  if (tab.large && csvDetected.has(tab.id)) return; // arquivo grande: o mesmo separador em todos os trechos
   const st = states.get(tab.id);
   if (!st) return;
   const found = await api.csvDetect(st.sliceDoc(0, 200_000), extOf(tab.path ?? "") || null).catch(() => ",");
@@ -609,11 +618,41 @@ function syncJson(textChanged: boolean) {
 const csvWanted = (tab: TabState) =>
   effectiveLang(tab) === "csv" && viewKind(tab) !== "source" && !tab.detached && (csvSettings(tab).delimiter !== "auto" || csvDetected.has(tab.id));
 
+/** CSV grande: o cabeçalho do arquivo (a janela de lotes nem sempre começa nele), lido do lote 0. */
+async function fetchLargeHeader(tab: TabState) {
+  const b = await api.largeBatch(tab.id, 0);
+  largeHeaders.set(tab.id, firstRecord(stripBreaksOf(b.text, b.breaks), csvDelimiter(tab)));
+}
+
+/** Posição do editor → posição no texto que a tabela recebeu (sem os cortes virtuais, depois do cabeçalho posto na frente). */
+function csvTablePos(g: Group, tab: TabState, head: number): number {
+  if (!tab.large) return head;
+  return filePos(g.view.state.field(largeField), head) + g.csvPrefix;
+}
+
+/** Posição no texto da tabela → posição do editor (`null`: cai no cabeçalho posto na frente, que não existe no editor). */
+function csvDocPos(g: Group, pos: number, end = false): number | null {
+  const t = tabOf(g);
+  if (!t?.large) return pos;
+  if (pos < g.csvPrefix) return null;
+  return docPos(g.view.state.field(largeField), pos - g.csvPrefix, end);
+}
+
+function csvDocSpans(g: Group, spans: { from: number; to: number }[]): { from: number; to: number }[] {
+  const out: { from: number; to: number }[] = [];
+  for (const sp of spans) {
+    const from = csvDocPos(g, sp.from);
+    const to = csvDocPos(g, sp.to, true);
+    if (from !== null && to !== null) out.push({ from, to });
+  }
+  return out;
+}
+
 function syncCsvTable(textChanged: boolean) {
   const g = cur;
   const tab = activeTab();
   // CSV grande demais para a tabela: só o código funciona, e a faixa diz por quê
-  const big = effectiveLang(tab) === "csv" && g.view.state.doc.length > MAX_CSV_CHARS;
+  const big = effectiveLang(tab) === "csv" && !tab.large && g.view.state.doc.length > MAX_CSV_CHARS;
   g.noteEl.hidden = !big;
   if (big) {
     const m = (n: number) => (n / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
@@ -631,37 +670,86 @@ function syncCsvTable(textChanged: boolean) {
     g.csvTab = null;
     return;
   }
-  const text = g.view.state.doc.toString();
   const cfg = () => {
     const s = csvSettings(tab);
     return { delimiter: csvDelimiter(tab), header: s.header, decimal: s.decimal };
   };
+  let text = "";
+  let large: LargeCtx | undefined;
+  if (tab.large) {
+    // arquivo grande: a tabela mostra o TEXTO da janela de lotes (o mesmo do editor, com as edições pendentes), então editar por ela
+    // é editar o texto. Quando a janela não começa no começo do arquivo, o cabeçalho do arquivo vai na frente do trecho.
+    const f = largeOf(tab)?.fileText();
+    if (!f) return;
+    let prefix = "";
+    if (csvSettings(tab).header && f.startLine > 0) {
+      const head = largeHeaders.get(tab.id);
+      if (head === undefined) {
+        void fetchLargeHeader(tab).then(() => syncCsvTable(true));
+        return;
+      }
+      prefix = head + "\n";
+    } else if (f.startLine === 0) largeHeaders.set(tab.id, firstRecord(f.text, csvDelimiter(tab)));
+    text = prefix + f.text;
+    g.csvPrefix = prefix.length;
+    large = { lineBase: f.startLine - (prefix ? 1 : 0), headerPrefix: !!prefix };
+  } else text = g.view.state.doc.toString();
   const run = () => {
     const t = tabOf(g);
     if (!g.csv || !t || !csvWanted(t)) return;
     const fresh = g.csvTab !== tab.id;
-    if (textChanged && !fresh) g.csv.update(text, g.rev);
-    else g.csv.show(tab.id, text, cfg(), g.rev);
+    if (large && fresh) large.topLine = tab.cursor; // abrindo a aba: a tabela começa onde a pessoa estava (a linha do arquivo)
+    if (textChanged && !fresh) g.csv.update(text, g.rev, large);
+    else g.csv.show(tab.id, text, cfg(), g.rev, large);
     g.csvTab = tab.id;
-    g.csv.setCursor(g.view.state.selection.main.head, g.rev);
+    g.csv.setCursor(csvTablePos(g, tab, g.view.state.selection.main.head), g.rev);
+    if (large) renderLargeNote(g, tab);
   };
   if (g.csv) return run();
   g.csvEl.classList.add("on"); // já abre o espaço enquanto o módulo carrega
   g.csvLoading ??= import("./csv/panel").then((m) => {
     g.csv = m.createCsvPanel(g.csvEl, {
       // clique numa célula → o cursor do código vai para ela (o foco fica na tabela)
-      onSelect: (pos, rev) => rev === g.rev && g.view.dispatch({ selection: { anchor: Math.min(pos, g.view.state.doc.length) }, scrollIntoView: true }),
+      onSelect: (pos, rev) => {
+        if (rev !== g.rev) return;
+        const at = csvDocPos(g, pos);
+        if (at !== null) g.view.dispatch({ selection: { anchor: Math.min(at, g.view.state.doc.length) }, scrollIntoView: true });
+      },
       // gravar uma célula: troca no texto do código, num passo só do desfazer (vale só para o texto que a tabela indexou)
       onEdit: (edits, rev) => {
         if (rev !== g.rev) return false;
-        g.view.dispatch({ changes: edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert })), userEvent: "input.csv" });
+        const t = tabOf(g);
+        const w = t?.large ? g.view.state.field(largeField) : null;
+        // arquivo grande: as posições são as do texto do arquivo (sem os cortes virtuais, e depois do cabeçalho posto na frente)
+        if (w && edits.some((e) => e.from < g.csvPrefix)) return false; // o cabeçalho é de outra parte do arquivo
+        const changes = w
+          ? edits.map((e) => ({ from: docPos(w, e.from - g.csvPrefix), to: docPos(w, e.to - g.csvPrefix, true), insert: e.insert }))
+          : edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert }));
+        g.view.dispatch({ changes, userEvent: "input.csv" });
         return true;
       },
       onUndo: () => void undo(g.view),
       onRedo: () => void redo(g.view),
       // células selecionadas / sob o mouse → o texto delas ganha fundo no código
-      onSelection: (spans, rev) => g.view.dispatch({ effects: csvSelectionMarks(spans && rev === g.rev ? spans : null) }),
-      onHover: (spans, rev) => g.view.dispatch({ effects: csvHoverMarks(spans && rev === g.rev ? spans : null) }),
+      onSelection: (spans, rev) => g.view.dispatch({ effects: csvSelectionMarks(spans && rev === g.rev ? csvDocSpans(g, spans) : null) }),
+      onHover: (spans, rev) => g.view.dispatch({ effects: csvHoverMarks(spans && rev === g.rev ? csvDocSpans(g, spans) : null) }),
+      // arquivo grande: a primeira linha à vista da tabela é a do código (na visão lado a lado rolam juntos) e a tabela pede o lote vizinho na borda
+      onTopLine: (line) => {
+        const t = tabOf(g);
+        if (!t?.large) return;
+        g.csvTopLine = line;
+        g.largeScroll.update();
+        sessionDirty = true;
+        scheduleSave();
+        if (performance.now() < syncLock || viewKind(t) !== "split") return;
+        lockSync();
+        void largeOf(t)?.scrollToLine(line);
+      },
+      onEdge: (dir) => {
+        const lt = largeOf(tabOf(g));
+        if (lt?.canSlide(dir)) void lt.slide(dir);
+      },
+      // a tabela de arquivo grande achou o separador: o menu CSV e as cores do texto seguem
     });
   });
   void g.csvLoading.then(run);
@@ -1250,9 +1338,9 @@ function refreshStatus(recomputeSize = true) {
     menubar?.refresh();
     status.update({
       languageLabel: langLabel(tab),
-      viewLabel: "Código",
-      viewAvailable: false,
-      codeLang: codeLangOf(tab)?.name ?? null,
+      viewLabel: viewLabel(tab),
+      viewAvailable: previewAvailable(tab),
+      codeLang: effectiveLang(tab) === "plain" ? (codeLangOf(tab)?.name ?? null) : undefined,
       size: lt.info.size,
       lines: lt.info.lines,
       ln: fileLine + 1,
@@ -1379,7 +1467,8 @@ function snapshotGroup(g: Group) {
   states.set(tab.id, g.view.state);
   const lt = largeOf(tab);
   if (lt) {
-    tab.cursor = lt.cursorLine(); // arquivo grande: o cursor é a linha do arquivo (a janela não tem posição fixa)
+    // arquivo grande: o cursor é a linha do arquivo (a janela não tem posição fixa); com só a tabela à vista, é a linha dela
+    tab.cursor = largeCsv(tab) && g.csvTab === tab.id && viewKind(tab) === "inline" && g.csvTopLine !== null ? g.csvTopLine : lt.cursorLine();
     tab.scroll = 0;
     return;
   }
@@ -1424,9 +1513,12 @@ function onEditorUpdate(u: ViewUpdate) {
   if (big?.large) {
     // arquivo grande: o texto do editor é só uma janela; vai ao Rust por lote (nunca para `notes/`)
     largeOf(big)?.onUpdate(u);
-    if (u.docChanged && !u.transactions.some((t) => t.annotation(windowLoad))) {
+    if (u.docChanged) {
       g.rev++;
-      g.largeFind.stale();
+      if (!u.transactions.some((t) => t.annotation(windowLoad))) g.largeFind.stale();
+      if (largeCsv(big)) syncCsvTable(true); // a tabela é outra visão do mesmo texto
+    } else if (u.selectionSet && largeCsv(big) && g.csvTab === big.id) {
+      g.csv?.setCursor(csvTablePos(g, big, u.state.selection.main.head), g.rev); // cursor do código → célula
     }
     if (u.docChanged || u.selectionSet) refreshStatus(false);
     return;
@@ -1479,6 +1571,15 @@ function largeHooks(tab: TabState): LargeHooks {
       sessionDirty = true;
       scheduleSave();
     },
+    onScroll() {
+      // lado a lado: o código rolou, a tabela acompanha (a primeira linha à vista é a mesma)
+      const g = groupShowing(tab.id);
+      if (!g?.csv || g.csvTab !== tab.id || performance.now() < syncLock || viewKind(tab) !== "split") return;
+      const lt = largeOf(tab);
+      if (!lt) return;
+      lockSync();
+      g.csv.scrollToLine(lt.topLine());
+    },
     onChange() {
       const g = groupShowing(tab.id);
       if (!g) return;
@@ -1526,7 +1627,10 @@ function renderLargeNote(g: Group, tab: TabState) {
   g.largeNoteEl.hidden = !lt;
   if (!lt) return;
   const orphan = lt.info.orphaned ? " As alterações guardadas são de outra versão do arquivo e não foram aplicadas." : "";
-  g.largeNoteEl.textContent = `Arquivo grande (${humanSize(lt.info.size)}): só o trecho da tela fica na memória. Localizar e ir para a linha leem o disco; substituir e a busca global não valem aqui.${orphan}`;
+  const table = largeCsv(tab) && viewKind(tab) !== "source" && !tab.detached;
+  g.largeNoteEl.textContent = table
+    ? `Arquivo grande (${humanSize(lt.info.size)}): a tabela mostra o trecho carregado do texto e rola junto com ele; a primeira coluna é a linha do arquivo. Editar vale (é o texto: desfazer, salvar em fluxo); ordenar, filtrar e mexer em colunas não, pois agiriam só no trecho.${orphan}`
+    : `Arquivo grande (${humanSize(lt.info.size)}): só o trecho da tela fica na memória. Localizar e ir para a linha leem o disco; substituir e a busca global não valem aqui.${orphan}`;
   if (lt.info.orphaned && !g.largeNoteEl.querySelector("button")) {
     const b = document.createElement("button");
     b.type = "button";
@@ -1921,7 +2025,14 @@ function gotoLineCol(line: number, col?: number) {
   const big = largeOf(tabOf(cur));
   if (big) {
     // arquivo grande: a conta de qual lote tem a linha é só somar as linhas dos lotes (sem ler o arquivo)
-    void big.goto(line - 1, { col: Math.max(0, (col ?? 1) - 1) });
+    const g = cur;
+    void big.goto(line - 1, { col: Math.max(0, (col ?? 1) - 1) }).then(() => {
+      const t = tabOf(g);
+      if (t && largeCsv(t) && g.csvTab === t.id) {
+        lockSync();
+        g.csv?.scrollToLine(line - 1); // a tabela vai à mesma linha do arquivo
+      }
+    });
     return;
   }
   const v = cur.view;
@@ -2266,19 +2377,31 @@ function createGroup(id: number): Group {
   largeNoteEl.hidden = true;
   el.append(tabsEl, diskEl, noteEl, largeNoteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
   const bigOf = () => largeOf(tabOf(g));
-  g.largeScroll = mountLargeScroll(editorEl, {
+  // a barra de rolagem do arquivo vale para o editor e para a tabela (por isso fica no corpo do painel, não no editor)
+  const tableShown = () => {
+    const t = tabOf(g);
+    return !!t && largeCsv(t) && g.csvTab === t.id && viewKind(t) === "inline";
+  };
+  const alignTable = (line: number) => {
+    const t = tabOf(g);
+    if (t && largeCsv(t) && g.csvTab === t.id) {
+      lockSync();
+      g.csv?.scrollToLine(line);
+    }
+  };
+  g.largeScroll = mountLargeScroll(bodyEl, {
     total: () => bigOf()?.totalLines ?? 0,
-    line: () => bigOf()?.topLine() ?? 0,
-    visible: () => Math.max(1, Math.floor(view.scrollDOM.clientHeight / Math.max(1, view.defaultLineHeight))),
-    jump: (line) => void bigOf()?.goto(line, { focus: false }),
+    line: () => (tableShown() && g.csvTopLine !== null ? g.csvTopLine : (bigOf()?.topLine() ?? 0)),
+    visible: () => Math.max(1, Math.floor((tableShown() ? g.csvEl : view.scrollDOM).clientHeight / (tableShown() ? 24 : Math.max(1, view.defaultLineHeight)))),
+    jump: (line) => void bigOf()?.goto(line, { focus: false }).then(() => alignTable(line)),
   });
   g.largeFind = mountLargeFind(el, {
     search: (id, q, o) => api.largeSearch(g.active!, id, q, o),
     cancel: (id) => void api.largeCancel(id),
     listen: (h) => listen<{ search: string; hits: LargeHit[] }>("large-hits", (e) => h(e.payload.search, e.payload.hits)),
-    reveal: (hit) => void bigOf()?.goto(hit.line, { col: hit.col, len: hit.len, focus: false }),
+    reveal: (hit) => void bigOf()?.goto(hit.line, { col: hit.col, len: hit.len, focus: false }).then(() => alignTable(hit.line)),
     cursorLine: () => bigOf()?.cursorLine() ?? 0,
     indexed: () => bigOf()?.info.done ?? true,
     refocus: () => view.focus(),

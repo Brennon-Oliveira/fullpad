@@ -417,6 +417,9 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .body.large .cm-scroller::-webkit-scrollbar { display: none; }
 .lscroll { position: absolute; top: 0; right: 0; bottom: 0; width: 14px; z-index: 6; background: color-mix(in srgb, var(--bar) 60%, transparent); border-left: 1px solid var(--border); cursor: default; touch-action: none; user-select: none; }
 .lscroll[hidden] { display: none; }
+/* CSV grande: a tabela mostra o trecho carregado, então a barra vertical dela não diz onde se está no arquivo: some, e a do arquivo (à direita do painel) vale */
+.body.large > .csvview { padding-right: 14px; box-sizing: border-box; }
+.body.large .csv-scroll::-webkit-scrollbar { width: 0; }
 .lthumb { position: absolute; left: 2px; right: 2px; top: 0; min-height: 28px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 45%, transparent); }
 .lscroll:hover .lthumb, .lscroll.dragging .lthumb { background: color-mix(in srgb, var(--muted) 75%, transparent); }
 .csvview { display: none; flex: 1; min-width: 0; min-height: 0; position: relative; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg); }

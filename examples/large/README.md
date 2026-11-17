@@ -47,7 +47,7 @@ gigante** (até 3 MB, sem quebra), que o Fullpad mostra em segmentos marcados co
 |---|---|---|
 | `grande.txt` | log: `data [NÍVEL] ação N concluída…` | linha gigante; 30 linhas em **CRLF** num arquivo em LF; RARA a cada 250 mil linhas |
 | `grande.md` | capítulos com títulos, listas, tabela, bloco de código, equação | parágrafo gigante de uma linha; RARA a cada 500 capítulos. Abre **só como texto** (sem a visão renderizada) |
-| `grande.csv` | `id,nome,cidade,valor,data,observacao` | células entre aspas com vírgula e `""`; células com **quebra de linha dentro**; célula gigante; RARA. Abre **como texto**, sem a tabela (a tabela indexaria o arquivo inteiro na memória) |
+| `grande.csv` | `id,nome,cidade,valor,data,observacao` | células entre aspas com vírgula e `""`; células com **quebra de linha dentro**; célula gigante; RARA. Abre na **tabela editável** (a primeira coluna é a linha do arquivo; rolar até a borda desliza a janela; sem ordenar nem filtrar). Ctrl+E alterna código; Ctrl+Shift+E mostra os dois rolando juntos |
 | `grande.json` | lista de objetos, um por linha (JSON válido) | objeto com string gigante; `null`, booleanos, listas; RARA. Abre **como texto**, sem a árvore |
 
 ## O que testar no app

@@ -2,7 +2,7 @@
 import { EditorState, Transaction } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { createState, createView, tabEffects } from "../editor";
-import { appendBatch, dropFirst, dropLast, fileLineAt, largeExtensions, largeField, lineNumberFormat, loadSpec, prependBatch, resetWindow, windowLoad, type WindowState } from "./state";
+import { appendBatch, docPos, dropFirst, dropLast, fileLineAt, filePos, largeExtensions, largeField, lineNumberFormat, loadSpec, prependBatch, resetWindow, windowLoad, type WindowState } from "./state";
 
 /** Três lotes: "a1\na2\n" | "b1\nb2\n" | "c1\n", começando na linha 100. */
 function make(win?: Partial<WindowState>) {
@@ -198,5 +198,35 @@ describe("texto colado", () => {
     const s = EditorState.create({ doc: "a\rb\nc", extensions: [largeExtensions] });
     expect(s.doc.lines).toBe(2);
     expect(s.doc.line(1).text).toBe("a\rb");
+  });
+});
+
+describe("posições do texto do arquivo (sem os cortes virtuais) e do documento", () => {
+  // documento "ab⏎cd⏎ef" (⏎ = corte virtual nas posições 2 e 5): o texto do arquivo é "abcdef"
+  const w = { vbreaks: [2, 5] };
+
+  it("o começo de um trecho pula o corte que vem antes dele", () => {
+    expect([0, 1, 2, 3, 4, 5].map((p) => docPos(w, p))).toEqual([0, 1, 3, 4, 6, 7]);
+  });
+
+  it("o fim de um trecho não leva o corte que vem logo depois, mas leva o que ele atravessa", () => {
+    expect([0, 1, 2, 3, 4, 5, 6].map((p) => docPos(w, p, true))).toEqual([0, 1, 2, 4, 5, 7, 8]);
+    // trocar de "b" até "d" (arquivo [1, 4)) apaga o corte do meio no documento: [1, 5)
+    expect([docPos(w, 1), docPos(w, 4, true)]).toEqual([1, 5]);
+  });
+
+  it("é o inverso de filePos", () => {
+    for (let f = 0; f <= 6; f++) expect(filePos(w, docPos(w, f))).toBe(f);
+  });
+
+  it("sem cortes as posições são as mesmas", () => {
+    expect([docPos({ vbreaks: [] }, 7), docPos({ vbreaks: [] }, 7, true), filePos({ vbreaks: [] }, 7)]).toEqual([7, 7, 7]);
+  });
+
+  it("uma troca pela tabela aplicada ao documento deixa o texto do arquivo como a tabela espera", () => {
+    const doc = "ab\ncd\nef";
+    const [from, to] = [1, 4]; // "bcd" no texto do arquivo
+    const next = doc.slice(0, docPos(w, from)) + "XY" + doc.slice(docPos(w, to, true));
+    expect(next).toBe("aXY\nef"); // o corte de dentro do trecho some; o de fora (depois do "d") fica
   });
 });

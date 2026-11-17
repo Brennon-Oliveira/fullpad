@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanSize, indexProgress, lineAtFraction, lineFraction, nearEdge, statusText, stripBreaks, windowAround } from "./model";
+import { firstRecord, humanSize, indexProgress, lineAtFraction, lineFraction, nearEdge, statusText, stripBreaks, windowAround } from "./model";
 
 describe("stripBreaks", () => {
   it("tira só os \\n virtuais e deixa os reais", () => {
@@ -77,5 +77,24 @@ describe("textos", () => {
     expect(humanSize(290 * 1024 * 1024)).toBe("290 MB");
     expect(humanSize(1536)).toBe("1,5 KB");
     expect(humanSize(3 * 1024 ** 3)).toBe("3,0 GB");
+  });
+});
+
+describe("firstRecord (o cabeçalho de um CSV)", () => {
+  it("vai até o fim da primeira linha", () => {
+    expect(firstRecord("id,nome\n1,Ana\n", ",")).toBe("id,nome");
+    expect(firstRecord("id,nome\r\n1,Ana", ",")).toBe("id,nome");
+    expect(firstRecord("id,nome", ",")).toBe("id,nome");
+    expect(firstRecord("", ",")).toBe("");
+  });
+  it("quebra de linha entre aspas não termina o registro", () => {
+    expect(firstRecord('"a\nb",c\n1,2', ",")).toBe('"a\nb",c');
+    expect(firstRecord('"diz ""oi""\nx",c\n1,2', ",")).toBe('"diz ""oi""\nx",c');
+  });
+  it("aspa no meio de um campo sem aspas é texto (como no Rust)", () => {
+    expect(firstRecord('5" cano,b\n1,2', ",")).toBe('5" cano,b');
+  });
+  it("respeita o separador", () => {
+    expect(firstRecord('a;"b;c"\n1', ";")).toBe('a;"b;c"');
   });
 });

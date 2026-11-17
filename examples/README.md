@@ -18,7 +18,7 @@ Arquivos para abrir no app (Ctrl+O, ou arraste-os para a janela) e ver o que ele
 | `example.py` `.ts` `.rs` `.cs` `.sql` `.html` `.css` `.sh` | Código em cada linguagem. Hoje o destaque de sintaxe vale nos blocos do markdown (veja `example.md`); abertos direto, esses arquivos são texto puro |
 | `example.yaml` `example.toml` | Configuração. Abrem com a árvore ao lado do código (Ctrl+E), como o JSON, e o erro de sintaxe fica sublinhado |
 | `example.txt` | Texto puro: quebra de linha, localizar, substituir, ir para linha (`Ctrl+Alt+G`) |
-| `large/` (**gera** arquivos de centenas de MB, que **não vão para o git**) | Modo de arquivo grande: `python3 examples/large/gerar_csv.py 200` (e `gerar_txt.py`, `gerar_md.py`, `gerar_json.py`) cria `grande.<ext>` com o tamanho pedido em MB. Abre na hora, com aviso fixo, barra de rolagem do arquivo, `Ctrl+G` imediato, `Ctrl+F` em fluxo, linha gigante com `↳` e edição com salvar em fluxo. CSV, JSON e Markdown grandes abrem **como texto** (sem tabela, árvore nem renderizado). Passo a passo e o que testar em [`large/README.md`](large/README.md) |
+| `large/` (**gera** arquivos de centenas de MB, que **não vão para o git**) | Modo de arquivo grande: `python3 examples/large/gerar_csv.py 200` (e `gerar_txt.py`, `gerar_md.py`, `gerar_json.py`) cria `grande.<ext>` com o tamanho pedido em MB. Abre na hora, com aviso fixo, barra de rolagem do arquivo, `Ctrl+G` imediato, `Ctrl+F` em fluxo, linha gigante com `↳` e edição com salvar em fluxo. O CSV grande abre na **tabela editável** (primeira coluna = linha do arquivo, sem ordenar nem filtrar; Ctrl+Shift+E lado a lado); JSON e Markdown abrem **como texto** (sem árvore nem renderizado). Passo a passo e o que testar em [`large/README.md`](large/README.md) |
 
 ## Regenerar
 

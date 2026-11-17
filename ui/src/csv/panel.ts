@@ -85,7 +85,23 @@ export function parseClipboard(text: string): string[][] {
   return out;
 }
 
+/**
+ * Arquivo grande: o texto da tabela é a janela de lotes que o editor tem (não o arquivo todo). `lineBase` é a linha do
+ * arquivo (a partir de 0) a que corresponde a linha 0 do texto da tabela, e a primeira coluna passa a mostrar a linha do
+ * arquivo. `headerPrefix`: o cabeçalho do arquivo foi posto na frente do trecho (a janela não começa no começo do arquivo),
+ * então ele não é editável. `topLine`: a linha do arquivo que deve ficar no topo ao carregar.
+ */
+export interface LargeCtx {
+  lineBase: number;
+  headerPrefix?: boolean;
+  topLine?: number;
+}
+
 export interface CsvHooks {
+  /** Arquivo grande: a primeira linha à vista mudou (linha do arquivo): o código rola junto. */
+  onTopLine?(line: number): void;
+  /** Arquivo grande: a rolagem chegou perto da borda do trecho carregado; o app carrega o lote vizinho. */
+  onEdge?(dir: "up" | "down"): void;
   /**
    * Grava as trocas no texto do código (uma só transação: um passo no desfazer). Só vale se `rev` ainda
    * for a versão do texto da tabela; devolve `false` se não for (e nada é aplicado).
@@ -104,9 +120,13 @@ export interface CsvHooks {
 
 export interface CsvPanel {
   /** Mostra a tabela desta aba com este texto. Recarrega só se texto ou configuração mudaram. */
-  show(tab: string, text: string, cfg: CsvConfig, rev: number): void;
+  show(tab: string, text: string, cfg: CsvConfig, rev: number, large?: LargeCtx): void;
   /** O texto mudou: recarrega depois de um instante. */
-  update(text: string, rev: number): void;
+  update(text: string, rev: number, large?: LargeCtx): void;
+  /** Arquivo grande: rola até o registro que cobre a linha `line` do arquivo (a partir de 0). */
+  scrollToLine(line: number): void;
+  /** Arquivo grande: a linha do arquivo do primeiro registro à vista. */
+  topLine(): number | null;
   hide(): void;
   /** Cursor do código (UTF-16). Só vale se `rev` for a versão da tabela na tela. */
   setCursor(pos: number | null, rev: number): void;
@@ -193,7 +213,10 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   let info: CsvInfo | null = null;
   let text = ""; // texto de que a tabela vem
   let loadedRev = -1;
-  let want = { text: "", rev: 0 };
+  let want: { text: string; rev: number; large: LargeCtx | null } = { text: "", rev: 0, large: null };
+  let large: LargeCtx | null = null; // arquivo grande: o trecho que a tabela mostra
+  let pendingLine: number | null = null; // linha do arquivo a pôr no topo quando a tabela terminar de carregar
+  let anchorLine: number | null = null; // a linha que estava no topo, para o recarregamento não mexer no que se vê
   const chunks = new Map<number, CsvRowOut[]>();
   const pending = new Set<number>();
   let seq = 0; // descarta respostas de uma carga que já foi trocada por outra
@@ -216,7 +239,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   const refreshOv = () => {
     ov = [...ui.heights].sort((a, b) => a[0] - b[0]);
   };
-  const numW = () => ui.numW ?? Math.max(NUM_W, String(info?.total ?? 0).length * 9 + 26);
+  const numW = () => ui.numW ?? Math.max(NUM_W, String((large?.lineBase ?? 0) + (info?.total ?? 0) + 1).length * 9 + 26);
   const applyNumW = () => host.style.setProperty("--csv-num-w", `${numW()}px`);
   const hOf = (r: number) => ui.heights.get(r) ?? ROW_H;
   const topOf = (r: number) => {
@@ -252,6 +275,11 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
     const h = info?.header?.cells[c]?.value.trim();
     return h ? display(h) : cfg.header ? `Coluna ${c + 1}` : letters(c);
   };
+
+  /** Num arquivo grande a tabela mostra só o trecho carregado: o que age sobre as linhas ou colunas todas não vale. */
+  function largeNotice(what: string) {
+    toast(`Arquivo grande: a tabela mostra só o trecho carregado, então não dá para ${what}.`);
+  }
 
   let toastTimer: number | undefined;
   function toast(message: string) {
@@ -303,6 +331,38 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
     scheduleStats();
   }
 
+  /** Depois de recarregar um trecho de arquivo grande: põe no topo a linha pedida (ou a que já estava). */
+  async function restoreLine() {
+    const line = pendingLine ?? anchorLine;
+    pendingLine = anchorLine = null;
+    if (line !== null) await applyLine(line);
+  }
+
+  async function applyLine(line: number) {
+    if (!large || !info || rows() === 0) return;
+    const my = seq;
+    const r = await api.csvRowForLine(tab, Math.max(0, line - large.lineBase)).catch(() => null);
+    if (my !== seq || r === null) return;
+    scroller.scrollTop = topOf(Math.min(r, rows() - 1));
+    renderRows();
+  }
+
+  let lastTopSent: number | null = null;
+  /** Arquivo grande: avisa o app da linha do arquivo no topo (rolou, ou as linhas dessa região acabaram de chegar). */
+  function emitTop() {
+    if (!large) return;
+    const l = topLine();
+    if (l === null || l === lastTopSent) return;
+    lastTopSent = l;
+    hooks.onTopLine?.(l);
+  }
+
+  function topLine(): number | null {
+    if (!large || !info) return null;
+    const d = rowAt(Math.min(rowAtY(scroller.scrollTop), Math.max(0, rows() - 1)));
+    return d ? large.lineBase + d.line : null;
+  }
+
   function sortArg() {
     return ui.sort;
   }
@@ -314,14 +374,18 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
     const my = ++seq;
     const t = tab;
     const body = want.text;
+    if (large && info && pendingLine === null) anchorLine = topLine(); // o trecho vai trocar: fica na mesma linha do arquivo
     try {
       const next = await api.csvLoad(t, body, cfg.delimiter, cfg.header, cfg.decimal, sortArg(), filterArg());
       if (my !== seq) return;
+      large = want.large; // a numeração muda junto com as linhas
       const now = await prefetch(next);
       if (my !== seq) return;
       text = body;
       loadedRev = want.rev;
+      lastTopSent = null; // outro trecho: a linha do topo volta a valer, mesmo que o número seja o mesmo
       adopt(next, now);
+      void restoreLine();
     } catch (e) {
       if (my === seq) showError(e);
     }
@@ -411,6 +475,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
         pending.delete(k);
         chunks.set(k, r);
         renderRows();
+        emitTop(); // a região que a pessoa rolou até ela só tem linhas agora: o código pode acompanhar
       })
       .catch((e) => {
         if (my === seq) {
@@ -436,7 +501,8 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
         row.style.setProperty("--csv-row-h", `${rh}px`);
         row.classList.toggle("wrap", rh >= WRAP_FROM);
       }
-      const num = el("div", "csv-rnum", String((rowAt(i)?.index ?? 0) + 1 - (cfg.header ? 1 : 0)));
+      // arquivo grande: a linha do arquivo (de 1 em diante); senão o número do registro
+      const num = el("div", "csv-rnum", String(large ? large.lineBase + (rowAt(i)?.line ?? 0) + 1 : (rowAt(i)?.index ?? 0) + 1 - (cfg.header ? 1 : 0)));
       if (!rowAt(i)) num.textContent = "";
       num.append(el("span", "csv-rgrip"));
       row.append(num);
@@ -590,6 +656,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   // ---- ordem, filtro, larguras -------------------------------------------------------------
 
   function toggleSort(c: number) {
+    if (large) return largeNotice("ordenar");
     ui.sort = ui.sort?.col !== c ? { col: c, desc: false } : ui.sort.desc ? null : { col: c, desc: true };
     void reloadView();
   }
@@ -614,6 +681,13 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   });
 
   function sortMenu(c: number): MenuItem[] {
+    if (large) {
+      return [
+        { label: "Renomear coluna", disabled: !cfg.header || !!large.headerPrefix, action: () => void renameCol(c) },
+        "sep",
+        { label: "Copiar nome da coluna", action: () => void copyText(colLabel(c), "Copiado") },
+      ];
+    }
     const cur = ui.sort?.col === c ? ui.sort : null;
     return [
       { label: "Renomear coluna", disabled: !cfg.header, action: () => void renameCol(c) },
@@ -649,11 +723,13 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   }
 
   function setSort(next: CsvSort | null) {
+    if (large) return largeNotice("ordenar");
     ui.sort = next;
     void reloadView();
   }
 
   function filterByColumn(c: number) {
+    if (large) return largeNotice("filtrar");
     colSel.value = String(c);
     ui.filter = { col: c, text: filterIn.value };
     if (ui.filter.text) void reloadView();
@@ -912,10 +988,12 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   }
 
   function insertCol(at: number) {
+    if (large) return largeNotice("mexer em colunas");
     void structure({ op: "insertCol", at }, "Coluna inserida", () => colsChanged((w) => w.splice(at, 0, DEF_W)));
   }
 
   function deleteCol(c: number) {
+    if (large) return largeNotice("mexer em colunas");
     void structure({ op: "deleteCols", cols: [c] }, "Coluna apagada", () => {
       clearSelection();
       colsChanged((w) => w.splice(c, 1));
@@ -923,6 +1001,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   }
 
   function moveCol(from: number, to: number) {
+    if (large) return largeNotice("mexer em colunas");
     void structure({ op: "moveCol", from, to }, "Coluna movida", () =>
       colsChanged((w) => {
         const [x] = w.splice(from, 1);
@@ -932,6 +1011,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   }
 
   function sortFile(col: number, desc: boolean) {
+    if (large) return largeNotice("ordenar");
     void structure({ op: "sortFile", col, desc, header: cfg.header, decimal: cfg.decimal }, "Arquivo ordenado", () => {
       ui.sort = null;
       clearSelection();
@@ -1341,17 +1421,32 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
     reveal(to);
   });
 
-  scroller.addEventListener("scroll", () => requestAnimationFrame(renderRows), { passive: true });
+  scroller.addEventListener(
+    "scroll",
+    () =>
+      requestAnimationFrame(() => {
+        renderRows();
+        if (!large) return;
+        emitTop();
+        const h = scroller.clientHeight;
+        if (h > 0 && scroller.scrollTop < h * 1.5) hooks.onEdge?.("up");
+        else if (h > 0 && scroller.scrollHeight - scroller.scrollTop - h < h * 1.5) hooks.onEdge?.("down");
+      }),
+    { passive: true },
+  );
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => renderRows()).observe(scroller);
 
   // ---- API -----------------------------------------------------------------------------------
 
+  /** Há uma carga em andamento (a última pedida ainda não foi adotada). */
+  const seqBusy = () => loadedRev !== want.rev;
   const sameCfg = (a: CsvConfig, b: CsvConfig) => a.delimiter === b.delimiter && a.header === b.header && a.decimal === b.decimal;
 
   return {
-    show(id, body, next, rev) {
+    show(id, body, next, rev, ctx) {
       host.classList.add("on");
       const fresh = id !== tab;
+      filterIn.hidden = colSel.hidden = !!ctx; // arquivo grande: sem filtro
       if (fresh) {
         tab = id;
         hoverCell = null;
@@ -1371,17 +1466,18 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
         statsEl.textContent = where.textContent = count.textContent = "";
       }
       window.clearTimeout(reloadTimer);
-      if (!fresh && info && text === body && sameCfg(cfg, next)) {
+      if (!fresh && info && text === body && sameCfg(cfg, next) && (ctx?.lineBase ?? null) === (large?.lineBase ?? null)) {
         loadedRev = rev; // nada mudou de verdade: a ligação com o código continua valendo
         renderRows();
         return;
       }
       cfg = next;
-      want = { text: body, rev };
+      want = { text: body, rev, large: ctx ?? null };
+      if (fresh && ctx?.topLine !== undefined) pendingLine = ctx.topLine; // abrindo a aba: começa onde a pessoa estava
       void load();
     },
-    update(body, rev) {
-      want = { text: body, rev };
+    update(body, rev, ctx) {
+      want = { text: body, rev, large: ctx ?? want.large };
       window.clearTimeout(reloadTimer);
       reloadTimer = window.setTimeout(() => void load(), RELOAD_MS);
     },
@@ -1403,6 +1499,12 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
         paint();
       }, CURSOR_MS);
     },
+    scrollToLine(line) {
+      // a tabela ainda está carregando o trecho novo: guarda para depois; senão rola agora
+      if (loadedRev !== want.rev || seqBusy()) pendingLine = line;
+      else void applyLine(line);
+    },
+    topLine,
     focusFilter() {
       filterIn.focus();
       filterIn.select();

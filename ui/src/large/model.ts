@@ -21,6 +21,30 @@ export function stripBreaks(text: string, breaks: readonly number[]): string {
   return out + text.slice(prev);
 }
 
+/**
+ * O primeiro registro do CSV em `text` (sem o terminador), com as mesmas regras do Rust (`csv::scan_record`): uma aspa só
+ * abre um campo logo depois do separador ou do começo, e quebra de linha entre aspas não termina o registro.
+ */
+export function firstRecord(text: string, delim: string): string {
+  let inQuotes = false;
+  let atStart = true;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') i++;
+        else inQuotes = false;
+      }
+    } else if (c === delim) atStart = true;
+    else if (c === '"' && atStart) {
+      inQuotes = true;
+      atStart = false;
+    } else if (c === "\n" || c === "\r") return text.slice(0, i);
+    else atStart = false;
+  }
+  return text;
+}
+
 /** Os lotes que vêm juntos ao ir para `batch`: ele e `around` vizinhos de cada lado, dentro de `count`. */
 export function windowAround(batch: number, count: number, around = WINDOW_AROUND): [number, number] {
   const last = Math.max(0, count - 1);

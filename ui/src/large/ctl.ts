@@ -21,6 +21,8 @@ export interface LargeHooks {
   onDirty(dirty: boolean): void;
   /** O índice avançou, o total de linhas mudou ou a janela se moveu: atualizar barra de status e barra de rolagem. */
   onChange(): void;
+  /** A pessoa rolou o texto (a tabela ao lado rola junto). */
+  onScroll?(): void;
   /** Algo que a pessoa precisa ver (texto que a codificação não comporta, arquivo que mudou…). */
   onError(message: string): void;
 }
@@ -249,6 +251,7 @@ export class LargeTab {
     this.raf = requestAnimationFrame(() => {
       this.raf = 0;
       this.hooks.onChange();
+      this.hooks.onScroll?.();
       void this.maybeSlide();
     });
   }
@@ -272,6 +275,66 @@ export class LargeTab {
     } finally {
       this.sliding = false;
     }
+  }
+
+  /** Há um lote vizinho a carregar daquele lado da janela? */
+  canSlide(dir: "up" | "down"): boolean {
+    const st = this.current();
+    if (!st) return false;
+    const w = st.field(largeField);
+    if (dir === "up") return w.first > 0;
+    return w.first + w.bounds.length - 1 < this.info.batches || !this.info.done;
+  }
+
+  /** Carrega o lote vizinho (quem rola é a tabela, não o editor): um de cada vez. */
+  async slide(dir: "up" | "down"): Promise<boolean> {
+    if (this.sliding || !this.view || !this.canSlide(dir)) return false;
+    this.sliding = true;
+    try {
+      return await this.enqueue(() => (dir === "down" ? this.growDown() : this.growUp()));
+    } catch (e) {
+      console.error("falha ao carregar o trecho vizinho", e);
+      return false;
+    } finally {
+      this.sliding = false;
+    }
+  }
+
+  /** O texto **do arquivo** da janela (sem os `\n` virtuais) e a linha do arquivo em que ele começa: o que a tabela mostra. */
+  fileText(): { text: string; startLine: number } | null {
+    const st = this.current();
+    if (!st) return null;
+    const w = st.field(largeField);
+    return { text: stripBreaks(st.doc.toString(), w.vbreaks), startLine: w.startLine };
+  }
+
+  /** A janela de lotes de agora (as posições e os cortes virtuais), para traduzir posições da tabela. */
+  window(): WindowState | null {
+    const st = this.current();
+    return st ? st.field(largeField) : null;
+  }
+
+  /**
+   * Rola o texto até a linha `line` do arquivo (a partir de 0) no topo da tela **sem mexer no cursor** (a tabela ao lado
+   * rolou e o texto a acompanha). Fora da janela carrega os lotes em volta dela.
+   */
+  scrollToLine(line: number): Promise<boolean> {
+    return this.enqueue(async () => {
+      const v = this.view;
+      if (!v) return false;
+      const target = Math.max(0, Math.floor(line));
+      const w = v.state.field(largeField);
+      if (target < w.startLine || target >= w.startLine + v.state.doc.lines) {
+        const loc = await this.locate(target);
+        if (!loc) return false;
+        await this.loadWindow(loc.batch, true, target);
+      }
+      const w2 = v.state.field(largeField);
+      const doc = v.state.doc;
+      const ln = doc.line(Math.min(Math.max(1, target - w2.startLine + 1), doc.lines));
+      v.dispatch({ effects: EditorView.scrollIntoView(ln.from, { y: "start" }) });
+      return true;
+    });
   }
 
   /** Acrescenta o lote seguinte no fim da janela. */
