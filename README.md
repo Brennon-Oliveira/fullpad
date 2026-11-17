@@ -28,7 +28,7 @@ Editor de notas e markdown **rápido**, no estilo do Notepad++: **nada se perde 
 
 | Tipo | O que você vê |
 |---|---|
-| **Markdown** (`.md`) | Texto renderizado e editável no próprio lugar, barra de formatação sobre a seleção, tabelas, equações, diagramas Mermaid, sumário lateral, exportar HTML/PDF |
+| **Markdown** (`.md`) | Texto renderizado e editável no próprio lugar, barra de formatação sobre a seleção, tabelas editáveis na grade, equações, diagramas Mermaid, sumário lateral, exportar HTML/PDF |
 | **CSV / TSV** | Tabela com ordenação, filtro, estatísticas da seleção e edição de célula, ligada ao código. Em arquivos de **dezenas de GB**, a mesma tabela, editável, abrindo na hora |
 | **Texto gigante** (`.txt`, `.log`, `.md`, `.json` e outros, acima de 20 MB) | Abre sem ler o arquivo inteiro: rolagem do arquivo todo, ir para a linha, busca no disco, edição com desfazer e salvar rápido |
 | **JSON** (`.json`, `.jsonc`, `.geojson`) | Árvore ao lado do código, formatar/minificar, links, cores e miniaturas de imagem |
@@ -43,6 +43,8 @@ Editor de notas e markdown **rápido**, no estilo do Notepad++: **nada se perde 
 ### Markdown, o carro-chefe
 
 O markdown é renderizado no próprio texto: você edita o que está vendo. Selecione um trecho e a barra de formatação aparece sobre ele (tipo de bloco, negrito, itálico, tachado, código, equação, link, limpar). Tabelas, equações `$...$` e `$$...$$` e blocos ` ```mermaid ` viram desenho, e com o cursor sobre eles aparece o código.
+
+**Tabelas editáveis na grade**: a tabela `| a | b |` aparece como tabela de verdade e se edita ali mesmo. Clique numa célula e digite (Enter desce, Tab e setas andam, Shift+Enter quebra a linha dentro da célula); o texto é reescrito sempre alinhado e cada edição é um passo no Ctrl+Z. Ao passar o mouse aparecem botões **+** na borda direita (nova coluna), embaixo (nova linha) e entre linhas e colunas (inserir no meio). O botão direito insere e apaga linhas e colunas, move colunas, alinha (esquerda, centro, direita) e copia a tabela como CSV. **Colar CSV, TSV ou uma planilha vira tabela** na hora (Ctrl+Shift+V cola como texto). O arquivo continua markdown puro.
 
 ![Markdown com live preview, tabela, equação, diagrama Mermaid e a barra de formatação](docs/img/markdown.gif)
 
@@ -172,6 +174,7 @@ Os **alvos azuis** mostram, antes de soltar, onde a aba vai cair: o painel intei
 ### Markdown
 
 - **Live preview** editável: títulos, ênfase, listas, tarefas, citações, código com destaque por linguagem, links, imagens, tabelas e o resto do markdown renderizados no texto.
+- **Tabelas editáveis na grade**: clique na célula e digite, com Enter, Tab e setas para andar; botões **+** ao passar o mouse (coluna na borda direita, linha embaixo e entre linhas e colunas); botão direito para inserir, apagar, mover e alinhar linhas e colunas e copiar como CSV; **colar CSV, TSV ou planilha vira tabela** (Ctrl+Shift+V cola como texto); a tabela é reescrita alinhada e cada edição é um passo no Ctrl+Z.
 - **Barra de formatação** sobre a seleção (estilo Notion) e em Markdown > Formatar: tipo de bloco (texto, títulos 1 a 3, lista, numerada, tarefas, citação, código), **negrito, itálico, tachado, código, equação, link** e limpar formatação; Ctrl+B, Ctrl+I, Ctrl+K, Ctrl+Shift+X e Ctrl+Shift+M; cada ação é um passo no Ctrl+Z.
 - **Equações LaTeX** (`$...$` e `$$...$$`, com KaTeX, sem rede e sem links) e **diagramas Mermaid** em blocos de código, desenhados no texto.
 - **Três visões**: renderizado no próprio texto, só código e lado a lado (Ctrl+E e Ctrl+Shift+E), ou o preview numa janela separada.
