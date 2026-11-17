@@ -39,40 +39,77 @@ export function renderLargeGate(root: HTMLElement, info: GateInfo, onLoad: () =>
   });
   row.append(btn);
   if (onLoadAt) {
-    // "Abrir direto na linha": pede a linha e carrega já indo para ela (à esquerda do botão principal)
+    // "Abrir direto na linha": uma janelinha pergunta a linha; o botão fica à esquerda do principal
     const at = Object.assign(document.createElement("button"), { className: "rd-btn", textContent: "Abrir direto na linha", type: "button" });
-    const ask = el("rd-actions large-gate-ask");
-    ask.hidden = true;
-    const input = Object.assign(document.createElement("input"), { type: "number", min: "1", step: "1", placeholder: "Linha", className: "rd-input", ariaLabel: "Número da linha" });
-    const go = Object.assign(document.createElement("button"), { className: "rd-btn primary", textContent: "Ir", type: "button" });
-    const submit = () => {
-      const n = Math.floor(Number(input.value));
-      if (!Number.isFinite(n) || n < 1) {
-        input.classList.add("invalid");
-        input.focus();
-        return;
-      }
-      busy();
-      onLoadAt(n - 1);
-    };
-    go.addEventListener("click", submit);
-    input.addEventListener("input", () => input.classList.remove("invalid"));
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-    });
     at.addEventListener("click", () => {
-      ask.hidden = false;
-      input.focus();
+      void askLine().then((n) => {
+        if (n === null) return;
+        busy();
+        onLoadAt(n);
+      });
     });
-    ask.append(input, go);
     row.prepend(at);
-    box.append(row, ask);
+    box.append(row);
   } else box.append(row);
   const center = el("rd-center");
   center.append(box);
   root.replaceChildren(center);
   btn.focus();
+}
+
+/**
+ * Janelinha que pergunta a linha (a partir de 1) a que ir ao abrir o arquivo. Devolve a linha **a partir de 0** (a que o app
+ * usa) ou `null` se a pessoa cancelou (Esc, Cancelar ou clicar fora). Número inválido não fecha: marca o campo.
+ */
+export function askLine(): Promise<number | null> {
+  return new Promise((resolve) => {
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const back = Object.assign(document.createElement("div"), { className: "saving-back" });
+    const box = Object.assign(document.createElement("div"), { className: "gate-modal" });
+    box.setAttribute("role", "dialog");
+    const title = Object.assign(document.createElement("div"), { className: "gate-modal-title", textContent: "Abrir direto na linha" });
+    const hint = Object.assign(document.createElement("div"), { className: "saving-hint", textContent: "O arquivo é carregado e a tela vai até essa linha assim que o índice chegar a ela." });
+    const input = Object.assign(document.createElement("input"), { type: "number", min: "1", step: "1", placeholder: "Número da linha", className: "rd-input gate-modal-input", ariaLabel: "Número da linha" });
+    const row = Object.assign(document.createElement("div"), { className: "rd-actions" });
+    const cancel = Object.assign(document.createElement("button"), { className: "rd-btn", textContent: "Cancelar", type: "button" });
+    const go = Object.assign(document.createElement("button"), { className: "rd-btn primary", textContent: "Ir", type: "button" });
+    row.append(cancel, go);
+    box.append(title, input, hint, row);
+    back.append(box);
+    const done = (v: number | null) => {
+      document.removeEventListener("keydown", onKey, true);
+      back.remove();
+      if (before?.isConnected) before.focus();
+      resolve(v);
+    };
+    const submit = () => {
+      const n = Math.floor(Number(input.value));
+      if (input.value.trim() === "" || !Number.isFinite(n) || n < 1) {
+        input.classList.add("invalid");
+        input.focus();
+        return;
+      }
+      done(n - 1);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        done(null);
+      } else if (e.key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+        e.preventDefault();
+        e.stopPropagation();
+        submit();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    input.addEventListener("input", () => input.classList.remove("invalid"));
+    go.addEventListener("click", submit);
+    cancel.addEventListener("click", () => done(null));
+    back.addEventListener("mousedown", (e) => {
+      if (e.target === back) done(null);
+    });
+    document.body.append(back);
+    input.focus();
+  });
 }

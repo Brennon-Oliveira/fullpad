@@ -745,3 +745,9 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .savemode-more summary { cursor: pointer; }
 .savemode-more p { margin: 6px 0 0; line-height: 1.45; }
 .savemode-cancel { align-self: flex-end; }
+
+/* "Abrir direto na linha" do cartão Carregar */
+.gate-modal { width: min(360px, 90vw); padding: 16px 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; gap: 10px; }
+.gate-modal-title { font-weight: 600; }
+.gate-modal-input { width: 100%; box-sizing: border-box; }
+.gate-modal .rd-actions { justify-content: flex-end; margin-top: 0; }
