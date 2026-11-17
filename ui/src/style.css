@@ -491,6 +491,9 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .rd-actions { display: flex; gap: 8px; margin-top: 8px; }
 .rd-btn { border: 1px solid var(--border); background: var(--bg); border-radius: 4px; padding: 4px 12px; cursor: pointer; }
 .rd-btn:hover { background: var(--tab); }
+.rd-input { width: 110px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); border-radius: 4px; padding: 4px 8px; font: inherit; }
+.rd-input.invalid { border-color: var(--err); }
+.rd-btn:disabled, .rd-input:disabled { opacity: .6; cursor: default; }
 .rd-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .rd-btn.primary:hover { filter: brightness(1.1); }
 .rd-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 3px 8px; background: var(--bar); border-bottom: 1px solid var(--border); }

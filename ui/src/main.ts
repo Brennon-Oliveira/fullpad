@@ -776,7 +776,12 @@ function syncLargeGate() {
   if (!info || !tab) return void g.gateEl.replaceChildren();
   if (g.gateEl.dataset.tab === tab.id) return; // já desenhado para esta aba
   g.gateEl.dataset.tab = tab.id;
-  renderLargeGate(g.gateEl, { name: tab.title || baseName(tab.path ?? ""), size: info.size, edited: info.edited }, () => void releaseLarge(tab));
+  renderLargeGate(
+    g.gateEl,
+    { name: tab.title || baseName(tab.path ?? ""), size: info.size, edited: info.edited },
+    () => void releaseLarge(tab),
+    (line) => void releaseLarge(tab, line),
+  );
 }
 
 /** A janela abriu no começo porque o índice ainda não chegava à linha salva: vai até lá em segundo plano, quando ele chegar. */
@@ -806,8 +811,9 @@ async function restoreLargeJump(tab: TabState) {
 const jumping = new Set<string>();
 
 /** "Carregar": o arquivo passa a ser lido e indexado, e a aba mostra o editor (ou a tabela). */
-async function releaseLarge(tab: TabState) {
+async function releaseLarge(tab: TabState, line?: number) {
   if (!largeGate.has(tab.id)) return;
+  if (line !== undefined) tab.cursor = line; // "Abrir direto na linha": a linha pedida vale como a posição a restaurar (a mesma volta em segundo plano)
   largeLoaded.add(tab.id);
   largeGate.delete(tab.id);
   states.delete(tab.id);
