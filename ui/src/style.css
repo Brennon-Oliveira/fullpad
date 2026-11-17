@@ -682,14 +682,27 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .cm-md-math.err { color: #d9534f; font-family: var(--mono); font-size: 0.9em; text-align: left; background: color-mix(in srgb, #d33 12%, transparent); border-radius: 3px; padding: 0 3px; }
 .cm-md-math-block.err { display: block; padding: 8px 12px; white-space: pre-wrap; }
 /* tabelas do markdown no live preview: rolagem horizontal dentro do bloco; só padding vertical */
-.cm-md-table-wrap { position: relative; padding: 6px 0; overflow-x: auto; }
+.cm-md-table-wrap { position: relative; padding: 14px 4px 4px 14px; overflow-x: auto; }
+.cm-md-table-inner { position: relative; display: inline-block; padding: 0 26px 26px 0; max-width: none; }
 .cm-md-table { border-collapse: collapse; font-size: .95em; min-width: 40%; }
-.cm-md-table th, .cm-md-table td { border: 1px solid var(--border); padding: 4px 10px; vertical-align: top; min-width: 3ch; }
+.cm-md-table th, .cm-md-table td { position: relative; border: 1px solid var(--border); padding: 4px 10px; vertical-align: top; min-width: 3ch; }
 .cm-md-table th { background: var(--code-bg); font-weight: 600; }
-.cm-md-table td.editable, .cm-md-table th.editable { cursor: text; outline: none; }
-.cm-md-table-input { display: block; width: 100%; min-width: 12ch; box-sizing: border-box; font: inherit; color: inherit; background: var(--bg); border: 0; outline: 2px solid var(--accent); padding: 2px 4px; resize: none; overflow: hidden; field-sizing: content; }
+.cm-md-table td.editable, .cm-md-table th.editable { cursor: text; }
+.cm-md-table td.editable:hover, .cm-md-table th.editable:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.cm-md-table-input { display: block; width: 100%; min-width: 12ch; box-sizing: border-box; font: inherit; color: inherit; background: var(--bg); border: 0; outline: 2px solid var(--accent); outline-offset: 2px; padding: 0; resize: none; overflow: hidden; field-sizing: content; }
 .cm-md-table code { font-family: var(--mono); background: var(--code-bg); border-radius: 3px; padding: 0 3px; }
-.cm-md-table-code { position: absolute; top: 8px; right: 4px; font: 11px var(--mono); padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--muted); cursor: pointer; opacity: 0; }
+/* botões "+" ao passar o mouse: nas bordas da tabela e entre colunas/linhas */
+.tbl-add { position: absolute; z-index: 3; width: 18px; height: 18px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--bg); color: var(--muted); font: 14px/16px var(--mono); text-align: center; cursor: pointer; opacity: 0; transition: opacity .1s; }
+.tbl-add:hover { color: #fff; background: var(--accent); border-color: var(--accent); }
+.tbl-add.col { top: -10px; right: -9px; }
+.tbl-add.col-left { top: -10px; left: -9px; }
+.tbl-add.row { left: -10px; bottom: -9px; }
+.cm-md-table th:hover > .tbl-add.col, .cm-md-table th:hover > .tbl-add.col-left, .cm-md-table td:hover > .tbl-add.row, .cm-md-table th:hover > .tbl-add.row { opacity: 1; }
+.tbl-add.edge-col { top: 0; right: 0; bottom: 26px; width: 22px; height: auto; border-radius: 4px; }
+.tbl-add.edge-row { left: 0; right: 26px; bottom: 0; height: 22px; width: auto; border-radius: 4px; }
+.cm-md-table-inner:hover > .tbl-add.edge-col, .cm-md-table-inner:hover > .tbl-add.edge-row { opacity: .75; }
+.cm-md-table-inner > .tbl-add.edge-col:hover, .cm-md-table-inner > .tbl-add.edge-row:hover { opacity: 1; }
+.cm-md-table-code { position: absolute; top: 0; right: 4px; font: 11px var(--mono); padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--muted); cursor: pointer; opacity: 0; }
 .cm-md-table-wrap:hover .cm-md-table-code { opacity: 1; }
 
 /* "Ver layout": o JSON do layout do diagrama (.dbmlx) no lugar do código DBML */

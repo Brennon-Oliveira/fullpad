@@ -300,6 +300,8 @@ export function langMenuItems(a: MenuActions): MenuItem[] {
     case "markdown":
       return [
         formatItem(a),
+        { label: "Inserir tabela", action: () => a.formatMd("table") },
+        { label: "Colar CSV/TSV como tabela", action: () => a.formatMd("paste-csv") },
         "sep",
         { label: "Exportar como HTML…", action: a.exportHtml },
         { label: "Exportar como PDF…", action: a.exportPdf },

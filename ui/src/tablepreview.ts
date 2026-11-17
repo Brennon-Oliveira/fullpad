@@ -12,6 +12,8 @@ import {
   insertCol,
   insertRow,
   moveCol,
+  parseCsv,
+  pasteGrid,
   parseTable,
   setAlign,
   setCell,
@@ -67,9 +69,12 @@ class TableWidget extends WidgetType {
     const model = parseTable(this.text)!;
     const wrap = document.createElement("div");
     wrap.className = "cm-md-table-wrap";
+    const inner = document.createElement("div");
+    inner.className = "cm-md-table-inner";
     const table = document.createElement("table");
     table.className = "cm-md-table";
-    wrap.append(table);
+    inner.append(table);
+    wrap.append(inner);
 
     const canEdit = this.editable && !view.state.readOnly && !hasExcess(model);
     const apply = (next: MdTable | null, focus?: { row: number; col: number }): boolean => {
@@ -84,16 +89,42 @@ class TableWidget extends WidgetType {
     };
 
     const cells: HTMLElement[][] = [];
+    const addBtn = (cls: string, title: string, on: () => void) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tbl-add " + cls;
+      b.title = title;
+      b.textContent = "+";
+      b.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        on();
+      });
+      return b;
+    };
     const build = (tag: "th" | "td", row: number, col: number, raw: string, tr: HTMLElement) => {
       const c = document.createElement(tag);
       const a: Align = model.aligns[col] ?? "none";
       if (a !== "none") c.style.textAlign = a;
-      inlineTo(c, raw);
+      const bodyEl = document.createElement("span");
+      bodyEl.className = "cell-body";
+      inlineTo(bodyEl, raw);
+      c.append(bodyEl);
       c.dataset.row = String(row);
       c.dataset.col = String(col);
       (cells[row + 1] ??= [])[col] = c;
       tr.append(c);
-      if (canEdit) this.makeEditable(c, row, col, raw, model, apply, cells);
+      if (canEdit) {
+        this.makeEditable(c, bodyEl, row, col, raw, model, apply, cells);
+        if (row === -1) {
+          c.append(addBtn("col", "Inserir coluna aqui", () => apply(insertCol(model, col + 1), { row: -1, col: col + 1 })));
+          c.append(addBtn("col-left", "Inserir coluna aqui", () => apply(insertCol(model, col), { row: -1, col })));
+        }
+        if (col === 0) c.append(addBtn("row", "Inserir linha aqui", () => apply(insertRow(model, row + 1), { row: row + 1, col: 0 })));
+      }
       c.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -109,6 +140,13 @@ class TableWidget extends WidgetType {
       for (let i = 0; i < model.header.length; i++) build("td", ri, i, r[i] ?? "", tr);
     });
 
+    if (canEdit) {
+      const n = model.header.length;
+      const rows = model.rows.length;
+      const right = addBtn("edge-col", "Adicionar coluna", () => apply(insertCol(model, n), { row: -1, col: n }));
+      const bottom = addBtn("edge-row", "Adicionar linha", () => apply(insertRow(model, rows), { row: rows, col: 0 }));
+      inner.append(right, bottom);
+    }
     if (this.editable) {
       const code = document.createElement("button");
       code.type = "button";
@@ -134,6 +172,7 @@ class TableWidget extends WidgetType {
 
   private makeEditable(
     c: HTMLElement,
+    body: HTMLElement,
     row: number,
     col: number,
     raw: string,
@@ -142,65 +181,91 @@ class TableWidget extends WidgetType {
     cells: HTMLElement[][],
   ) {
     c.classList.add("editable");
+    type Cell = HTMLElement & { edit?: () => void };
+    const nCols = model.header.length;
     const edit = (): void => {
-      if (c.querySelector("textarea")) return;
+      if (body.querySelector("textarea")) return;
       const ta = document.createElement("textarea");
       ta.className = "cm-md-table-input";
       ta.value = cellToText(raw);
       ta.rows = Math.max(1, ta.value.split("\n").length);
-      c.textContent = "";
-      c.append(ta);
+      body.textContent = "";
+      body.append(ta);
       let over = false;
       const restore = () => {
-        c.textContent = "";
-        inlineTo(c, raw);
+        body.textContent = "";
+        inlineTo(body, raw);
       };
-      const finish = (next: { row: number; col: number } | null, extra?: (m: MdTable) => MdTable): void => {
+      const finish = (next: { row: number; col: number } | null, build?: (m: MdTable) => MdTable): void => {
         if (over) return;
         over = true;
         const value = textToCell(ta.value);
         const m = value === raw ? model : setCell(model, row, col, value);
-        const target = extra ? extra(m) : value === raw ? null : m;
+        const target = build ? build(m) : value === raw ? null : m;
         if (!apply(target, next ?? undefined)) {
           restore();
-          const el = next ? cells[next.row + 1]?.[next.col] : null;
-          (el as (HTMLElement & { edit?: () => void }) | null)?.edit?.();
+          (next ? (cells[next.row + 1]?.[next.col] as Cell | undefined) : undefined)?.edit?.();
         }
       };
+      const go = (r: number, k: number) => {
+        if (r < -1 || r >= model.rows.length || k < 0 || k >= nCols) return false;
+        finish({ row: r, col: k });
+        return true;
+      };
       const stop = (e: Event) => e.stopPropagation();
-      for (const t of ["mousedown", "click", "dblclick", "keyup", "keypress", "copy", "cut", "paste", "input"]) ta.addEventListener(t, stop);
+      for (const t of ["mousedown", "click", "dblclick", "keyup", "keypress", "copy", "cut", "input"]) ta.addEventListener(t, stop);
+      ta.addEventListener("paste", (e) => {
+        e.stopPropagation();
+        const text = e.clipboardData?.getData("text/plain") ?? "";
+        if (!/[\t\n]/.test(text.replace(/\n$/, ""))) return; // texto simples: colar normal
+        const grid = parseCsv(text.replace(/\r\n?/g, "\n").replace(/\n$/, ""), "\t");
+        if (grid.length === 0) return;
+        e.preventDefault();
+        over = true;
+        const base = ta.value === cellToText(raw) ? model : setCell(model, row, col, textToCell(ta.value));
+        if (!apply(pasteGrid(base, row, col, grid), { row, col })) restore();
+      });
       ta.addEventListener("keydown", (e) => {
         e.stopPropagation();
+        const atStart = ta.selectionStart === 0 && ta.selectionEnd === 0;
+        const atEnd = ta.selectionStart === ta.value.length && ta.selectionEnd === ta.value.length;
+        const multi = ta.value.includes("\n");
         if (e.key === "Escape") {
           e.preventDefault();
           over = true;
           restore();
         } else if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
-          finish(null);
+          if (!go(row + 1, col)) finish(null);
         } else if (e.key === "Tab") {
           e.preventDefault();
-          const n = model.header.length;
-          const idx = row * n + col + (e.shiftKey ? -1 : 1);
-          const r = Math.floor(idx / n);
-          const k = ((idx % n) + n) % n;
+          const idx = row * nCols + col + (e.shiftKey ? -1 : 1);
+          const r = Math.floor(idx / nCols);
+          const k = ((idx % nCols) + nCols) % nCols;
           if (r < -1) return;
           if (r >= model.rows.length) finish({ row: model.rows.length, col: 0 }, (m) => insertRow(m, model.rows.length));
-          else finish({ row: r, col: k });
+          else go(r, k);
+        } else if (e.key === "ArrowDown" && (!multi || atEnd) && !e.shiftKey) {
+          if (go(row + 1, col)) e.preventDefault();
+        } else if (e.key === "ArrowUp" && (!multi || atStart) && !e.shiftKey) {
+          if (go(row - 1, col)) e.preventDefault();
+        } else if (e.key === "ArrowLeft" && atStart) {
+          if (go(row, col - 1)) e.preventDefault();
+        } else if (e.key === "ArrowRight" && atEnd) {
+          if (go(row, col + 1)) e.preventDefault();
         }
       });
       ta.addEventListener("blur", () => finish(null));
       ta.focus();
       ta.select();
     };
-    (c as HTMLElement & { edit?: () => void }).edit = edit;
+    (c as Cell).edit = edit;
     c.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
       e.stopPropagation();
       e.preventDefault(); // o foco vai para o campo, não para o editor
       edit();
     });
-    void cells;
   }
 
   private menu(

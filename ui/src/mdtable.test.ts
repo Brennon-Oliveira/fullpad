@@ -158,3 +158,25 @@ describe("tableFromSelection", () => {
     expect(apply("| a | b |\n|-|-|\n| longo | 1 |", 0, 5)).toBe("| a     | b   |\n| ----- | --- |\n| longo | 1   |");
   });
 });
+
+import { pasteGrid, pastedTable, tabularDelimiter } from "./mdtable";
+
+describe("colar grade", () => {
+  it("reconhece tab, ; e , só quando as linhas batem", () => {
+    expect(tabularDelimiter("a\tb\n1\t2")).toBe("\t");
+    expect(tabularDelimiter("a;b\n1;2")).toBe(";");
+    expect(tabularDelimiter("a,b\n1,2")).toBe(",");
+    expect(tabularDelimiter("Olá, tudo bem?\nSim, e você, como vai?")).toBeNull();
+    expect(tabularDelimiter("uma linha só, com vírgula")).toBeNull();
+  });
+  it("não converte o que já é tabela do markdown", () => {
+    expect(pastedTable("| a | b |\n| - | - |\n| 1 | 2 |")).toBeNull();
+    expect(pastedTable("a\tb\n1\t2")?.rows).toEqual([["1", "2"]]);
+  });
+  it("cola uma grade criando linhas e colunas", () => {
+    const t = parseTable("| a | b |\n| - | - |\n| 1 | 2 |")!;
+    const o = pasteGrid(t, 0, 1, [["x", "y"], ["z", "w"]]);
+    expect(o.header).toEqual(["a", "b", "Coluna"].slice(0, 2).concat([""]));
+    expect(o.rows).toEqual([["1", "x", "y"], ["", "z", "w"]]);
+  });
+});

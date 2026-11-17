@@ -39,7 +39,7 @@ describe("tabelas no live preview", () => {
     expect(view.dom.querySelectorAll(".cm-md-table").length).toBe(1);
     expect(view.dom.querySelectorAll(".cm-md-table th").length).toBe(2);
     expect(view.dom.querySelectorAll(".cm-md-table td").length).toBe(4);
-    expect(cell(view, 1, 0).textContent).toBe("Pera");
+    expect(cell(view, 1, 0).querySelector(".cell-body")?.textContent).toBe("Pera");
     expect(cell(view, 0, 1).style.textAlign).toBe("right");
     expect(view.state.doc.toString()).toBe(DOC);
     view.destroy();
@@ -89,6 +89,33 @@ describe("tabelas no live preview", () => {
     const view = make(doc, doc.length);
     expect(view.dom.querySelector(".cm-md-table td strong")?.textContent).toBe("x");
     expect(view.dom.querySelector(".cm-md-table td code")?.textContent).toBe("y");
+    view.destroy();
+  });
+});
+
+describe("botões e teclado da grade", () => {
+  it("o + da borda direita e o de baixo acrescentam coluna e linha", () => {
+    const view = make(DOC, DOC.length);
+    view.dom.querySelector<HTMLElement>(".tbl-add.edge-col")!.click();
+    expect(view.state.doc.toString()).toContain("| Nome | Qtd |     |");
+    view.dom.querySelector<HTMLElement>(".tbl-add.edge-row")!.click();
+    expect(view.state.doc.toString().split("\n").filter((l) => l.startsWith("|")).length).toBe(5);
+    view.destroy();
+  });
+  it("o + entre linhas insere no meio", () => {
+    const view = make(DOC, DOC.length);
+    cell(view, 0, 0).querySelector<HTMLElement>(".tbl-add.row")!.click();
+    const rows = view.state.doc.toString().split("\n").filter((l) => l.startsWith("|"));
+    expect(rows[3]).toMatch(/^\|\s+\|\s+\|$/);
+    expect(rows[4]).toContain("Pera");
+    view.destroy();
+  });
+  it("seta para baixo e Enter vão à célula de baixo", () => {
+    const view = make(DOC, DOC.length);
+    cell(view, 0, 0).dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+    cell(view, 0, 0).querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    expect(cell(view, 0, 0).querySelector("textarea")).toBeNull();
+    expect(cell(view, 1, 0).querySelector("textarea")).not.toBeNull();
     view.destroy();
   });
 });

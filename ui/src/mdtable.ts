@@ -344,3 +344,49 @@ export function insertTable(doc: string, from: number, to: number, t: MdTable): 
   const pos = edit.from + edit.insert.length;
   return { changes: [edit], anchor: pos, head: pos };
 }
+
+/**
+ * O separador de um texto colado que parece uma grade: duas linhas ou mais, com o mesmo número (maior que
+ * zero) de separadores fora das aspas. Tab vale sempre que serve; `;` e `,` só se todas as linhas batem.
+ * `null` se não parece tabela (prosa com vírgulas não costuma ter a mesma contagem em toda linha).
+ */
+export function tabularDelimiter(text: string): string | null {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n").filter((l) => l.trim() !== "");
+  if (lines.length < 2 || lines.length > 20_000) return null;
+  const sample = lines.slice(0, 50);
+  for (const sep of ["\t", ";", ","]) {
+    const counts = sample.map((l) => {
+      let n = 0;
+      let q = false;
+      for (const ch of l) {
+        if (ch === '"') q = !q;
+        else if (ch === sep && !q) n++;
+      }
+      return n;
+    });
+    if (counts[0] > 0 && counts.every((c) => c === counts[0])) return sep;
+  }
+  return null;
+}
+
+/** Um texto colado (CSV, TSV, planilha) como tabela, se parece uma; `null` se não (e se já é tabela do markdown). */
+export function pastedTable(text: string): MdTable | null {
+  if (parseTable(text)) return null;
+  if (!tabularDelimiter(text)) return null;
+  return csvToTable(text);
+}
+
+/** Cola uma grade de texto a partir da célula (`row`, `col`), criando linhas e colunas que faltarem. */
+export function pasteGrid(t: MdTable, row: number, col: number, grid: string[][]): MdTable {
+  let o = clone(t);
+  const width = Math.max(...grid.map((r) => r.length));
+  while (o.header.length < col + width) o = insertCol(o, o.header.length);
+  const first = Math.max(row, -1);
+  while (o.rows.length < first + grid.length) o = insertRow(o, o.rows.length);
+  grid.forEach((r, i) =>
+    r.forEach((v, j) => {
+      o = setCell(o, first + i, col + j, textToCell(v.trim()));
+    }),
+  );
+  return o;
+}

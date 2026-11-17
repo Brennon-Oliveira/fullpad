@@ -1,7 +1,8 @@
 import { type Extension, Prec, StateField } from "@codemirror/state";
 import { EditorView, type Tooltip, keymap, showTooltip } from "@codemirror/view";
 import { BLOCK_LABELS, type Block, type Outcome, activeMarks, clearFormat, currentBlock, setBlock, toggleInline, toggleLink } from "./mdformat";
-import { csvToTable, insertTable, tableFromSelection } from "./mdtable";
+import { syntaxTree } from "@codemirror/language";
+import { csvToTable, insertTable, pastedTable, tableFromSelection } from "./mdtable";
 import { type MenuItem, showMenu } from "./popup";
 
 /** Ações de formatação (ids usados pelo menu, pela barra e pelos atalhos). */
@@ -150,4 +151,32 @@ const formatKeys = Prec.high(
   ]),
 );
 
-export const mdFormatExtension: Extension = [toolbarField, selecting, formatKeys];
+/**
+ * Colar uma grade (planilha, CSV, TSV) vira uma tabela do markdown: tab sempre que as linhas batem, `;` e
+ * `,` só se toda linha tem o mesmo número de separadores. Dentro de código não mexe. Ctrl+Shift+V cola o
+ * texto como está; e Ctrl+Z desfaz a conversão (volta ao estado antes de colar).
+ */
+let plainPaste = false;
+const pasteTable = EditorView.domEventHandlers({
+  keydown(e) {
+    plainPaste = (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "v";
+    return false;
+  },
+  paste(e, view) {
+    const plain = plainPaste;
+    plainPaste = false;
+    if (plain || view.state.readOnly) return false;
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    const t = pastedTable(text);
+    if (!t) return false;
+    const { from, to } = view.state.selection.main;
+    for (let n: ReturnType<typeof syntaxTree>["topNode"] | null = syntaxTree(view.state).resolveInner(from, -1); n; n = n.parent) {
+      if (n.name === "FencedCode" || n.name === "CodeBlock" || n.name === "InlineCode" || n.name === "Table") return false;
+    }
+    e.preventDefault();
+    apply(view, insertTable(view.state.doc.toString(), from, to, t));
+    return true;
+  },
+});
+
+export const mdFormatExtension: Extension = [toolbarField, selecting, formatKeys, pasteTable];
