@@ -1251,10 +1251,10 @@ async fn data_check(format: String, text: String) -> Result<Option<JsonError>, S
 }
 
 /// Separador de um CSV pela estrutura do texto (`ext`: extensão do arquivo, `tsv` manda no tab).
-/// Devolve o caractere como texto.
+/// Devolve o caractere como texto; vazio quando a estrutura não revela o separador.
 #[tauri::command]
 async fn csv_detect(text: String, ext: Option<String>) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || fullpad_core::csv::detect(&text, ext.as_deref()).to_string())
+    tauri::async_runtime::spawn_blocking(move || fullpad_core::csv::detect_opt(&text, ext.as_deref()).map(String::from).unwrap_or_default())
         .await
         .map_err(err)
 }

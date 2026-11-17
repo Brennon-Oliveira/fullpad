@@ -402,6 +402,14 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .diskbar-msg { flex: 1 1 auto; min-width: 0; }
 .diskbar button { font: 12px var(--sans); padding: 1px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bar); color: var(--fg); cursor: pointer; }
 .diskbar button:hover { background: var(--tab); }
+.group > .csvask { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; box-sizing: border-box; padding: 4px 10px; font-size: 12px; line-height: 20px; background: color-mix(in srgb, var(--accent, #3b82f6) 14%, var(--bar)); border-bottom: 1px solid var(--accent, #3b82f6); color: var(--fg); }
+.group > .csvask[hidden] { display: none; }
+.csvask-msg { flex: 0 1 auto; margin-right: 4px; }
+.csvask button { font: 12px var(--sans); padding: 1px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bar); color: var(--fg); cursor: pointer; }
+.csvask button:hover:not(:disabled) { background: var(--tab); }
+.csvask button:disabled { opacity: 0.5; cursor: default; }
+.csvask-input { width: 56px; font: 12px var(--sans); padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); }
+.csvask-input.invalid { border-color: #d33; }
 .group > .note { flex: none; width: 100%; box-sizing: border-box; padding: 3px 10px; font-size: 12px; line-height: 18px; background: var(--code-bg); border-bottom: 1px solid var(--border); color: var(--muted); }
 .group > .note[hidden] { display: none; }
 

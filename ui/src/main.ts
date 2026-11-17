@@ -33,6 +33,7 @@ import { mapCursor } from "./json/format";
 import type { MarkdownPane } from "./mdpreview";
 import type { ReaderPanel } from "./reader/panel";
 import type { ReaderPos } from "./reader/pos";
+import { parseDelims, withDelim, withoutDelim } from "./csv/remember";
 import { type CsvSettings, activeDelimiter, readCsvSettings } from "./csv/settings";
 import { type Lang, detectLanguage, extOf } from "./language";
 import { codeLanguageFor, latexDescription } from "./codelangs";
@@ -148,6 +149,7 @@ interface Group {
   csvEl: HTMLElement;
   /** Faixa de aviso logo abaixo das abas (CSV grande demais para a tabela). */
   noteEl: HTMLElement;
+  csvAskEl: HTMLElement;
   /** Faixa de aviso: o arquivo da aba mudou fora do Fullpad, ou sumiu. */
   diskEl: HTMLElement;
   csv?: CsvPanel;
@@ -362,6 +364,15 @@ function ensureJsonSupport() {
 let csvLang: typeof import("./csv/lang") | undefined;
 let csvLangLoading = false;
 const csvDetected = new Map<string, string>(); // separador achado pela estrutura, por aba (escolha automática)
+const csvUndecided = new Set<string>(); // abas em que a estrutura não revelou o separador: ficam no código até a pessoa escolher
+
+const CSV_DELIMS_KEY = "csvDelims"; // separadores escolhidos à mão, por caminho de arquivo (`csv/remember.ts`)
+const rememberedDelim = (path: string | null | undefined): string | undefined => (path ? parseDelims(readString(CSV_DELIMS_KEY, ""))[path] : undefined);
+function rememberDelim(path: string | null | undefined, delimiter: string) {
+  if (!path) return;
+  const all = parseDelims(readString(CSV_DELIMS_KEY, ""));
+  writeString(CSV_DELIMS_KEY, JSON.stringify(delimiter === "auto" ? withoutDelim(all, path) : withDelim(all, path, delimiter)));
+}
 
 const csvSettings = (tab: TabState): CsvSettings => readCsvSettings(tab.csv);
 const csvDelimiter = (tab: TabState) => activeDelimiter(csvSettings(tab), csvDetected.get(tab.id));
@@ -441,9 +452,36 @@ function ensureCsvSupport() {
 async function syncCsv(tab: TabState) {
   if (effectiveLang(tab) !== "csv" || csvSettings(tab).delimiter !== "auto") return;
   if (tab.large && csvDetected.has(tab.id)) return; // arquivo grande: o mesmo separador em todos os trechos
+  // o separador que a pessoa já escolheu para este arquivo vale mais que a detecção
+  const kept = rememberedDelim(tab.path);
+  if (kept) {
+    tab.csv = { ...csvSettings(tab), delimiter: kept };
+    csvUndecided.delete(tab.id);
+    sessionDirty = true;
+    scheduleSave();
+    const showing = groupShowing(tab.id);
+    if (showing) withGroup(showing, applyTabConfig);
+    return;
+  }
   const st = states.get(tab.id);
   if (!st) return;
   const found = await api.csvDetect(st.sliceDoc(0, 200_000), extOf(tab.path ?? "") || null).catch(() => ",");
+  if (csvSettings(tab).delimiter !== "auto") return; // escolheu enquanto detectava
+  if (!found) {
+    // a estrutura não diz qual é: fica no código e a faixa pergunta
+    csvDetected.delete(tab.id);
+  csvUndecided.delete(tab.id);
+    if (!csvUndecided.has(tab.id)) {
+      csvUndecided.add(tab.id);
+      const showing = groupShowing(tab.id);
+      if (showing) withGroup(showing, () => syncCsvAsk(showing, tab));
+    }
+    return;
+  }
+  if (csvUndecided.delete(tab.id)) {
+    const showing = groupShowing(tab.id);
+    if (showing) syncCsvAsk(showing, tab);
+  }
   if (csvDetected.get(tab.id) === found) return;
   csvDetected.set(tab.id, found);
   // reaplica no painel que mostra a aba (não necessariamente o que tem o foco)
@@ -451,9 +489,40 @@ async function syncCsv(tab: TabState) {
   if (showing && csvSettings(tab).delimiter === "auto") withGroup(showing, applyTabConfig);
 }
 
+/** Mostra ou esconde a faixa "Qual é o separador?" do painel, conforme a aba esteja sem separador decidido. */
+function syncCsvAsk(g: Group, tab: TabState | undefined) {
+  const on = !!tab && effectiveLang(tab) === "csv" && csvUndecided.has(tab.id) && csvSettings(tab).delimiter === "auto" && !tab.detached;
+  if (!on) {
+    g.csvAskEl.hidden = true;
+    g.csvAskEl.replaceChildren();
+    return;
+  }
+  if (!g.csvAskEl.hidden) return; // já está montada
+  void import("./csv/ask").then((m) => {
+    if (!csvUndecided.has(tab.id)) return;
+    m.renderCsvAsk(g.csvAskEl, (d) => {
+      // escolher dá a tabela: o separador vale daqui em diante, para a aba e para este arquivo
+      csvUndecided.delete(tab.id);
+      tab.csv = { ...csvSettings(tab), delimiter: d };
+      rememberDelim(tab.path, d);
+      sessionDirty = true;
+      scheduleSave();
+      withGroup(g, () => {
+        syncCsvAsk(g, tab);
+        applyTabConfig();
+      });
+    });
+    g.csvAskEl.hidden = false;
+  });
+}
+
 /** Grava uma escolha do CSV na aba e reaplica o editor. */
 function patchCsv(patch: Partial<CsvSettings>) {
   const tab = activeTab();
+  if (patch.delimiter !== undefined) {
+    rememberDelim(tab.path, patch.delimiter);
+    csvUndecided.delete(tab.id);
+  }
   tab.csv = { ...csvSettings(tab), ...patch };
   sessionDirty = true;
   scheduleSave();
@@ -668,7 +737,8 @@ function syncCsvTable(textChanged: boolean) {
     g.noteEl.textContent = `Arquivo grande demais para a tabela (${m(g.view.state.doc.length)} milhões de caracteres; o limite é ${m(MAX_CSV_CHARS)}). Só o código está disponível.`;
   }
   // separador ainda não decidido (abriu agora, ou o app acabou de iniciar): detecta; ao terminar, volta aqui
-  if (effectiveLang(tab) === "csv" && viewKind(tab) !== "source" && !csvWanted(tab) && !tab.detached) void syncCsv(tab);
+  if (effectiveLang(tab) === "csv" && viewKind(tab) !== "source" && !csvWanted(tab) && !tab.detached && (textChanged || !csvUndecided.has(tab.id))) void syncCsv(tab);
+  syncCsvAsk(g, tab);
   const wanted = csvWanted(tab);
   // sozinha, a tabela cobre o painel e o editor (que segue vivo, escondido, com o texto e o histórico) some
   g.bodyEl.classList.toggle("tableonly", wanted && viewKind(tab) === "inline");
@@ -2511,11 +2581,13 @@ function createGroup(id: number): Group {
   noteEl.hidden = true;
   const diskEl = div("diskbar");
   diskEl.hidden = true;
+  const csvAskEl = div("csvask");
+  csvAskEl.hidden = true;
   const largeNoteEl = div("largenote");
   largeNoteEl.hidden = true;
-  el.append(tabsEl, diskEl, noteEl, largeNoteEl, bodyEl);
+  el.append(tabsEl, diskEl, csvAskEl, noteEl, largeNoteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, gateEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, csvAskEl, diskEl, readerEl, gateEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
   const bigOf = () => largeOf(tabOf(g));
   // a barra de rolagem do arquivo vale para o editor e para a tabela (por isso fica no corpo do painel, não no editor)
   const tableShown = () => {
@@ -2755,6 +2827,7 @@ async function dropLocalTab(id: string) {
   states.delete(id);
   detected.delete(id);
   csvDetected.delete(id);
+  csvUndecided.delete(id);
   larges.get(id)?.dispose();
   larges.delete(id);
   largeFailed.delete(id);
@@ -3217,6 +3290,7 @@ async function receiveTab(tab: TabState) {
   states.delete(tab.id);
   detected.delete(tab.id);
   csvDetected.delete(tab.id);
+  csvUndecided.delete(tab.id);
   if (inc?.zone) {
     // solta na borda de um painel: a aba ganha um painel novo ali (e é a última da lista de abas)
     const g = createGroup(newGroupId());

@@ -20,11 +20,20 @@ describe("escolhas do CSV", () => {
     expect(readCsvSettings({ delimiter: '"' }).delimiter).toBe("auto");
   });
 
+  it("aceita um separador digitado (um caractere ASCII), nunca aspa, quebra ou controle", () => {
+    expect(readCsvSettings({ delimiter: "~" }).delimiter).toBe("~");
+    expect(readCsvSettings({ delimiter: ":" }).delimiter).toBe(":");
+    expect(readCsvSettings({ delimiter: "ç" }).delimiter).toBe("auto");
+    expect(readCsvSettings({ delimiter: "\n" }).delimiter).toBe("auto");
+    expect(readCsvSettings({ delimiter: "\u0001" }).delimiter).toBe("auto");
+  });
+
   it("no automático usa o detectado; na escolha manual, nunca", () => {
     const auto = readCsvSettings({});
     expect(activeDelimiter(auto, ";")).toBe(";");
     expect(activeDelimiter(auto, undefined)).toBe(",");
-    expect(activeDelimiter(auto, "x")).toBe(",");
+    expect(activeDelimiter(auto, "x")).toBe("x");
+    expect(activeDelimiter(auto, "xx")).toBe(",");
     const manual = readCsvSettings({ delimiter: "|" });
     expect(activeDelimiter(manual, ";")).toBe("|");
   });

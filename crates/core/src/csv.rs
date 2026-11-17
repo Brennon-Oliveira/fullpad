@@ -101,12 +101,17 @@ fn bom_len(text: &str) -> usize {
 /// cabeçalho e em pelo menos 80% dos registros olhados. Empata pela contagem maior e depois pela
 /// ordem de [`CANDIDATES`]. Sem candidato consistente, vírgula. `ext` (`"tsv"`) manda no tab.
 pub fn detect(text: &str, ext: Option<&str>) -> char {
+    detect_opt(text, ext).unwrap_or(DEFAULT_DELIMITER)
+}
+
+/// Como [`detect`], mas `None` quando nenhum candidato é consistente (a UI então pergunta à pessoa).
+pub fn detect_opt(text: &str, ext: Option<&str>) -> Option<char> {
     if ext.is_some_and(|e| e.eq_ignore_ascii_case("tsv") || e.eq_ignore_ascii_case("tab")) {
-        return '\t';
+        return Some('\t');
     }
     let b = text.as_bytes();
     let mut best: Option<(usize, u32, usize)> = None; // (% de registros iguais, contagem, -prioridade)
-    let mut pick = DEFAULT_DELIMITER;
+    let mut pick = None;
     for (prio, cand) in CANDIDATES.iter().enumerate() {
         let mut counts: Vec<u32> = Vec::new();
         let mut pos = bom_len(text);
@@ -129,7 +134,7 @@ pub fn detect(text: &str, ext: Option<&str>) -> char {
         let key = (pct, first, usize::MAX - prio);
         if best.is_none_or(|b| key > b) {
             best = Some(key);
-            pick = *cand;
+            pick = Some(*cand);
         }
     }
     pick
@@ -1152,6 +1157,15 @@ mod tests {
         assert_eq!(detect("", None), ',');
         assert_eq!(detect("so um texto qualquer\noutra linha\n", None), ',');
         assert_eq!(detect("\n\n\n", None), ',');
+    }
+
+    #[test]
+    fn detect_opt_diz_quando_nao_achou() {
+        assert_eq!(detect_opt("", None), None);
+        assert_eq!(detect_opt("so um texto qualquer\noutra linha\n", None), None);
+        assert_eq!(detect_opt("a;b;c\n1;2\n3\n4;5;6;7\n", None), None);
+        assert_eq!(detect_opt("a;b\n1;2\n", None), Some(';'));
+        assert_eq!(detect_opt("qualquer coisa", Some("tsv")), Some('\t'));
     }
 
     #[test]
