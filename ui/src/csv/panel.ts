@@ -391,6 +391,19 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
     }
   }
 
+  /**
+   * A tabela já mostra o texto de agora? Se está recarregando (o texto mudou há pouco e a pausa de 300 ms ou
+   * a carga ainda não terminaram), espera em vez de recusar a edição: força a carga na hora e confere de novo
+   * (até 3 vezes, porque uma troca de janela no meio pode atropelar uma carga). `false` só se ela não fecha.
+   */
+  async function settled(): Promise<boolean> {
+    for (let i = 0; i < 3 && loadedRev !== want.rev; i++) {
+      window.clearTimeout(reloadTimer);
+      await load();
+    }
+    return loadedRev === want.rev;
+  }
+
   /** Ordem ou filtro mudou: o Rust refaz a visão sem o texto. */
   async function reloadView() {
     if (!info) return;
@@ -919,7 +932,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
 
   /** Manda as trocas para o código e refaz o índice na hora (sem esperar a pausa de quem digita no código). */
   async function applyEdits(list: { row: number; col: number; value: string }[]): Promise<boolean> {
-    if (loadedRev !== want.rev) {
+    if (!(await settled())) {
       toast("A tabela está atualizando; tente de novo");
       return false;
     }
@@ -949,7 +962,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   /** Roda a mudança no Rust e grava as trocas no código (um passo no desfazer). */
   async function structure(op: CsvOp, done?: string, fix?: () => void): Promise<boolean> {
     if (!info || editing) return false;
-    if (loadedRev !== want.rev) {
+    if (!(await settled())) {
       toast("A tabela está atualizando; tente de novo");
       return false;
     }
@@ -1022,7 +1035,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
     if (!info || editing) return;
     const data = rowAt(p.r);
     if (!data) return;
-    if (loadedRev !== want.rev) return toast("A tabela está atualizando; tente de novo");
+    if (!(await settled())) return toast("A tabela está atualizando; tente de novo");
     const original = await fullValue(data.index, p.c, data.cells[p.c]);
     if (editing || !info) return;
     const ta = el("textarea", "csv-edit");
@@ -1135,7 +1148,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
   /** Renomear coluna: edita a célula do cabeçalho (primeira linha do arquivo) sobre o próprio cabeçalho. */
   async function renameCol(c: number) {
     if (!info || editing || !cfg.header) return;
-    if (loadedRev !== want.rev) return toast("A tabela está atualizando; tente de novo");
+    if (!(await settled())) return toast("A tabela está atualizando; tente de novo");
     const mine = tab;
     const original = await fullValue(0, c, info.header?.cells[c]);
     if (mine !== tab || !info) return;
@@ -1467,6 +1480,7 @@ export function createCsvPanel(host: HTMLElement, hooks: CsvHooks = {}): CsvPane
       }
       window.clearTimeout(reloadTimer);
       if (!fresh && info && text === body && sameCfg(cfg, next) && (ctx?.lineBase ?? null) === (large?.lineBase ?? null)) {
+        want = { ...want, rev }; // sem isto `want.rev` ficava para trás e a edição dava "A tabela está atualizando" para sempre
         loadedRev = rev; // nada mudou de verdade: a ligação com o código continua valendo
         renderRows();
         return;

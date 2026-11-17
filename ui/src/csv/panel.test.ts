@@ -685,13 +685,34 @@ describe("editar célula", () => {
     expect(api.csvLoad).toHaveBeenCalledTimes(1);
   });
 
-  it("enquanto a tabela se atualiza depois de uma edição no código, não deixa editar", async () => {
+  it("enquanto a tabela se atualiza depois de uma edição no código, espera a carga em vez de recusar a edição", async () => {
     const { p } = await setup();
     p.update("texto novo", 9);
     dbl();
     await flush(10);
-    expect(editor()).toBeNull();
+    expect(host.querySelector(".csv-toast")?.textContent ?? "").not.toContain("atualizando");
+    expect(editor()).not.toBeNull();
+    expect(api.csvLoad).toHaveBeenLastCalledWith("t1", "texto novo", expect.anything(), expect.anything(), expect.anything(), null, null);
+  });
+
+  it("se a carga pendente não fecha (o Rust falha), avisa que a tabela está atualizando", async () => {
+    const { p } = await setup();
+    api.csvLoad.mockRejectedValue(new Error("falhou"));
+    p.update("texto novo", 9);
+    dbl();
+    await flush(10);
     expect(host.querySelector(".csv-toast")?.textContent).toContain("atualizando");
+    expect(editor()).toBeNull();
+  });
+
+  it("a revisão do editor sobe sem o texto mudar (ex.: a janela de lotes se refaz igual): continua dando para editar", async () => {
+    const { p } = await setup();
+    p.show("t1", "x", CFG, 4); // mesmo texto, revisão nova: nada a recarregar
+    await flush();
+    dbl();
+    await flush(10);
+    expect(host.querySelector(".csv-toast")?.textContent ?? "").not.toContain("atualizando");
+    expect(editor()).not.toBeNull();
   });
 
   it("Delete esvazia a seleção numa transação só", async () => {
