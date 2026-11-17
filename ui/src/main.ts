@@ -707,7 +707,7 @@ function syncCsvTable(textChanged: boolean) {
     const t = tabOf(g);
     if (!g.csv || !t || !csvWanted(t)) return;
     const fresh = g.csvTab !== tab.id;
-    if (large && fresh) large.topLine = tab.cursor; // abrindo a aba: a tabela começa onde a pessoa estava (a linha do arquivo)
+    if (large && fresh) large.topLine = largeOf(tab)?.pendingJump != null ? 0 : tab.cursor; // abrindo a aba: a tabela começa onde a pessoa estava (a linha do arquivo)
     if (textChanged && !fresh) g.csv.update(text, g.rev, large);
     else g.csv.show(tab.id, text, cfg(), g.rev, large);
     g.csvTab = tab.id;
@@ -778,6 +778,32 @@ function syncLargeGate() {
   g.gateEl.dataset.tab = tab.id;
   renderLargeGate(g.gateEl, { name: tab.title || baseName(tab.path ?? ""), size: info.size, edited: info.edited }, () => void releaseLarge(tab));
 }
+
+/** A janela abriu no começo porque o índice ainda não chegava à linha salva: vai até lá em segundo plano, quando ele chegar. */
+async function restoreLargeJump(tab: TabState) {
+  const lt = largeOf(tab);
+  const line = lt?.pendingJump;
+  if (!lt || line === null || line === undefined || jumping.has(tab.id)) return;
+  jumping.add(tab.id);
+  flashLarge(`Voltando à linha ${(line + 1).toLocaleString("pt-BR")} quando o índice chegar. Rolar o texto, Ctrl+G ou a barra do arquivo cancelam.`);
+  try {
+    const ok = await lt.goto(line, { focus: false, restore: true });
+    if (ok && lt.pendingJump === line) {
+      lt.pendingJump = null;
+      const g = groupShowing(tab.id);
+      if (g && largeCsv(tab) && g.csvTab === tab.id) {
+        lockSync();
+        g.csv?.scrollToLine(line); // a tabela vai à mesma linha do arquivo
+      }
+    }
+  } catch (e) {
+    if (lt.pendingJump === line) lt.pendingJump = null;
+    flashLarge(`Não foi possível voltar à linha salva: ${e}`);
+  } finally {
+    jumping.delete(tab.id);
+  }
+}
+const jumping = new Set<string>();
 
 /** "Carregar": o arquivo passa a ser lido e indexado, e a aba mostra o editor (ou a tabela). */
 async function releaseLarge(tab: TabState) {
@@ -1503,7 +1529,8 @@ function snapshotGroup(g: Group) {
   const lt = largeOf(tab);
   if (lt) {
     // arquivo grande: o cursor é a linha do arquivo (a janela não tem posição fixa); com só a tabela à vista, é a linha dela
-    tab.cursor = largeCsv(tab) && g.csvTab === tab.id && viewKind(tab) === "inline" && g.csvTopLine !== null ? g.csvTopLine : lt.cursorLine();
+    // a linha salva que ainda espera o índice chegar vale mais que o começo onde a janela abriu
+    tab.cursor = lt.pendingJump ?? (largeCsv(tab) && g.csvTab === tab.id && viewKind(tab) === "inline" && g.csvTopLine !== null ? g.csvTopLine : lt.cursorLine());
     tab.scroll = 0;
     return;
   }
@@ -2025,6 +2052,7 @@ async function show(tab: TabState, text?: string) {
   renderTabs();
   renderDiskBar(g);
   void checkDisk(tab); // o arquivo pode ter mudado enquanto a aba não estava à vista (ou o app, fechado)
+  void restoreLargeJump(tab); // arquivo grande aberto no começo porque o índice ainda não chegava à linha salva
   requestAnimationFrame(() => {
     if (tab.large) largeOf(tab)?.reveal();
     else g.view.scrollDOM.scrollTop = tab.scroll;

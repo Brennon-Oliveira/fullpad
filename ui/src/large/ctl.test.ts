@@ -152,8 +152,9 @@ describe("abrir longe, com o índice ainda indo (restaurar a aba depois de reini
     const p = ctl.createState(120, (doc, cursor, extra) => createState(doc, cursor, () => {}, extra));
     await vi.advanceTimersByTimeAsync(3000);
     const st = await p;
-    expect(st.doc.toString()).toContain("L120");
-    expect(ctl.cursorLine()).toBe(120);
+    // abre no começo, sem esperar o índice, e guarda a linha salva para ir até ela quando ele chegar
+    expect(st.doc.toString()).toContain("L0");
+    expect(ctl.pendingJump).toBe(120);
     expect(asked).toBeLessThanOrEqual(1); // só depois de o editor existir (o acompanhamento do índice)
   });
 });
@@ -775,5 +776,64 @@ describe("desfazer não aplica um passo velho num lugar errado", () => {
     expect(rust.batches[first].text).toBe(edited);
     await ctl.undo();
     expect(rust.batches[first].text).toBe(original);
+  });
+});
+
+describe("restaurar uma posição funda com o índice ainda indo", () => {
+  /** O índice só conhece até a linha `upTo` (o Rust de verdade recusa o que ainda não chegou). */
+  function slowIndex(rust: FakeRust, upTo: { n: number }) {
+    const real = rust.locate.bind(rust);
+    rust.locate = async (id: string, line: number) => {
+      if (line > upTo.n) throw new Error("o índice ainda não chegou a essa linha");
+      return real(id, line);
+    };
+    rust.done = false;
+  }
+
+  it("abre no começo na hora, sem esperar o índice, e guarda a linha para ir depois", async () => {
+    const rust = FakeRust.lines(40);
+    const upTo = { n: 20 };
+    slowIndex(rust, upTo);
+    const r = await rig(rust, 100);
+    expect(r.ctl.pendingJump).toBe(100);
+    expect(win(r.view).startLine).toBe(0);
+    expect(r.ctl.cursorLine()).toBe(0);
+  });
+
+  it("quando o índice chega, o salto de restauração leva à linha salva", async () => {
+    const rust = FakeRust.lines(40);
+    const upTo = { n: 20 };
+    slowIndex(rust, upTo);
+    const { ctl, view } = await rig(rust, 100);
+    const jump = ctl.goto(100, { focus: false, restore: true });
+    upTo.n = 1000; // o índice avançou
+    rust.done = true;
+    expect(await jump).toBe(true);
+    expect(ctl.cursorLine()).toBe(100);
+    expect(win(view).startLine).toBeLessThanOrEqual(100);
+  });
+
+  it("pedir outro lugar cancela a restauração", async () => {
+    const rust = FakeRust.lines(40);
+    slowIndex(rust, { n: 20 });
+    const { ctl } = await rig(rust, 100);
+    expect(ctl.pendingJump).toBe(100);
+    await ctl.goto(3);
+    expect(ctl.pendingJump).toBeNull();
+  });
+
+  it("rolar o texto (ou clicar) cancela a restauração", async () => {
+    const rust = FakeRust.lines(40);
+    slowIndex(rust, { n: 20 });
+    const { ctl, view } = await rig(rust, 100);
+    view.scrollDOM.dispatchEvent(new Event("wheel"));
+    expect(ctl.pendingJump).toBeNull();
+  });
+
+  it("com o índice pronto, vai direto à linha como sempre", async () => {
+    const { ctl, view } = await rig(FakeRust.lines(40), 100);
+    expect(ctl.pendingJump).toBeNull();
+    expect(ctl.cursorLine()).toBe(100);
+    expect(win(view).startLine).toBeGreaterThan(0);
   });
 });

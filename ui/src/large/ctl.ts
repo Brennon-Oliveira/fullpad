@@ -101,8 +101,8 @@ export class LargeTab {
   /** Última vez que a pessoa rolou, digitou ou clicou: só então a janela desliza (nunca por conta própria). */
   private lastUser = 0;
   private pointerDown = false;
-  private onUser = () => void (this.lastUser = Date.now());
-  private onDown = () => void ((this.pointerDown = true), (this.lastUser = Date.now()));
+  private onUser = () => void ((this.lastUser = Date.now()), this.cancelJump());
+  private onDown = () => void ((this.pointerDown = true), (this.lastUser = Date.now()), this.cancelJump());
   private onUp = () => void ((this.pointerDown = false), (this.lastUser = Date.now()));
   private raf = 0;
   /**
@@ -113,6 +113,12 @@ export class LargeTab {
   private undoSteps: Step[] = [];
   private redoSteps: Step[] = [];
   private stepBytes = 0;
+  /**
+   * Linha salva (a partir de 0) a que ainda não se pôde ir porque o índice não chegou lá: a janela abre no começo na hora e quem
+   * restaura a posição (`main.ts`) vai até a linha em segundo plano, quando o índice chegar. Qualquer outro `goto`, ou rolar o
+   * texto, cancela. Enquanto está pendente, é esta a posição que vale guardar na sessão.
+   */
+  pendingJump: number | null = null;
   /** Desfazendo ou refazendo um passo: o envio que isso causa não vira um passo novo. */
   private stepping = false;
   dirty: boolean;
@@ -133,6 +139,13 @@ export class LargeTab {
     const next = this.chain.then(job, job);
     this.chain = next.catch(() => {});
     return next;
+  }
+
+  /** Desiste de ir à linha salva (a pessoa foi para outro lugar). */
+  cancelJump() {
+    if (this.pendingJump === null) return;
+    this.pendingJump = null;
+    this.goToken++;
   }
 
   /** Atualiza o que se sabe do arquivo (índice, total de linhas). */
@@ -163,7 +176,7 @@ export class LargeTab {
       try {
         return await this.io.locate(this.id, line);
       } catch (e) {
-        if (this.info.done || tries > 600 || token !== this.goToken) throw e;
+        if (this.info.done || tries > 6000 || token !== this.goToken) throw e;
         await sleep(POLL_MS);
         await this.refreshInfo();
         if (token !== this.goToken) return null;
@@ -207,7 +220,18 @@ export class LargeTab {
    */
   async createState(line: number, build: (doc: string, cursor: number, extra: Extension) => EditorState): Promise<EditorState> {
     await this.firstBatch();
-    const loc = await this.locate(Math.max(0, line));
+    let target = Math.max(0, line);
+    if (target > 0 && !this.info.done) {
+      // o índice ainda não chegou à linha salva (arquivo de GB que só começou a ser indexado agora): abre no começo, sem esperar
+      try {
+        await this.io.locate(this.id, target);
+      } catch {
+        this.pendingJump = target;
+        target = 0;
+      }
+    }
+    line = target;
+    const loc = await this.locate(target);
     const [lo, hi] = windowAround(loc?.batch ?? 0, this.info.batches);
     const batches = await this.readBatches(lo, hi);
     const { doc, win } = LargeTab.windowOf(batches);
@@ -470,7 +494,8 @@ export class LargeTab {
    * UTF-16 a partir da coluna `col`. A conta de que lote é a linha é só somar as linhas dos lotes
    * (`large_locate`), sem ler o arquivo.
    */
-  goto(line: number, opts: { col?: number; len?: number; focus?: boolean } = {}): Promise<boolean> {
+  goto(line: number, opts: { col?: number; len?: number; focus?: boolean; restore?: boolean } = {}): Promise<boolean> {
+    if (!opts.restore) this.pendingJump = null; // a pessoa pediu outro lugar: a linha salva já não vale
     const token = ++this.goToken;
     return this.enqueue(async () => {
       const v = this.view;
