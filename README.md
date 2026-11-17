@@ -6,7 +6,6 @@ Editor de notas e markdown **rápido**, no estilo do Notepad++: **nada se perde 
 
 ## Sumário
 
-- [Arquivos gigantes](#arquivos-gigantes)
 - [Por que o Fullpad](#por-que-o-fullpad)
 - [Cada tipo de arquivo, a sua visão](#cada-tipo-de-arquivo-a-sua-visão)
 - [Todos os recursos](#todos-os-recursos)
@@ -15,26 +14,6 @@ Editor de notas e markdown **rápido**, no estilo do Notepad++: **nada se perde 
 - [Estrutura](#estrutura)
 - [Contribuir](#contribuir)
 - [Licença](#licença)
-
-## Arquivos gigantes
-
-Abra um CSV de **15 GB**, um log, um dump, um Markdown ou um JSON de centenas de MB e comece a trabalhar na hora: o Fullpad **não lê o arquivo inteiro**. Ele fica no disco e só os trechos perto da tela ficam na memória; o índice de linhas sai em segundo plano. Qualquer arquivo de texto acima de 20 MB abre assim, sozinho, e a memória não cresce com o tamanho do arquivo.
-
-![Um CSV de 14,6 GB: o cartão para carregar, "Abrir direto na linha" e a tabela já na linha 120.000, com o índice ainda correndo; editar uma célula e desfazer](docs/img/gigantes.gif)
-
-- **Abrir não carrega.** A aba mostra o nome e o tamanho, e o arquivo só é lido quando você clica em **Carregar arquivo**. Reabrir o app com um arquivo de 15 GB não o lê. **Abrir direto na linha** pergunta o número da linha, carrega e já vai para ela.
-- **O arquivo todo ao alcance.** A barra de rolagem representa o arquivo inteiro (arraste ou clique para ir a qualquer ponto), Ctrl+G vai à linha, e Ctrl+F **busca no disco**, em fluxo, com os resultados chegando aos poucos e cancelável. Linhas gigantes (um JSON minificado numa linha só) são cortadas só na tela, sem mexer no arquivo.
-- **CSV vira tabela, e dá para editar.** A tabela mostra o trecho carregado, a primeira coluna é a **linha do arquivo**, e você edita célula por célula. Ordenar e filtrar ficam de fora, porque exigiriam o arquivo inteiro.
-- **Editar de verdade, com desfazer em tudo.** Ctrl+Z e Ctrl+Y valem no arquivo todo, **inclusive nos trechos que já saíram da tela**: o Fullpad volta até lá, desfaz e mostra onde foi. As alterações ficam guardadas num diário e nada se perde ao fechar o app.
-- **Salva rápido, do jeito que o seu arquivo precisa.** Trocou um valor por outro do mesmo tamanho? Ele é gravado **no lugar, na hora**. Mudou o tamanho? Aí o resto do arquivo muda de posição e você escolhe, com os riscos explicados: **salvar com segurança** (monta o arquivo novo ao lado e só troca o original no fim; dá para cancelar) ou **salvar direto** (regrava só do ponto editado em diante, sem espaço extra, sem proteção contra queda). O app recomenda o direto quando você editou perto do fim do arquivo.
-
-![Salvar numa cópia de 300 MB: valor do mesmo tamanho grava no lugar; um valor maior abre a escolha entre salvar com segurança e direto](docs/img/gigantes-salvar.gif)
-
-Texto, log e Markdown grandes abrem **como texto** (com destaque de sintaxe), vão à linha na hora e buscam no disco:
-
-![Um log de 300 MB e um Markdown de 150 MB: ir para a linha 3.000.000, buscar no disco e ir à linha 200.000](docs/img/gigantes-texto.gif)
-
-Arquivos comuns não mudam nada: o modo gigante é um caminho à parte, só para texto claramente grande.
 
 ## Por que o Fullpad
 
@@ -80,6 +59,26 @@ As exportações ficam em Arquivo > Exportar, no menu Markdown e no botão direi
 A tabela carrega só as linhas que estão na tela, então arquivos grandes abrem na hora (e os de **dezenas de GB** têm o modo próprio descrito em [Arquivos gigantes](#arquivos-gigantes)). Clique no cabeçalho para ordenar, filtre por uma coluna ou por todas, selecione células para ver soma, média, mínimo, máximo e contagem no rodapé, edite célula por célula (Ctrl+Z desfaz, como no texto) e cole direto do Excel. O cursor do código e a célula da tabela andam juntos.
 
 ![CSV como tabela: ordenar, filtrar, selecionar com estatísticas e ver o código](docs/img/csv.gif)
+
+### Arquivos gigantes
+
+Abra um CSV de **15 GB**, um log, um dump, um Markdown ou um JSON de centenas de MB e comece a trabalhar na hora: o Fullpad **não lê o arquivo inteiro**. Ele fica no disco e só os trechos perto da tela ficam na memória; o índice de linhas sai em segundo plano. Qualquer arquivo de texto acima de 20 MB abre assim, sozinho, e a memória não cresce com o tamanho do arquivo.
+
+![Um CSV de 14,6 GB: o cartão para carregar, "Abrir direto na linha" e a tabela já na linha 120.000, com o índice ainda correndo; editar uma célula e desfazer](docs/img/gigantes.gif)
+
+- **Abrir não carrega.** A aba mostra o nome e o tamanho, e o arquivo só é lido quando você clica em **Carregar arquivo**. Reabrir o app com um arquivo de 15 GB não o lê. **Abrir direto na linha** pergunta o número da linha, carrega e já vai para ela.
+- **O arquivo todo ao alcance.** A barra de rolagem representa o arquivo inteiro (arraste ou clique para ir a qualquer ponto), Ctrl+G vai à linha, e Ctrl+F **busca no disco**, em fluxo, com os resultados chegando aos poucos e cancelável. Linhas gigantes (um JSON minificado numa linha só) são cortadas só na tela, sem mexer no arquivo.
+- **CSV vira tabela, e dá para editar.** A tabela mostra o trecho carregado, a primeira coluna é a **linha do arquivo**, e você edita célula por célula. Ordenar e filtrar ficam de fora, porque exigiriam o arquivo inteiro.
+- **Editar de verdade, com desfazer em tudo.** Ctrl+Z e Ctrl+Y valem no arquivo todo, **inclusive nos trechos que já saíram da tela**: o Fullpad volta até lá, desfaz e mostra onde foi. As alterações ficam guardadas num diário e nada se perde ao fechar o app.
+- **Salva rápido, do jeito que o seu arquivo precisa.** Trocou um valor por outro do mesmo tamanho? Ele é gravado **no lugar, na hora**. Mudou o tamanho? Aí o resto do arquivo muda de posição e você escolhe, com os riscos explicados: **salvar com segurança** (monta o arquivo novo ao lado e só troca o original no fim; dá para cancelar) ou **salvar direto** (regrava só do ponto editado em diante, sem espaço extra, sem proteção contra queda). O app recomenda o direto quando você editou perto do fim do arquivo.
+
+![Salvar numa cópia de 300 MB: valor do mesmo tamanho grava no lugar; um valor maior abre a escolha entre salvar com segurança e direto](docs/img/gigantes-salvar.gif)
+
+Texto, log e Markdown grandes abrem **como texto** (com destaque de sintaxe), vão à linha na hora e buscam no disco:
+
+![Um log de 300 MB e um Markdown de 150 MB: ir para a linha 3.000.000, buscar no disco e ir à linha 200.000](docs/img/gigantes-texto.gif)
+
+Arquivos comuns não mudam nada: o modo gigante é um caminho à parte, só para texto claramente grande.
 
 ### JSON, YAML e TOML em árvore
 

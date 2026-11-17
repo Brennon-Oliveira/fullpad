@@ -6,7 +6,7 @@ argument-hint: "[--full] [--record] [explicação do que documentar]"
 
 # Atualizar README
 
-Mantém o `README.md` do repositório de código em dia com o app. O README do repositório de releases (`Brennon-Oliveira/fullpad-releases`) espelha as **features e GIFs**, sem nenhuma menção a código além do link para o repositório de código.
+Mantém em dia com o app **os dois READMEs**: o `README.md` do repositório de código e o do repositório de releases (`Brennon-Oliveira/fullpad-releases`), que espelha as **features e GIFs**, sem nenhuma menção a código além do link para o repositório de código. **O de releases é a página que as pessoas veem ao baixar o app, então às vezes importa mais que o do código: toda atualização vale para os dois, nunca só para um.**
 
 ## Argumentos
 
@@ -34,6 +34,7 @@ Regerar tudo sobrescreve texto escrito à mão. Com `--full`:
 - Leia o `README.md` atual e a explicação. Confira no código e em `docs/AGENTS.md` o que de fato existe: **não documente o que o app não faz**. Se a explicação cita algo que não está implementado, pare e avise.
 - Descubra onde o assunto entra: seção de GIF, "lista completa de recursos", tabela de tipos de arquivo, instalação, build.
 - Escreva em português, com acentuação correta, no tom do resto do README, sem mencionar números de issue.
+- **Onde cada coisa entra**: recurso e GIF vão **junto do assunto que já existe** no README, não numa seção nova no topo. O que é de um tipo de arquivo entra dentro de "Cada tipo de arquivo, a sua visão", ao lado da seção daquele tipo (um recurso de CSV vai logo depois de "Tabelas de verdade: CSV"); o que é geral entra na lista de recursos e em "Por que". Só crie seção de primeiro nível se a pessoa pedir. Cuidado com âncoras: dois títulos iguais fazem o segundo virar `-1`.
 
 ## 2. Editar o README
 
@@ -52,9 +53,9 @@ Use `scripts/gifs/` (cabeçalho do `gravar.sh`: Windows, janela do Fullpad maxim
 
 ## 4. Espelhar no repositório de releases
 
-Só se o README ou os GIFs mudaram em algo que o README de lá mostra (features, GIFs). Clone/atualize `Brennon-Oliveira/fullpad-releases` num diretório temporário, ajuste o `README.md` de lá (mesmo conteúdo de features e GIFs, **sem menções a código** além do link do repositório de código, nem a build, contribuição ou issues) e copie os GIFs novos para `img/`. **Este é um repositório público, fora deste**: mostre a diferença e **peça o ok** antes de dar push (push com `git -c credential.helper='!gh auth git-credential'`, o SSH não funciona).
+**Obrigatório, em toda chamada** (não é opcional nem só "se mudou algo": o README do repositório de releases precisa acompanhar o do código, com a mesma estrutura e a mesma ordem das seções e dos GIFs). Clone/atualize `Brennon-Oliveira/fullpad-releases` num diretório temporário, ajuste o `README.md` de lá (mesmo conteúdo de features e GIFs **e no mesmo lugar**, **sem menções a código** como caminhos de arquivos, geradores de exemplo, build, contribuição ou issues, além do link do repositório de código) e copie os GIFs novos para `img/`. Se só o do repositório de releases estiver defasado, é só ele que muda. **Este é um repositório público, fora deste**: mostre a diferença e **peça o ok** antes de dar push (push com `git -c credential.helper='!gh auth git-credential'`, o SSH não funciona), a menos que a pessoa já tenha pedido, nesta conversa, para publicar lá. No relato diga sempre se o de releases foi atualizado e publicado, ou o que falta.
 
 ## 5. Commit e relato
 
 - Commite no repositório de código seguindo [../../rules/commits.md](../../rules/commits.md) (`docs(readme): …`; GIFs no mesmo commit do trecho que os usa). **Sem push**, a menos que peçam.
-- Relate: o que mudou no README (trechos), GIFs/prints gravados ou refeitos (com tamanho), o que foi ou não espelhado no repositório de releases. Não gere build do `.exe` por causa desta skill.
+- Relate: o que mudou no README (trechos), GIFs/prints gravados ou refeitos (com tamanho), e **o estado do repositório de releases** (atualizado e publicado, ou o que falta). Os dois READMEs fecham juntos: não dê a tarefa por concluída com o de releases defasado. Não gere build do `.exe` por causa desta skill.

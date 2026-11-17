@@ -166,7 +166,7 @@ Não feche issue que o usuário não citou nos commits; na dúvida, liste e perg
 
 ## 11. README (só com `--readme`)
 
-Chame a skill `atualizar-readme` (nunca com `--full`) **já com o contexto**: a explicação é montada a partir das notas da versão e dos commits desde a última tag (passo 2), dizendo **o que documentar** (recursos novos, comportamento mudado, o que sai do README por não existir mais), sem número de issue. Se nada do que saiu muda o que o README diz, não chame, e diga isso no relatório.
+Chame a skill `atualizar-readme` (nunca com `--full`) **já com o contexto** (ela atualiza **os dois READMEs**, o do código e o do repositório de releases): a explicação é montada a partir das notas da versão e dos commits desde a última tag (passo 2), dizendo **o que documentar** (recursos novos, comportamento mudado, o que sai do README por não existir mais), sem número de issue. Se nada do que saiu muda o que o README diz, não chame, e diga isso no relatório.
 
 **`--record` ou não** (decida você; é só para o que muda o que se vê):
 
