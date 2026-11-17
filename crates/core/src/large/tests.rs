@@ -396,7 +396,7 @@ fn editing_a_batch_changes_only_that_batch_in_the_saved_file() {
     assert!(out.edited && out.dirty);
     assert_eq!(out.lines, 3);
     assert_eq!(std::fs::read(&p).unwrap(), bytes, "editar não toca no arquivo do usuário");
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), b"1\n2\n3\nquatro\n5\n6\n7\n");
     assert!(!l.is_dirty());
 }
@@ -415,7 +415,7 @@ fn inserting_and_deleting_lines_adjusts_the_numbering_of_the_next_batches() {
     assert_eq!(out.lines, 0);
     assert_eq!(l.read_batch(2).unwrap().start_line, 5);
     assert_eq!(l.locate(5).unwrap().batch, 2);
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), b"1\nnovo a\nnovo b\n2\n3\n7\n8\n9\n");
     assert!(!l.info().unwrap().done, "o lote apagado emenda linhas: o índice é refeito");
     l.index_blocking();
@@ -440,7 +440,7 @@ fn an_edit_that_crosses_the_batch_boundary_edits_both_batches() {
     assert_eq!(joined, "a1\nA2\na3b1\nb2\nB3\n");
     assert_eq!(l.read_batch(1).unwrap().start_line, 2, "o lote 1 começa depois de 2 quebras");
     assert_eq!(l.info().unwrap().lines, 2 + 3 + 1 + 1, "as quebras dos três lotes, mais a linha final");
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), b"a1\nA2\na3b1\nb2\nB3\nc1\n");
 }
 
@@ -463,7 +463,7 @@ fn unedited_batches_are_copied_byte_for_byte_including_mixed_line_endings() {
     let l = open(&p, small());
     assert_eq!(l.eol, Eol::Crlf);
     l.edit(1, "D\ne\nF\n").unwrap();
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), b"a\r\nb\nc\r\nD\r\ne\r\nF\r\ng\r\n");
 }
 
@@ -474,7 +474,7 @@ fn utf8_bom_is_preserved_when_saving() {
     let (_d, p) = file(&bytes);
     let l = open(&p, small());
     l.edit(0, "UM\ndois\ntrês\n").unwrap();
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     let got = std::fs::read(&p).unwrap();
     assert_eq!(&got[..3], &[0xEF, 0xBB, 0xBF]);
     assert_eq!(&got[3..], "UM\ndois\ntrês\nquatro\n".as_bytes());
@@ -488,7 +488,7 @@ fn cp1252_edits_are_encoded_back_and_unencodable_text_is_refused() {
     assert!(matches!(l.edit(0, "日本\nb\nc\n"), Err(Error::Unencodable(_))));
     assert!(!l.is_dirty(), "a recusa não deixa alteração pela metade");
     l.edit(0, "a\u{e7}\u{e3}o!\nb\nc\n").unwrap();
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), b"a\xE7\xE3o!\nb\nc\nd\n");
 }
 
@@ -503,7 +503,7 @@ fn saving_an_edit_inside_a_giant_line_does_not_add_newlines_for_the_virtual_cuts
     // o usuário só trocou uma letra no meio; o texto de arquivo (sem os cortes) é o que vai ao core
     let edited = strip_virtual(&b.text, &b.breaks).replacen('é', "E", 1);
     l.edit(0, &edited).unwrap();
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     let got = String::from_utf8(std::fs::read(&p).unwrap()).unwrap();
     assert_eq!(got, format!("E{}\nfim\n", "é".repeat(59)));
     assert_eq!(got.matches('\n').count(), 2, "nenhuma quebra foi criada");
@@ -526,7 +526,7 @@ fn saving_nothing_keeps_the_file_identical_and_does_not_leave_temp_files() {
     let bytes = "a\r\nação\r\n".repeat(30).into_bytes();
     let (d, p) = file(&bytes);
     let l = open(&p, small());
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), bytes);
     let names: Vec<_> = std::fs::read_dir(d.path()).unwrap().flatten().map(|e| e.file_name()).collect();
     assert_eq!(names.len(), 1, "sobrou arquivo temporário: {names:?}");
@@ -539,7 +539,7 @@ fn save_as_writes_a_new_file_and_leaves_the_original_intact() {
     let l = open(&p, small());
     l.edit(0, "UM\n2\n3\n").unwrap();
     let other = d.path().join("copia.log");
-    l.save(Some(&other)).unwrap();
+    l.save(Some(&other), SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), bytes, "o original não muda");
     assert_eq!(std::fs::read(&other).unwrap(), b"UM\n2\n3\n4\n5\n");
     assert_eq!(l.path().unwrap(), other, "a aba passa a apontar para o arquivo novo");
@@ -554,7 +554,7 @@ fn saving_after_the_file_changed_outside_is_a_conflict_and_nothing_is_written() 
     l.edit(0, "x\n2\n3\n").unwrap();
     std::fs::write(&p, b"outro programa\n").unwrap();
     assert_eq!(l.check_disk().unwrap(), DiskState::Changed);
-    assert!(matches!(l.save(None), Err(Error::Conflict)));
+    assert!(matches!(l.save(None, SaveMode::Safe), Err(Error::Conflict)));
     assert_eq!(std::fs::read(&p).unwrap(), b"outro programa\n");
     assert!(l.is_dirty(), "as alterações continuam guardadas");
 }
@@ -576,7 +576,7 @@ fn a_deleted_original_cannot_be_saved_over() {
     l.edit(0, "x\n2\n3\n").unwrap();
     std::fs::remove_file(&p).unwrap();
     assert_eq!(l.check_disk().unwrap(), DiskState::Missing);
-    assert!(l.save(None).is_err());
+    assert!(l.save(None, SaveMode::Safe).is_err());
 }
 
 #[test]
@@ -591,7 +591,7 @@ fn reading_a_batch_after_the_file_changed_size_is_a_conflict_not_garbage() {
 fn save_needs_the_index_to_be_done() {
     let (_d, p) = file(b"1\n2\n3\n4\n");
     let l = Large::open(&p, small(), None).unwrap();
-    assert!(l.save(None).is_err());
+    assert!(l.save(None, SaveMode::Safe).is_err());
 }
 
 #[test]
@@ -644,7 +644,7 @@ fn edits_survive_closing_and_reopening_through_the_journal() {
     assert_eq!(info.edited_batches, 2);
     assert_eq!(whole(&l), "UM\n2\n3\n4\n5\nSEIS\n");
     assert_eq!(std::fs::read(&p).unwrap(), bytes, "o arquivo continua intocado");
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), b"UM\n2\n3\n4\n5\nSEIS\n");
     assert!(!journal.exists(), "salvar limpa o diário");
 }
@@ -667,7 +667,7 @@ fn a_journal_of_another_version_of_the_file_is_kept_but_not_applied() {
     assert_eq!(whole(&l), "completamente\noutro\narquivo\nagora\n");
     assert!(journal.join("0.txt").exists(), "as alterações da pessoa continuam no disco");
     assert!(matches!(l.edit(0, "z\n"), Err(Error::Conflict)));
-    assert!(matches!(l.save(None), Err(Error::Conflict)));
+    assert!(matches!(l.save(None, SaveMode::Safe), Err(Error::Conflict)));
     l.discard_edits().unwrap();
     assert!(!l.info().unwrap().orphaned);
     assert!(!journal.exists());
@@ -901,7 +901,7 @@ fn property_invariants_hold_for_random_content_and_tiny_limits() {
             assert!(line >= b.start_line, "caso {case}");
         }
         // 5) salvar sem editar não muda um byte
-        l.save(None).unwrap();
+        l.save(None, SaveMode::Safe).unwrap();
         assert_eq!(std::fs::read(&p).unwrap(), bytes, "caso {case}: salvar sem editar mudou o arquivo");
         // 6) editar um lote qualquer: o resultado é prefixo + lote novo + sufixo
         let n = l.info().unwrap().batches;
@@ -914,7 +914,7 @@ fn property_invariants_hold_for_random_content_and_tiny_limits() {
         let eol = l.eol;
         let expected = expected_after(&before, &l, i, &new_text, eol, l.encoding);
         l.edit(i, &new_text).unwrap();
-        l.save(None).unwrap();
+        l.save(None, SaveMode::Safe).unwrap();
         assert_eq!(std::fs::read(&p).unwrap(), expected, "caso {case}: lote {i}");
         if !l.info().unwrap().done {
             l.index_blocking(); // a emenda de linha pede índice novo
@@ -950,7 +950,7 @@ fn property_edits_in_several_batches_at_once_match_the_reference() {
         }
         let after: u64 = batches(&l).iter().map(|b| b.lines).sum::<u64>() + 1;
         assert_eq!(l.info().unwrap().lines, after, "caso {case}");
-        l.save(None).unwrap();
+        l.save(None, SaveMode::Safe).unwrap();
         assert_eq!(std::fs::read(&p).unwrap(), expected, "caso {case}");
         if !l.info().unwrap().done {
             l.index_blocking();
@@ -1011,7 +1011,7 @@ fn volume_indexes_reads_searches_edits_and_saves() {
     let t = Instant::now();
     let text = b.text.replacen("INFO", "WARN", 1);
     l.edit(loc.batch, &strip_virtual(&text, &b.breaks)).unwrap();
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     eprintln!("salvar (~280 MB, 1 lote): {:?}", t.elapsed());
     assert_eq!(std::fs::metadata(&p).unwrap().len(), size);
 }
@@ -1081,7 +1081,7 @@ fn csv_stays_valid_after_editing_many_batches_and_saving() {
         }
     }
     assert!(changed_batches > 10, "o teste só vale se editar muitos lotes ({changed_batches})");
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     let saved = std::fs::read_to_string(&p).unwrap();
     let after = crate::csv::Csv::parse(saved.clone(), ',');
     assert!(!after.unterminated(), "uma aspa ficou aberta: o CSV quebrou");
@@ -1111,7 +1111,7 @@ fn csv_edit_inside_a_giant_quoted_cell_keeps_the_record_count() {
     assert!(batches(&l).iter().any(|b| !b.breaks.is_empty()), "a célula foi cortada em segmentos virtuais");
     let t = file_text_of(&l, 0);
     l.edit(0, &t.replacen("enorme", "ENORME", 1)).unwrap();
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     let saved = std::fs::read_to_string(&p).unwrap();
     assert_eq!(saved, text.replacen("enorme", "ENORME", 1));
     let csv = crate::csv::Csv::parse(saved, ',');
@@ -1131,7 +1131,7 @@ fn csv_with_crlf_rows_keeps_untouched_batches_byte_identical() {
     let t = file_text_of(&l, 2).replacen("Ana", "ANA", 1);
     let expected = expected_after(text.as_bytes(), &l, 2, &t, l.eol, l.encoding);
     l.edit(2, &t).unwrap();
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     let saved = std::fs::read(&p).unwrap();
     assert_eq!(saved, expected, "só o lote 2 foi regravado; os outros saem idênticos, em CRLF");
     assert_eq!(saved.iter().filter(|&&b| b == b'\n').count(), text.matches('\n').count(), "nenhuma quebra a mais nem a menos");
@@ -1145,7 +1145,7 @@ fn a_cancelled_save_leaves_the_file_and_the_pending_edits_alone_and_no_temp_behi
     let l = open(&p, small());
     l.edit(1, "quatro\n5\n6\n").unwrap();
     l.close(); // o mesmo sinal de quem cancela
-    let err = l.save(None).unwrap_err();
+    let err = l.save(None, SaveMode::Safe).unwrap_err();
     assert!(err.to_string().contains("cancelado"), "{err}");
     assert_eq!(std::fs::read(&p).unwrap(), bytes, "o arquivo não muda");
     assert!(l.is_dirty(), "a alteração continua guardada");
@@ -1176,7 +1176,154 @@ fn the_progress_counts_every_byte_of_the_save() {
     let (_d, p) = file(bytes);
     let l = open(&p, small());
     l.edit(0, "UM\n2\n3\n").unwrap();
-    l.save(None).unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
     assert_eq!(std::fs::read(&p).unwrap(), b"UM\n2\n3\n4\n5\n6\n7\n");
     assert_eq!(l.info().unwrap().save_total, 0, "zera ao terminar");
+}
+
+// ---- salvar direto ---------------------------------------------------------------------
+
+fn tmp_files(dir: &Path) -> usize {
+    std::fs::read_dir(dir).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().starts_with(".tmp-")).count()
+}
+
+#[test]
+fn direct_save_of_same_size_edits_overwrites_in_place_without_a_temp() {
+    let bytes = b"id,valor\n1,10\n2,20\n3,30\n4,40\n5,50\n6,60\n";
+    let (d, p) = file(bytes);
+    let l = open(&p, small());
+    let before = l.save_plan().unwrap();
+    assert_eq!((before.edited, before.resized), (0, 0));
+    l.edit(1, "3,30\n4,99\n5,50\n").unwrap(); // 40 → 99: mesmo tamanho
+    let plan = l.save_plan().unwrap();
+    assert_eq!((plan.edited, plan.resized, plan.direct_bytes), (1, 0, 0));
+    l.save(None, SaveMode::Direct).unwrap();
+    assert_eq!(std::fs::read(&p).unwrap(), b"id,valor\n1,10\n2,20\n3,30\n4,99\n5,50\n6,60\n");
+    assert_eq!(tmp_files(d.path()), 0);
+    assert!(!l.is_dirty());
+    assert_consistent(&l, b"id,valor\n1,10\n2,20\n3,30\n4,99\n5,50\n6,60\n");
+}
+
+#[test]
+fn direct_save_that_grows_or_shrinks_rewrites_only_from_the_first_resized_batch() {
+    let bytes = b"1\n2\n3\n4\n5\n6\n7\n8\n9\n";
+    let (_d, p) = file(bytes);
+    let l = open(&p, small());
+    l.edit(2, "7\n8\nOITO E MEIO\n9\n").unwrap();
+    let plan = l.save_plan().unwrap();
+    assert_eq!((plan.edited, plan.resized), (1, 1));
+    let start = 12; // "1\n2\n3\n4\n5\n6\n" são 12 bytes: o lote 2 começa em 12
+    assert_eq!(plan.direct_bytes, bytes.len() as u64 - start);
+    l.save(None, SaveMode::Direct).unwrap();
+    assert_eq!(std::fs::read(&p).unwrap(), b"1\n2\n3\n4\n5\n6\n7\n8\nOITO E MEIO\n9\n");
+    // e encolhe
+    let l = open(&p, small());
+    l.edit(0, "1\n").unwrap();
+    l.save(None, SaveMode::Direct).unwrap();
+    assert_eq!(std::fs::read(&p).unwrap(), b"1\n4\n5\n6\n7\n8\nOITO E MEIO\n9\n");
+}
+
+#[test]
+fn direct_save_ignores_the_cancel_signal_because_stopping_halfway_would_corrupt_the_file() {
+    let (_d, p) = file(b"1\n2\n3\n4\n5\n6\n");
+    let l = open(&p, small());
+    l.edit(1, "quatro\n5\n6\n").unwrap();
+    l.close();
+    l.save(None, SaveMode::Direct).unwrap();
+    assert_eq!(std::fs::read(&p).unwrap(), b"1\n2\n3\nquatro\n5\n6\n");
+}
+
+#[test]
+fn saving_without_edits_does_not_touch_the_file() {
+    let (d, p) = file(b"1\n2\n3\n");
+    let l = open(&p, small());
+    let before = std::fs::metadata(&p).unwrap().modified().unwrap();
+    l.save(None, SaveMode::Safe).unwrap();
+    l.save(None, SaveMode::Direct).unwrap();
+    assert_eq!(std::fs::metadata(&p).unwrap().modified().unwrap(), before);
+    assert_eq!(tmp_files(d.path()), 0);
+}
+
+#[test]
+fn direct_save_after_the_file_changed_outside_is_a_conflict_and_writes_nothing() {
+    let (_d, p) = file(b"1\n2\n3\n4\n");
+    let l = open(&p, small());
+    l.edit(0, "x\n2\n3\n").unwrap();
+    std::fs::write(&p, b"outro programa\n").unwrap();
+    assert!(matches!(l.save(None, SaveMode::Direct), Err(Error::Conflict)));
+    assert_eq!(std::fs::read(&p).unwrap(), b"outro programa\n");
+}
+
+/// Direto e seguro dão o mesmo arquivo, com edições que crescem, encolhem e mantêm o tamanho, em
+/// qualquer mistura e posição (arquivo com CRLF, acentos e BOM incluídos).
+#[test]
+fn direct_and_safe_save_produce_the_same_bytes_for_random_edits() {
+    let mut seed = 0x2545_f491_4f6c_dd1du64;
+    let mut rnd = move |n: u64| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed % n.max(1)
+    };
+    for round in 0..300 {
+        let crlf = round % 3 == 0;
+        let bom = round % 5 == 0;
+        let nl = if crlf { "\r\n" } else { "\n" };
+        let lines = 3 + rnd(40);
+        let mut bytes = if bom { vec![0xEF, 0xBB, 0xBF] } else { vec![] };
+        for i in 0..lines {
+            let w = ["a", "ção", "😀", "xx", "linha longa de teste"][rnd(5) as usize];
+            bytes.extend_from_slice(format!("{i}:{}{nl}", w.repeat(1 + rnd(3) as usize)).as_bytes());
+        }
+        let (d1, p1) = file(&bytes);
+        let (d2, p2) = file(&bytes);
+        let (a, b) = (open(&p1, small()), open(&p2, small()));
+        let count = a.info().unwrap().batches as u64;
+        for _ in 0..1 + rnd(4) {
+            let idx = rnd(count) as usize;
+            let cur = a.read_batch(idx).unwrap();
+            let text = strip_virtual(&cur.text, &cur.breaks);
+            let new = match rnd(3) {
+                0 => text.replacen(|c: char| c.is_ascii_digit(), "7", 1), // mesmo tamanho
+                1 => format!("{text}INSERIDO {}\n", "z".repeat(rnd(40) as usize)),
+                _ => text.lines().take(1).map(|l| format!("{l}\n")).collect::<String>(),
+            };
+            if new.is_empty() {
+                continue;
+            }
+            let _ = a.edit(idx, &new);
+            let _ = b.edit(idx, &new);
+        }
+        a.save(None, SaveMode::Safe).unwrap();
+        b.save(None, SaveMode::Direct).unwrap();
+        assert_eq!(std::fs::read(&p1).unwrap(), std::fs::read(&p2).unwrap(), "rodada {round}");
+        assert_eq!(tmp_files(d2.path()), 0);
+        drop((d1, d2));
+    }
+}
+
+#[test]
+fn direct_save_with_growth_bigger_than_the_stream_chunk_matches_the_safe_save() {
+    let limits = Limits { batch_lines: 1_000_000, batch_bytes: 1024 * 1024, segment_bytes: 1024 * 1024, max_edit_bytes: 32 * 1024 * 1024 };
+    let mut bytes = Vec::new();
+    for i in 0..400_000u32 {
+        bytes.extend_from_slice(format!("linha número {i} com algum texto de enchimento\n").as_bytes());
+    }
+    assert!(bytes.len() > 16 * 1024 * 1024);
+    let (_d1, p1) = file(&bytes);
+    let (_d2, p2) = file(&bytes);
+    let (a, b) = (open(&p1, limits), open(&p2, limits));
+    let n = a.info().unwrap().batches;
+    assert!(n > 8, "{n}");
+    for l in [&a, &b] {
+        let first = l.read_batch(1).unwrap();
+        l.edit(1, &format!("{}{}", first.text, "crescimento\n".repeat(600_000))).unwrap(); // ~7 MB a mais: passa de um bloco de 4 MB
+        let late = l.read_batch(n - 2).unwrap();
+        let short: String = late.text.lines().skip(10).map(|x| format!("{x}\n")).collect();
+        l.edit(n - 2, &short).unwrap(); // e depois encolhe
+    }
+    a.save(None, SaveMode::Safe).unwrap();
+    b.save(None, SaveMode::Direct).unwrap();
+    assert!(std::fs::read(&p1).unwrap() == std::fs::read(&p2).unwrap(), "direto e seguro divergem");
+    assert!(std::fs::metadata(&p2).unwrap().len() > bytes.len() as u64);
 }

@@ -5,7 +5,7 @@ import { saveProgress } from "./model";
  * um lote muda de tamanho), então pode levar minutos num arquivo de GB. Mostra o andamento, tampa a tela
  * (nada é editado enquanto copia) e oferece Cancelar. `poll` devolve os bytes gravados e o total.
  */
-export function showSaving(opts: { poll: () => Promise<{ done: number; total: number }>; cancel: () => void }): { close(): void } {
+export function showSaving(opts: { poll: () => Promise<{ done: number; total: number }>; cancel: () => void; cancelable?: boolean }): { close(): void } {
   const back = document.createElement("div");
   back.className = "saving-back";
   const card = document.createElement("div");
@@ -27,14 +27,18 @@ export function showSaving(opts: { poll: () => Promise<{ done: number; total: nu
     text.textContent = "Cancelando…";
     opts.cancel();
   });
+  if (opts.cancelable === false) {
+    hint.textContent = "Salvando direto no arquivo: não dá para cancelar nem fechar o Fullpad até terminar.";
+    btn.hidden = true;
+  }
   card.append(text, bar, hint, btn);
   back.append(card);
   back.addEventListener("keydown", (e) => {
     e.stopPropagation();
-    if (e.key === "Escape") btn.click();
+    if (e.key === "Escape" && !btn.hidden) btn.click();
   });
   document.body.append(back);
-  btn.focus();
+  if (!btn.hidden) btn.focus();
   let alive = true;
   const tick = async () => {
     while (alive) {

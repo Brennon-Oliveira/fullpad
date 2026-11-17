@@ -6,7 +6,7 @@
 //! travar o laço de eventos (num comando síncrono o Windows deixa todo `invoke` sem resposta).
 
 use crate::{err, parse_id, AppState};
-use fullpad_core::large::{self, BatchOut, EditOut, Hit, Info, Located, Probe, SearchEnd, LARGE_THRESHOLD, MAX_HITS};
+use fullpad_core::large::{self, BatchOut, EditOut, Hit, Info, Located, Probe, SaveMode, SavePlan, SearchEnd, LARGE_THRESHOLD, MAX_HITS};
 use fullpad_core::search::Options as SearchOptions;
 use fullpad_core::{DiskStamp, DiskState, TabState};
 use serde::Serialize;
@@ -143,6 +143,26 @@ pub async fn large_check(state: State<'_, AppState>, id: String) -> Result<DiskS
     blocking!(state, id, |l| l.check_disk())
 }
 
+/// O que salvar custaria (lotes que mudaram de tamanho, bytes de cada modo): a UI decide se pergunta.
+#[tauri::command]
+pub async fn large_save_plan(state: State<'_, AppState>, id: String) -> Result<SavePlan, String> {
+    blocking!(state, id, |l| l.save_plan())
+}
+
+#[derive(Serialize)]
+pub struct SaveProgress {
+    done: u64,
+    total: u64,
+}
+
+/// Andamento do salvar (bytes gravados e total). Não pega o lock do arquivo, então responde mesmo
+/// durante a escrita direta.
+#[tauri::command]
+pub fn large_save_progress(state: State<AppState>, id: String) -> Result<SaveProgress, String> {
+    let (done, total) = get(&state, parse_id(&id)?)?.save_progress();
+    Ok(SaveProgress { done, total })
+}
+
 /// Pede para o salvar em andamento parar: o temporário é apagado e o arquivo fica como estava.
 #[tauri::command]
 pub fn large_save_cancel(state: State<AppState>, id: String) -> Result<(), String> {
@@ -162,11 +182,11 @@ pub struct LargeSaved {
 /// Salva: copia o original em fluxo trocando só os lotes editados (escrita atômica). `path` diferente
 /// é "Salvar como" (o original fica intacto). Recusa com `conflito:` se o arquivo mudou fora do Fullpad.
 #[tauri::command]
-pub async fn large_save(state: State<'_, AppState>, id: String, path: Option<PathBuf>) -> Result<LargeSaved, String> {
+pub async fn large_save(state: State<'_, AppState>, id: String, path: Option<PathBuf>, mode: Option<SaveMode>) -> Result<LargeSaved, String> {
     let uuid = parse_id(&id)?;
     let l = get(&state, uuid)?;
     let (l2, dest) = (l.clone(), path.clone());
-    let stamp = tauri::async_runtime::spawn_blocking(move || l2.save(dest.as_deref())).await.map_err(err)?.map_err(err)?;
+    let stamp = tauri::async_runtime::spawn_blocking(move || l2.save(dest.as_deref(), mode.unwrap_or(SaveMode::Safe))).await.map_err(err)?.map_err(err)?;
     if !l.info().map_err(err)?.done {
         l.start_index(); // o salvar emendou linhas: o índice sai de novo
     }

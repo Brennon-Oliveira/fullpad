@@ -212,6 +212,17 @@ export interface WindowInfo {
 }
 
 /** Arquivo grande aberto (`large_*`): o que o índice já sabe dele. */
+/** `safe`: temporário + renomear (reescreve o arquivo todo); `direct`: no próprio arquivo, só a cauda. */
+export type SaveMode = "safe" | "direct";
+/** O que salvar custaria (`large_save_plan`). */
+export interface SavePlan {
+  edited: number;
+  /** Dos editados, os que mudaram de tamanho em bytes. */
+  resized: number;
+  size: number;
+  /** Bytes que a escrita direta regravaria (`0` se nenhum lote mudou de tamanho). */
+  direct_bytes: number;
+}
 export interface LargeInfo {
   size: number;
   encoding: Encoding;
@@ -418,7 +429,9 @@ export const api = {
   /** Só data e tamanho do arquivo no disco; nunca o lê. */
   largeCheck: (id: string) => invoke<DiskState>("large_check", { id }),
   /** Salva (copia o original em fluxo trocando só os lotes editados). `path` diferente: "Salvar como". */
-  largeSave: (id: string, path: string | null) => invoke<LargeSaved>("large_save", { id, path }),
+  largeSave: (id: string, path: string | null, mode: SaveMode = "safe") => invoke<LargeSaved>("large_save", { id, path, mode }),
+  largeSavePlan: (id: string) => invoke<SavePlan>("large_save_plan", { id }),
+  largeSaveProgress: (id: string) => invoke<{ done: number; total: number }>("large_save_progress", { id }),
   /** Descarta as alterações e relê o arquivo do disco. */
   largeReload: (id: string) => invoke<LargeInfo>("large_reload", { id }),
   largeDiscard: (id: string) => invoke<LargeInfo>("large_discard", { id }),

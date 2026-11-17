@@ -371,6 +371,108 @@ impl Inner {
     }
 }
 
+/// Como salvar quando o arquivo é o próprio (`Direct` só vale sem "Salvar como").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SaveMode {
+    /// Temporário no mesmo diretório e renomear: o original só é trocado no fim; reescreve o arquivo todo.
+    Safe,
+    /// No próprio arquivo: só regrava do primeiro lote que mudou de tamanho em diante; sem proteção contra queda.
+    Direct,
+}
+
+/// O que salvar custaria (`Large::save_plan`).
+#[derive(Debug, Clone, Serialize)]
+pub struct SavePlan {
+    /// Lotes com alteração.
+    pub edited: usize,
+    /// Dos editados, os que mudaram de tamanho em bytes (os outros gravam no lugar).
+    pub resized: usize,
+    pub size: u64,
+    /// Bytes que a escrita direta regravaria da cauda (`0` se nenhum lote mudou de tamanho).
+    pub direct_bytes: u64,
+}
+
+struct Item {
+    old: Batch,
+    /// O texto novo, se o lote foi editado.
+    bytes: Option<Vec<u8>>,
+}
+
+impl Item {
+    fn resized(&self) -> bool {
+        self.bytes.as_ref().is_some_and(|b| b.len() as u64 != self.old.end - self.old.start)
+    }
+}
+
+struct Plan {
+    items: Vec<Item>,
+    new_batches: Vec<Batch>,
+    new_size: u64,
+    reindex: bool,
+}
+
+const STREAM_CHUNK: usize = 4 * 1024 * 1024;
+
+/// A cauda da escrita direta: lê o original à frente do que escreve. Quando o arquivo cresce o ponto de
+/// escrita passa o de leitura, então os bytes que seriam pisados são lidos antes e esperam em `buf`
+/// (tanto quanto o arquivo cresceu até ali, nunca o arquivo inteiro). `c` é o próximo byte do original
+/// a consumir, `read_pos` até onde já se leu e `w` onde se escreve.
+struct Stream<'a> {
+    f: &'a mut File,
+    path: &'a Path,
+    size: u64,
+    buf: std::collections::VecDeque<u8>,
+    read_pos: u64,
+    c: u64,
+    w: u64,
+    done: &'a AtomicU64,
+}
+
+impl Stream<'_> {
+    /// Garante que o original até `target` (sem passar do fim) já foi lido.
+    fn fill_to(&mut self, target: u64) -> Result<()> {
+        let target = target.min(self.size);
+        while self.read_pos < target {
+            let n = (target - self.read_pos).min(STREAM_CHUNK as u64) as usize;
+            let mut tmp = vec![0u8; n];
+            self.f.seek(SeekFrom::Start(self.read_pos)).at(self.path)?;
+            self.f.read_exact(&mut tmp).at(self.path)?;
+            self.buf.extend(tmp);
+            self.read_pos += n as u64;
+        }
+        Ok(())
+    }
+
+    /// Os próximos `n` bytes do original, que seguem sendo consumidos em ordem.
+    fn take(&mut self, n: usize) -> Result<Vec<u8>> {
+        self.fill_to(self.c + n as u64)?;
+        let out: Vec<u8> = self.buf.drain(..n).collect();
+        self.c += n as u64;
+        Ok(out)
+    }
+
+    /// Descarta `n` bytes do original (os do lote que foi trocado), sem lê-los se ainda não vieram.
+    fn skip(&mut self, n: u64) {
+        let have = (self.buf.len() as u64).min(n);
+        self.buf.drain(..have as usize);
+        self.read_pos += n - have;
+        self.c += n;
+    }
+
+    /// Escreve em `w`, depois de ler o que seria pisado.
+    fn put(&mut self, bytes: &[u8]) -> Result<()> {
+        for chunk in bytes.chunks(STREAM_CHUNK) {
+            self.fill_to(self.w + chunk.len() as u64)?;
+            self.f.seek(SeekFrom::Start(self.w)).at(self.path)?;
+            self.f.write_all(chunk).at(self.path)?;
+            self.w += chunk.len() as u64;
+            self.done.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+        }
+        Ok(())
+    }
+}
+
 /// Um arquivo grande aberto: índice, alterações pendentes e leitura por lote. Seguro entre threads.
 pub struct Large {
     pub limits: Limits,
@@ -826,21 +928,100 @@ impl Large {
     /// intacto. Precisa do índice pronto e de espaço livre do tamanho do arquivo. Em geral o índice
     /// novo sai das contas do próprio salvar; se não (`info().done == false` depois), quem chamou
     /// manda refazê-lo com `start_index`.
-    pub fn save(&self, dest: Option<&Path>) -> Result<DiskStamp> {
+    pub fn save(&self, dest: Option<&Path>, mode: SaveMode) -> Result<DiskStamp> {
         if self.saving.swap(true, Ordering::AcqRel) {
             return Err(Error::Invalid("já há um salvar em andamento".into()));
         }
         self.save_cancel.store(false, Ordering::Relaxed);
-        let r = self.save_inner(dest);
+        let r = if mode == SaveMode::Direct && dest.is_none() { self.save_direct() } else { self.save_safe(dest) };
         self.save_done.store(0, Ordering::Relaxed);
         self.save_total.store(0, Ordering::Relaxed);
         self.saving.store(false, Ordering::Release);
         r
     }
 
-    fn save_inner(&self, dest: Option<&Path>) -> Result<DiskStamp> {
-        // fotografia do que importa, com o lock só pelo tempo de copiá-la: a cópia do arquivo (minutos,
-        // num de 15 GB) roda sem lock, e as edições ficam recusadas enquanto salva (`saving`)
+    /// O que salvar custaria, para a UI decidir se pergunta: quantos lotes editados mantêm o tamanho
+    /// (gravam no lugar, sem risco) e quantos mudam (empurram o resto do arquivo), e quantos bytes a
+    /// escrita direta regravaria (do primeiro lote que muda até o fim) contra o arquivo inteiro da
+    /// escrita segura.
+    pub fn save_plan(&self) -> Result<SavePlan> {
+        let g = self.read()?;
+        let plan = self.make_plan(&g.path, g.size, &g.batches, &g.edits)?;
+        let first = plan.items.iter().position(Item::resized);
+        Ok(SavePlan {
+            edited: plan.items.iter().filter(|i| i.bytes.is_some()).count(),
+            resized: plan.items.iter().filter(|i| i.resized()).count(),
+            size: g.size,
+            direct_bytes: first.map_or(0, |f| g.size.saturating_sub(plan.items[f].old.start)),
+        })
+    }
+
+    /// Bytes gravados e total do salvar em andamento (`0, 0` sem nenhum). Não pega o lock: dá para
+    /// perguntar enquanto a escrita direta o segura.
+    pub fn save_progress(&self) -> (u64, u64) {
+        (self.save_done.load(Ordering::Relaxed), self.save_total.load(Ordering::Relaxed))
+    }
+
+    /// O texto novo de cada lote editado (já na codificação e quebra do arquivo), as divisas do arquivo
+    /// novo e se o índice precisa ser refeito: um lote editado que termina sem `\n`, ou que continua a
+    /// linha do anterior, mexe nos cortes virtuais de uma linha longa.
+    fn make_plan(&self, src: &Path, size: u64, batches: &[Batch], edits: &BTreeMap<u64, Edit>) -> Result<Plan> {
+        let mut input = File::open(src).at(src)?;
+        let mut items = Vec::with_capacity(batches.len());
+        let mut new_batches = Vec::with_capacity(batches.len());
+        let mut pos = self.bom;
+        let mut reindex = false;
+        for b in batches {
+            let (len, nl, bytes) = match edits.get(&b.start) {
+                Some(e) => {
+                    let bytes = encode_chunk(&e.text, self.encoding, self.eol)?;
+                    if bytes.last() != Some(&b'\n') && b.end < size {
+                        reindex = true;
+                    }
+                    // o lote continua uma linha do anterior: o corte virtual no fim do anterior olha
+                    // alguns bytes adiante, então mudar o começo deste pode mudá-lo
+                    if b.start > self.bom && !reindex {
+                        let mut prev = [0u8; 1];
+                        input.seek(SeekFrom::Start(b.start - 1)).at(src)?;
+                        input.read_exact(&mut prev).at(src)?;
+                        if prev[0] != b'\n' {
+                            reindex = true;
+                        }
+                    }
+                    (bytes.len() as u64, e.nl, Some(bytes))
+                }
+                None => (b.end - b.start, b.nl, None),
+            };
+            new_batches.push(Batch { start: pos, end: pos + len, nl });
+            pos += len;
+            items.push(Item { old: *b, bytes });
+        }
+        Ok(Plan { items, new_batches, new_size: pos, reindex })
+    }
+
+    /// Guarda no estado o resultado de um salvar que deu certo.
+    fn commit_save(&self, g: &mut Inner, target: PathBuf, plan: Plan) -> Result<DiskStamp> {
+        let new_stamp = stamp_large(&target)?.ok_or_else(|| Error::Invalid("o arquivo sumiu logo depois de gravar".into()))?;
+        g.path = target;
+        g.size = plan.new_size;
+        g.stamp = new_stamp;
+        if plan.reindex {
+            g.batches.clear();
+            g.indexed_bytes = self.bom;
+            g.done = false;
+        } else {
+            g.batches = plan.new_batches;
+            g.indexed_bytes = plan.new_size;
+        }
+        g.edits.clear();
+        self.journal_clear();
+        Ok(new_stamp)
+    }
+
+    /// Salvar seguro: o arquivo novo é montado num temporário do mesmo diretório e só então renomeado.
+    /// A cópia roda sem o lock (fotografia dos lotes e das edições; `edit` recusa enquanto salva) e
+    /// pode ser cancelada: o temporário some e nada muda.
+    fn save_safe(&self, dest: Option<&Path>) -> Result<DiskStamp> {
         let (src, size, stamp, batches, edits) = {
             let g = self.read()?;
             if !g.done {
@@ -851,6 +1032,9 @@ impl Large {
             }
             (g.path.clone(), g.size, g.stamp, g.batches.clone(), g.edits.clone())
         };
+        if dest.is_none() && edits.is_empty() {
+            return Ok(stamp); // nada a gravar: não há por que reescrever o arquivo
+        }
         let target = dest.map_or_else(|| src.clone(), Path::to_path_buf);
         match check_stamp(&src, &stamp)? {
             DiskState::Unchanged => {}
@@ -858,17 +1042,13 @@ impl Large {
             DiskState::Changed => return Err(Error::Conflict),
             DiskState::Missing => return Err(Error::Invalid("o arquivo original sumiu: não há de onde copiar o resto".into())),
         }
+        let plan = self.make_plan(&src, size, &batches, &edits)?;
         let dir = target.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
         std::fs::create_dir_all(dir).at(dir)?;
         self.save_total.store(size, Ordering::Relaxed);
         let tmp = tempfile::Builder::new().prefix(".tmp-").tempfile_in(dir).at(dir)?;
         let mut input = File::open(&src).at(&src)?;
         let mut out = std::io::BufWriter::with_capacity(1024 * 1024, tmp);
-        let mut new_batches = Vec::with_capacity(batches.len());
-        let mut pos = 0u64;
-        // um lote editado que termina sem `\n`, ou que continua a linha do anterior, mexe nos cortes
-        // virtuais de uma linha longa: aí o índice precisa ser refeito
-        let mut reindex = false;
         let stopped = || self.save_cancel.load(Ordering::Relaxed) || self.cancel.load(Ordering::Relaxed);
         let copy = |input: &mut File, out: &mut dyn Write, from: u64, len: u64| -> Result<()> {
             input.seek(SeekFrom::Start(from)).at(&src)?;
@@ -891,37 +1071,15 @@ impl Large {
         };
         if self.bom > 0 {
             copy(&mut input, &mut out, 0, self.bom)?;
-            pos = self.bom;
         }
-        for b in &batches {
-            let len = match edits.get(&b.start) {
-                Some(e) => {
-                    let bytes = encode_chunk(&e.text, self.encoding, self.eol)?;
-                    out.write_all(&bytes).at(&target)?;
-                    self.save_done.fetch_add(b.end - b.start, Ordering::Relaxed);
-                    if bytes.last() != Some(&b'\n') && b.end < size {
-                        reindex = true;
-                    }
-                    // o lote continua uma linha do anterior: o corte virtual no fim do anterior olha
-                    // alguns bytes adiante, então mudar o começo deste pode mudá-lo
-                    if b.start > self.bom && !reindex {
-                        let mut prev = [0u8; 1];
-                        input.seek(SeekFrom::Start(b.start - 1)).at(&src)?;
-                        input.read_exact(&mut prev).at(&src)?;
-                        if prev[0] != b'\n' {
-                            reindex = true;
-                        }
-                    }
-                    bytes.len() as u64
+        for it in &plan.items {
+            match &it.bytes {
+                Some(bytes) => {
+                    out.write_all(bytes).at(&target)?;
+                    self.save_done.fetch_add(it.old.end - it.old.start, Ordering::Relaxed);
                 }
-                None => {
-                    copy(&mut input, &mut out, b.start, b.end - b.start)?;
-                    b.end - b.start
-                }
-            };
-            let nl = edits.get(&b.start).map_or(b.nl, |e| e.nl);
-            new_batches.push(Batch { start: pos, end: pos + len, nl });
-            pos += len;
+                None => copy(&mut input, &mut out, it.old.start, it.old.end - it.old.start)?,
+            }
         }
         drop(input);
         if stopped() {
@@ -931,22 +1089,81 @@ impl Large {
         let tmp = out.into_inner().map_err(|e| Error::Io { path: target.clone(), source: e.into_error() })?;
         tmp.as_file().sync_all().at(&target)?;
         tmp.persist(&target).map_err(|e| Error::Io { path: target.clone(), source: e.error })?;
-        let new_stamp = stamp_large(&target)?.ok_or_else(|| Error::Invalid("o arquivo sumiu logo depois de gravar".into()))?;
         let mut g = self.write()?;
-        g.path = target;
-        g.size = pos;
-        g.stamp = new_stamp;
-        if reindex {
-            g.batches.clear();
-            g.indexed_bytes = self.bom;
-            g.done = false;
-        } else {
-            g.batches = new_batches;
-            g.indexed_bytes = pos;
+        self.commit_save(&mut g, target, plan)
+    }
+
+    /// Salvar direto: grava no próprio arquivo, sem temporário. Lote editado que manteve o tamanho é
+    /// sobrescrito no lugar; do primeiro lote que mudou de tamanho em diante, o resto é regravado
+    /// deslocado (só essa cauda, nunca o começo). **Não é atômico e não é cancelável** (parar no meio
+    /// deixaria o arquivo emendado): se o app ou a máquina cair no meio da cauda, o arquivo fica
+    /// corrompido dali em diante. Segura o lock de escrita (ninguém lê um arquivo pela metade).
+    fn save_direct(&self) -> Result<DiskStamp> {
+        let mut g = self.write()?;
+        if !g.done {
+            return Err(Error::Invalid("aguarde o fim da leitura do arquivo para salvar".into()));
         }
-        g.edits.clear();
-        self.journal_clear();
-        Ok(new_stamp)
+        if g.orphaned {
+            return Err(Error::Conflict);
+        }
+        if g.edits.is_empty() {
+            return Ok(g.stamp);
+        }
+        let path = g.path.clone();
+        match check_stamp(&path, &g.stamp)? {
+            DiskState::Unchanged => {}
+            DiskState::Changed => return Err(Error::Conflict),
+            DiskState::Missing => return Err(Error::Invalid("o arquivo original sumiu".into())),
+        }
+        let plan = self.make_plan(&path, g.size, &g.batches, &g.edits)?;
+        let first = plan.items.iter().position(Item::resized);
+        let patched: u64 = plan.items.iter().take(first.unwrap_or(usize::MAX)).filter_map(|i| i.bytes.as_ref()).map(|b| b.len() as u64).sum();
+        let tail = first.map_or(0, |f| plan.new_size.saturating_sub(plan.items[f].old.start));
+        self.save_total.store(patched + tail, Ordering::Relaxed);
+        self.write_direct(&path, g.size, &plan, first)?;
+        self.commit_save(&mut g, path, plan)
+    }
+
+    fn write_direct(&self, path: &Path, size: u64, plan: &Plan, first: Option<usize>) -> Result<()> {
+        let mut f = std::fs::OpenOptions::new().read(true).write(true).open(path).at(path)?;
+        // 1. lotes editados que mantiveram o tamanho, antes do primeiro que mudou: sobrescreve no lugar
+        for it in plan.items.iter().take(first.unwrap_or(plan.items.len())) {
+            if let Some(b) = &it.bytes {
+                f.seek(SeekFrom::Start(it.old.start)).at(path)?;
+                f.write_all(b).at(path)?;
+                self.save_done.fetch_add(b.len() as u64, Ordering::Relaxed);
+            }
+        }
+        if let Some(first) = first {
+            // 2. a cauda: do primeiro lote que mudou até o fim, regravada já deslocada
+            let start = plan.items[first].old.start;
+            let mut st = Stream { f: &mut f, path, size, buf: std::collections::VecDeque::new(), read_pos: start, c: start, w: start, done: &self.save_done };
+            for it in &plan.items[first..] {
+                let old_len = it.old.end - it.old.start;
+                match &it.bytes {
+                    Some(bytes) => {
+                        st.skip(old_len);
+                        st.put(bytes)?;
+                    }
+                    None => {
+                        let mut left = old_len;
+                        while left > 0 {
+                            let n = left.min(STREAM_CHUNK as u64) as usize;
+                            let piece = st.take(n)?;
+                            st.put(&piece)?;
+                            left -= n as u64;
+                        }
+                    }
+                }
+            }
+            let end = st.w;
+            debug_assert_eq!(end, plan.new_size);
+            if end < size {
+                f.set_len(end).at(path)?;
+            }
+        }
+        f.sync_all().at(path)?;
+        Ok(())
     }
 
     // ---- busca ----

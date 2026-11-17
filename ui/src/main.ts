@@ -10,7 +10,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { createFileDrop } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
-import { api, type ClosedTab, type Encoding, type Eol, type Language, type LargeHit, type LayoutEdit, type LayoutState, type Session, type TabState, type ViewMode } from "./api";
+import { api, type ClosedTab, type Encoding, type Eol, type Language, type LargeHit, type LayoutEdit, type LayoutState, type SaveMode, type Session, type TabState, type ViewMode } from "./api";
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import { mermaidLanguage } from "./mermaidlang";
 
@@ -59,6 +59,7 @@ import { mountPostitBar, type PostitBar } from "./postit";
 import { LargeTab, type LargeHooks, type LargeIo } from "./large/ctl";
 import { type LargeFind, mountLargeFind } from "./large/find";
 import { showSaving } from "./large/saving";
+import { chooseSaveMode } from "./large/savemode";
 import { firstRecord, humanSize, statusText, stripBreaks as stripBreaksOf } from "./large/model";
 import { type LargeScroll, mountLargeScroll } from "./large/scrollbar";
 import { docPos, filePos, largeField, largeKeys, lineNumberFormat, windowLoad } from "./large/state";
@@ -1693,16 +1694,40 @@ async function saveLarge(tab: TabState, forceDialog: boolean): Promise<boolean> 
   const showing = groupShowing(tab.id);
   if (showing) snapshotGroup(showing);
   await ctl.commit();
+  // O que salvar custa: trechos que mantêm o tamanho gravam no lugar, sem perguntar; se algum mudou de
+  // tamanho, o resto do arquivo muda de lugar e a pessoa escolhe entre seguro e direto. "Salvar como"
+  // sempre monta um arquivo novo (o original fica intacto).
+  let mode: SaveMode = "safe";
+  let inPlace = false;
+  if (!dest) {
+    try {
+      const plan = await api.largeSavePlan(tab.id);
+      if (plan.edited === 0) {
+        tab.dirty = false;
+        renderTabs();
+        return true;
+      }
+      if (plan.resized === 0) {
+        mode = "direct";
+        inPlace = true;
+      } else {
+        const choice = await chooseSaveMode(plan, tab.title);
+        if (!choice) return false; // cancelou: nada foi gravado, as alterações continuam
+        mode = choice;
+      }
+    } catch (e) {
+      await message(String(e), { title: "Erro ao salvar", kind: "error" });
+      return false;
+    }
+  }
   let saved: Awaited<ReturnType<typeof api.largeSave>>;
   const progress = showSaving({
-    poll: async () => {
-      const i = await api.largeInfo(tab.id);
-      return { done: i.save_done, total: i.save_total };
-    },
+    poll: () => api.largeSaveProgress(tab.id),
     cancel: () => void api.largeSaveCancel(tab.id).catch(() => {}),
+    cancelable: mode === "safe",
   });
   try {
-    saved = await enqueue(() => api.largeSave(tab.id, dest));
+    saved = await enqueue(() => api.largeSave(tab.id, dest, mode));
   } catch (e) {
     progress.close();
     if (String(e).includes("salvar cancelado")) {
@@ -1723,6 +1748,7 @@ async function saveLarge(tab: TabState, forceDialog: boolean): Promise<boolean> 
     return false;
   }
   progress.close();
+  if (inPlace) flashLarge("Salvo no lugar: só os trechos alterados foram regravados (mesmo tamanho).");
   tab.disk = saved.stamp;
   tab.path = saved.path;
   tab.title = saved.title;
