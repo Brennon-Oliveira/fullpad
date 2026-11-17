@@ -1843,7 +1843,6 @@ async function saveLarge(tab: TabState, forceDialog: boolean): Promise<boolean> 
     return false;
   }
   progress.close();
-  if (inPlace) flashLarge("Salvo no lugar: só os trechos alterados foram regravados (mesmo tamanho).");
   tab.disk = saved.stamp;
   tab.path = saved.path;
   tab.title = saved.title;
@@ -1857,6 +1856,8 @@ async function saveLarge(tab: TabState, forceDialog: boolean): Promise<boolean> 
   scheduleSave();
   const g = groupShowing(tab.id);
   if (g) renderDiskBar(g);
+  // depois do `renderDiskBar` acima: ele esconde a faixa, e o aviso sumiria no mesmo instante
+  if (inPlace) flashLarge("Salvo no lugar: só os trechos alterados foram regravados (mesmo tamanho).");
   return true;
 }
 
