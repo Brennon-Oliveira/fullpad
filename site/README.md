@@ -10,4 +10,4 @@ Testar local: `python3 -m http.server -d site 8000`.
 
 Publicar: o workflow `.github/workflows/pages.yml` envia a pasta `site` a cada push na `main` que a toque (Settings > Pages > Source: GitHub Actions).
 
-SEO e compartilhamento (no `<head>` do `index.html`): título, descrição, canonical, Open Graph, Twitter Card e JSON-LD (`SoftwareApplication`) usam a URL `https://brennon-oliveira.github.io/fullpad/`. **Ao ligar um domínio próprio**, troque essa URL no `index.html`, no `robots.txt` e no `sitemap.xml` e crie `site/CNAME`. A imagem de compartilhamento é `og-image.png` (1200×630) e os ícones saem de `crates/app/icons/fullpad.svg`.
+SEO e compartilhamento (no `<head>` do `index.html`): título, descrição, canonical, Open Graph, Twitter Card e JSON-LD (`SoftwareApplication`) usam a URL `https://fullpad.branaos.com.br/` (a mesma está em `robots.txt`, `sitemap.xml` e `CNAME`). A imagem de compartilhamento é `og-image.png` (1200×630) e os ícones saem de `crates/app/icons/fullpad.svg`.
