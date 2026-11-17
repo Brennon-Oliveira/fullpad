@@ -1327,3 +1327,22 @@ fn direct_save_with_growth_bigger_than_the_stream_chunk_matches_the_safe_save() 
     assert!(std::fs::read(&p1).unwrap() == std::fs::read(&p2).unwrap(), "direto e seguro divergem");
     assert!(std::fs::metadata(&p2).unwrap().len() > bytes.len() as u64);
 }
+
+#[test]
+fn opening_does_not_index_and_ensure_index_starts_it_only_once() {
+    let (_d, p) = file(b"1\n2\n3\n4\n5\n6\n");
+    let l = Large::open(&p, small(), None).unwrap();
+    let info = l.info().unwrap();
+    assert!(!info.done && info.batches == 0, "abrir não indexa (o cartão Carregar vem antes)");
+    l.ensure_index();
+    l.ensure_index(); // a segunda não cria outra thread
+    for _ in 0..200 {
+        if l.info().unwrap().done {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let info = l.info().unwrap();
+    assert!(info.done && info.error.is_none());
+    assert_eq!(info.batches, 2);
+}

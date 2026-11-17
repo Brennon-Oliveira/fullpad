@@ -476,6 +476,9 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 /* ---- leitor de PDF/EPUB (aba só de leitura) ---- */
 .reader { display: none; flex: 1; min-width: 0; min-height: 0; flex-direction: column; position: relative; background: var(--bar); }
 .reader.on { display: flex; }
+.largegate { display: none; flex: 1; min-width: 0; min-height: 0; flex-direction: column; position: relative; background: var(--bar); }
+.largegate.on { display: flex; }
+.body.gated > .editor, .body.gated > .mdview, .body.gated > .diagram, .body.gated > .jsonview, .body.gated > .csvview, .body.gated > .layoutview { display: none !important; }
 .body.reading > .editor, .body.reading > .mdview, .body.reading > .diagram, .body.reading > .jsonview, .body.reading > .csvview { display: none !important; }
 .rd-center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .rd-card { max-width: 460px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }

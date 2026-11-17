@@ -1676,6 +1676,7 @@ fn main() {
             largefile::large_probe,
             largefile::large_open,
             largefile::large_attach,
+            largefile::large_start,
             largefile::large_info,
             largefile::large_batch,
             largefile::large_locate,

@@ -422,6 +422,7 @@ export const api = {
   /** Liga o arquivo de uma aba grande que já está na sessão (reinício, lixeira). */
   largeAttach: (id: string) => invoke<LargeInfo>("large_attach", { id }),
   largeInfo: (id: string) => invoke<LargeInfo>("large_info", { id }),
+  largeStart: (id: string) => invoke<LargeInfo>("large_start", { id }),
   largeBatch: (id: string, index: number) => invoke<LargeBatch>("large_batch", { id, index }),
   /** Em que lote está a linha (a partir de 0): só soma as linhas dos lotes. */
   largeLocate: (id: string, line: number) => invoke<{ batch: number; start_line: number }>("large_locate", { id, line }),

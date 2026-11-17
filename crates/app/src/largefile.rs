@@ -81,7 +81,7 @@ pub async fn large_open(state: State<'_, AppState>, window: WebviewWindow, path:
         session.tabs.push(tab.clone());
         state.store.save_session(&session).map_err(err)?;
     }
-    l.start_index();
+    // o índice só sai quando a pessoa carrega o arquivo (`large_start`): abrir um de 15 GB não o lê
     let info = l.info().map_err(err)?;
     state.larges.lock().unwrap().insert(tab.id, l);
     Ok(LargeOpened { tab, info })
@@ -98,12 +98,20 @@ pub async fn large_attach(state: State<'_, AppState>, id: String) -> Result<Info
     };
     let store = state.store.clone();
     let l = tauri::async_runtime::spawn_blocking(move || store.attach_large(&tab).map_err(err)).await.map_err(err)??;
-    l.start_index();
     let info = l.info().map_err(err)?;
     if let Some(old) = state.larges.lock().unwrap().insert(id, l) {
         old.close();
     }
     Ok(info)
+}
+
+/// "Carregar": agora sim o arquivo é indexado (em segundo plano). Chamar de novo não faz nada.
+#[tauri::command]
+pub async fn large_start(state: State<'_, AppState>, id: String) -> Result<Info, String> {
+    let id = parse_id(&id)?;
+    let l = get(&state, id)?;
+    l.ensure_index();
+    l.info().map_err(err)
 }
 
 macro_rules! blocking {

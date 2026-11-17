@@ -484,6 +484,8 @@ pub struct Large {
     /// Um salvar está copiando o arquivo (não há lock durante a cópia: ler e fechar a aba seguem livres).
     saving: AtomicBool,
     save_cancel: AtomicBool,
+    /// O índice já foi pedido (`ensure_index`): abrir o arquivo não o indexa, quem carrega é que pede.
+    index_started: AtomicBool,
     save_done: AtomicU64,
     save_total: AtomicU64,
     inner: RwLock<Inner>,
@@ -591,6 +593,7 @@ impl Large {
             cancel: AtomicBool::new(false),
             saving: AtomicBool::new(false),
             save_cancel: AtomicBool::new(false),
+            index_started: AtomicBool::new(false),
             save_done: AtomicU64::new(0),
             save_total: AtomicU64::new(0),
             inner: RwLock::new(Inner {
@@ -681,8 +684,16 @@ impl Large {
 
     /// Constrói o índice numa thread (o arquivo já pode ser lido do começo enquanto isso).
     pub fn start_index(self: &Arc<Self>) {
+        self.index_started.store(true, Ordering::Relaxed);
         let me = Arc::clone(self);
         std::thread::spawn(move || me.index_blocking());
+    }
+
+    /// Começa o índice se ainda não começou (carregar uma aba grande: chamar de novo não faz nada).
+    pub fn ensure_index(self: &Arc<Self>) {
+        if !self.index_started.swap(true, Ordering::AcqRel) {
+            self.start_index();
+        }
     }
 
     /// Para o índice e qualquer trabalho em andamento (ao fechar a aba).

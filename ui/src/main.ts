@@ -58,6 +58,7 @@ import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, n
 import { mountPostitBar, type PostitBar } from "./postit";
 import { LargeTab, type LargeHooks, type LargeIo } from "./large/ctl";
 import { type LargeFind, mountLargeFind } from "./large/find";
+import { renderLargeGate } from "./large/gate";
 import { showSaving } from "./large/saving";
 import { chooseSaveMode } from "./large/savemode";
 import { firstRecord, humanSize, statusText, stripBreaks as stripBreaksOf } from "./large/model";
@@ -80,6 +81,10 @@ let session: Session;
 const states = new Map<string, EditorState>(); // abas já carregadas (guarda undo/seleção)
 const larges = new Map<string, LargeTab>(); // arquivos grandes abertos nesta janela (modo de lotes)
 const largeFailed = new Set<string>(); // aba grande cujo arquivo não pôde ser aberto: fica só leitura
+// Abrir um arquivo grande não o lê: a aba mostra o cartão "Carregar" (como o PDF/EPUB) até a pessoa pedir. `largeGate` são as
+// abas esperando; `largeLoaded`, as que já foram carregadas nesta execução (voltar a elas não pergunta de novo).
+const largeGate = new Map<string, { size: number; edited: boolean }>();
+const largeLoaded = new Set<string>();
 const largeHeaders = new Map<string, string>(); // CSV grande: o cabeçalho do arquivo (a janela de lotes nem sempre começa nele)
 let syncLock = 0; // tabela e texto rolam juntos: quem acabou de ser rolado pelo outro não devolve o eco
 const lockSync = () => void (syncLock = performance.now() + 300);
@@ -153,6 +158,8 @@ interface Group {
   csvTopLine: number | null;
   /** Leitor de PDF/EPUB (aba só de leitura): carregado sob demanda, cobre o editor. */
   readerEl: HTMLElement;
+  /** Cartão "Carregar" de uma aba de arquivo grande ainda não carregada. */
+  gateEl: HTMLElement;
   reader?: ReaderPanel;
   readerLoading?: Promise<void>;
   /** Texto da barra de status enquanto o leitor está na tela. */
@@ -292,7 +299,7 @@ function applyTabConfig() {
       lineNumbers: lineNumbers && viewKind(tab) !== "inline",
       lineNumberFormat: tab.large ? lineNumberFormat : undefined,
       mdFormat: effectiveLang(tab) === "markdown",
-      readOnly: isReadOnlyText(tab) || (!!tab.large && largeFailed.has(tab.id)),
+      readOnly: isReadOnlyText(tab) || (!!tab.large && (largeFailed.has(tab.id) || largeGate.has(tab.id))),
     }),
   });
   ensureDbmlSupport();
@@ -759,6 +766,30 @@ function syncCsvTable(textChanged: boolean) {
 
 // ---- leitor de PDF/EPUB (aba só de leitura; carregado sob demanda) ----------------------
 
+/** Mostra o cartão "Carregar" no lugar do editor se a aba ativa é um arquivo grande ainda não carregado. */
+function syncLargeGate() {
+  const g = cur;
+  const tab = activeTab();
+  const info = tab?.large ? largeGate.get(tab.id) : undefined;
+  g.bodyEl.classList.toggle("gated", !!info);
+  g.gateEl.classList.toggle("on", !!info);
+  if (!info || !tab) return void g.gateEl.replaceChildren();
+  if (g.gateEl.dataset.tab === tab.id) return; // já desenhado para esta aba
+  g.gateEl.dataset.tab = tab.id;
+  renderLargeGate(g.gateEl, { name: tab.title || baseName(tab.path ?? ""), size: info.size, edited: info.edited }, () => void releaseLarge(tab));
+}
+
+/** "Carregar": o arquivo passa a ser lido e indexado, e a aba mostra o editor (ou a tabela). */
+async function releaseLarge(tab: TabState) {
+  if (!largeGate.has(tab.id)) return;
+  largeLoaded.add(tab.id);
+  largeGate.delete(tab.id);
+  states.delete(tab.id);
+  const g = groups.get(tab.group) ?? cur;
+  delete g.gateEl.dataset.tab;
+  await show(tab);
+}
+
 /** Mostra o leitor no lugar do editor se a aba ativa do painel é de leitura; senão o esconde. */
 function syncReader() {
   const g = cur;
@@ -1195,6 +1226,7 @@ function toggleLayoutView() {
 /** Mostra/esconde o painel conforme a aba ativa. O módulo só é importado na 1ª vez que um DBML pede. */
 function syncDiagram(textChanged = false) {
   const g = cur;
+  syncLargeGate();
   syncReader();
   syncMdPane(textChanged);
   syncJson(textChanged);
@@ -1466,6 +1498,7 @@ function snapshotGroup(g: Group) {
   const tab = tabOf(g);
   if (!tab) return; // janela reserva, ainda sem aba
   if (isReader(tab)) return; // sem texto: a posição de leitura é gravada pelo próprio leitor
+  if (largeGate.has(tab.id)) return; // arquivo grande ainda não carregado: o editor é só um espaço vazio, a posição guardada fica como está
   states.set(tab.id, g.view.state);
   const lt = largeOf(tab);
   if (lt) {
@@ -1599,6 +1632,18 @@ function largeHooks(tab: TabState): LargeHooks {
 async function loadLargeState(tab: TabState): Promise<EditorState> {
   try {
     let ctl = larges.get(tab.id);
+    if (!ctl && !largeLoaded.has(tab.id)) {
+      // só metadados (tamanho, alterações guardadas): nada é lido nem indexado até a pessoa carregar
+      const info = await api.largeInfo(tab.id).catch(() => api.largeAttach(tab.id));
+      largeGate.set(tab.id, { size: info.size, edited: info.edited_batches > 0 });
+      if (info.edited_batches > 0 && !tab.dirty) {
+        tab.dirty = true; // há alterações guardadas de antes de fechar o app
+        sessionDirty = true;
+      }
+      const wait = createState("", 0, onEditorUpdate);
+      states.set(tab.id, wait);
+      return wait;
+    }
     if (!ctl) {
       // outra janela pode já ter aberto o arquivo (a aba foi movida): o Rust é um só
       const info = await api.largeInfo(tab.id).catch(() => api.largeAttach(tab.id));
@@ -1610,6 +1655,7 @@ async function loadLargeState(tab: TabState): Promise<EditorState> {
       }
     }
     largeFailed.delete(tab.id);
+    await api.largeStart(tab.id); // o índice só começa aqui (abrir não o pede)
     const st = await ctl.createState(tab.cursor, (doc, cursor, extra) => createState(doc, cursor, onEditorUpdate, extra));
     states.set(tab.id, st);
     return st;
@@ -1693,6 +1739,10 @@ async function confirmWholeLoad(path: string, size: number): Promise<boolean> {
 
 /** Salvar de uma aba grande: copia o original em fluxo trocando só os lotes editados (escrita atômica). */
 async function saveLarge(tab: TabState, forceDialog: boolean): Promise<boolean> {
+  if (largeGate.has(tab.id)) {
+    flashLarge("Carregue o arquivo antes de salvar (botão Carregar na aba).");
+    return false;
+  }
   const ctl = largeOf(tab);
   if (!ctl) {
     await message("O arquivo grande desta aba não está aberto.", { title: "Erro ao salvar", kind: "error" });
@@ -2419,8 +2469,9 @@ function createGroup(id: number): Group {
   const jsonEl = div("jsonview");
   const csvEl = div("csvview");
   const readerEl = div("reader");
+  const gateEl = div("largegate");
   const outlineEl = div("outline");
-  bodyEl.append(editorEl, layoutEl, mdEl, diagramEl, jsonEl, csvEl, readerEl, outlineEl);
+  bodyEl.append(editorEl, layoutEl, mdEl, diagramEl, jsonEl, csvEl, readerEl, gateEl, outlineEl);
   const noteEl = div("note");
   noteEl.hidden = true;
   const diskEl = div("diskbar");
@@ -2429,7 +2480,7 @@ function createGroup(id: number): Group {
   largeNoteEl.hidden = true;
   el.append(tabsEl, diskEl, noteEl, largeNoteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, diskEl, readerEl, gateEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
   const bigOf = () => largeOf(tabOf(g));
   // a barra de rolagem do arquivo vale para o editor e para a tabela (por isso fica no corpo do painel, não no editor)
   const tableShown = () => {
