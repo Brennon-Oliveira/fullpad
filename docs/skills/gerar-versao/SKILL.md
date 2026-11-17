@@ -14,7 +14,7 @@ Publica uma versão nova do Fullpad. Quem já tem o app instalado recebe a vers�
 ## Argumentos
 
 ```
-/gerar-versao [versao] [--bug | --minor | --major] [--commit] [--approve]
+/gerar-versao [versao] [--bug | --minor | --major] [--commit] [--approve] [--readme]
 ```
 
 **Qual versão sai** (passo 3):
@@ -31,7 +31,9 @@ Publica uma versão nova do Fullpad. Quem já tem o app instalado recebe a vers�
 - `--commit`: se a árvore estiver suja, **não pergunta** (passo 1): commita o que houver (seguindo [../../rules/commits.md](../../rules/commits.md)), dá `git push origin main` e segue com a release. Sem a flag, pergunta. Com a árvore limpa a flag não muda nada.
 - `--approve`: **não pede aprovação** das notas de versão (passo 5): mostra as notas no relatório e avança sozinho. Sem a flag, para, mostra como vão ficar e pede para aprovar ou rejeitar.
 
-As duas flags só dispensam a pergunta; os testes, o build e as demais conferências continuam valendo, e qualquer falha ainda para o processo.
+- `--readme`: depois de publicar, chama a skill [atualizar-readme](../atualizar-readme/SKILL.md) para documentar o que saiu na versão (passo 11). Sem a flag, o README não é tocado.
+
+As flags `--commit` e `--approve` só dispensam a pergunta; os testes, o build e as demais conferências continuam valendo, e qualquer falha ainda para o processo.
 
 ## 1. Pré-condições (pare se falhar)
 
@@ -162,4 +164,16 @@ gh issue close <n> -R Brennon-Oliveira/fullpad --reason completed --comment "Ent
 
 Não feche issue que o usuário não citou nos commits; na dúvida, liste e pergunte.
 
-Relate ao usuário a versão, o link do release, a tag, as notas e as issues fechadas, e lembre que os apps instalados oferecem a atualização ao abrir (ou em Ajuda > "Verificar atualizações…").
+## 11. README (só com `--readme`)
+
+Chame a skill `atualizar-readme` (nunca com `--full`) **já com o contexto**: a explicação é montada a partir das notas da versão e dos commits desde a última tag (passo 2), dizendo **o que documentar** (recursos novos, comportamento mudado, o que sai do README por não existir mais), sem número de issue. Se nada do que saiu muda o que o README diz, não chame, e diga isso no relatório.
+
+**`--record` ou não** (decida você; é só para o que muda o que se vê):
+
+- **Sem `--record`**: mudança simples, em que gravar não acrescenta nada: correção de bug que ajusta um comportamento já documentado, texto, desempenho, pacote ou instalação, ajuste pequeno de menu.
+- **Com `--record`**: vale mostrar em movimento: **recurso novo de peso**, um fluxo ou visual novo ou bastante mudado, algo que um GIF existente já não representa mais.
+- **Na dúvida, pergunte** ao usuário (uma pergunta curta: "isso merece GIF?"), não decida sozinho.
+
+Com `--record`, as exigências da `atualizar-readme` valem (a pessoa dá foco ao app e não mexe no mouse; o app aberto precisa ser a versão nova, que a esta altura já está publicada e foi compilada neste fluxo). O commit do README vai **depois** da tag: ele não faz parte do que foi publicado e não muda a versão. Dê `git push origin main` só se `--commit` foi passado.
+
+Relate ao usuário a versão, o link do release, a tag, as notas e as issues fechadas, e lembre que os apps instalados oferecem a atualização ao abrir (ou em Ajuda > "Verificar atualizações…"). Com `--readme`, diga o que foi documentado e se houve gravação.
