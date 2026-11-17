@@ -1,10 +1,11 @@
 import { type Extension, Prec, StateField } from "@codemirror/state";
 import { EditorView, type Tooltip, keymap, showTooltip } from "@codemirror/view";
 import { BLOCK_LABELS, type Block, type Outcome, activeMarks, clearFormat, currentBlock, setBlock, toggleInline, toggleLink } from "./mdformat";
-import { showMenu } from "./popup";
+import { csvToTable, insertTable, tableFromSelection } from "./mdtable";
+import { type MenuItem, showMenu } from "./popup";
 
 /** Ações de formatação (ids usados pelo menu, pela barra e pelos atalhos). */
-export type FormatId = "bold" | "italic" | "strike" | "code" | "math" | "link" | "clear" | Block;
+export type FormatId = "bold" | "italic" | "strike" | "code" | "math" | "link" | "clear" | "table" | "paste-csv" | Block;
 
 function apply(view: EditorView, o: Outcome | null): boolean {
   if (!o) return true;
@@ -34,6 +35,19 @@ export function runFormat(view: EditorView, id: FormatId): boolean {
       return apply(view, toggleLink(doc, from, to));
     case "clear":
       return apply(view, clearFormat(doc, from, to));
+    case "paste-csv":
+      void navigator.clipboard
+        .readText()
+        .then((txt) => {
+          const t = csvToTable(txt);
+          if (!t) return;
+          const sel = view.state.selection.main;
+          apply(view, insertTable(view.state.doc.toString(), sel.from, sel.to, t));
+        })
+        .catch(() => {});
+      return true;
+    case "table":
+      return apply(view, tableFromSelection(doc, from, to));
     default:
       return apply(view, setBlock(doc, from, to, id));
   }
@@ -69,11 +83,14 @@ function build(view: EditorView): HTMLElement {
   const typeBtn = btn("type", `<span>${current}</span><span class="caret">▾</span>`, "Tipo de bloco", () => {
     showMenu(
       typeBtn,
-      BLOCK_LABELS.map(([k, label]) => ({
-        label,
-        checked: k === block || (k === "code" && block === "fence"),
-        action: () => runFormat(view, k),
-      })),
+      [
+        ...BLOCK_LABELS.map(([k, label]): MenuItem => ({
+          label,
+          checked: k === block || (k === "code" && block === "fence"),
+          action: () => runFormat(view, k),
+        })),
+        { label: "Tabela", action: () => runFormat(view, "table") },
+      ],
     );
   });
   bar.append(

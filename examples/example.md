@@ -394,6 +394,13 @@ Alinhamentos: esquerda, centro e direita.
 | texto    | texto  |   texto |
 | 1        |   22   |     333 |
 
+Célula com barra, quebra de linha e marcas (clique numa célula para editar; botão direito para linha, coluna, alinhamento e "Copiar tabela como CSV"):
+
+| Comando | Exemplo | Nota |
+| ------- | ------- | ---- |
+| Ou      | `a \| b` | A barra dentro da célula é escapada |
+| Duas linhas | **negrito** e *itálico* | primeira linha<br>segunda linha |
+
 Tabela com formatação dentro das células:
 
 | Estilo        | Exemplo                  |

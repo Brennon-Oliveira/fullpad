@@ -265,6 +265,8 @@ export function formatItem(a: Pick<MenuActions, "formatMd">): MenuItem {
       { label: "Limpar formatação", action: () => a.formatMd("clear") },
       "sep",
       ...BLOCK_LABELS.map(([id, label]): MenuItem => ({ label, action: () => a.formatMd(id) })),
+      { label: "Tabela", action: () => a.formatMd("table") },
+      { label: "Colar CSV como tabela", action: () => a.formatMd("paste-csv") },
     ],
   };
 }

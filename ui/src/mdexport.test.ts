@@ -27,3 +27,12 @@ describe("markdownToHtml para impressão", () => {
     expect(plain).not.toContain("pg-foot");
   });
 });
+
+describe("tabelas na exportação", () => {
+  it("a tabela do markdown sai como <table> com o alinhamento", async () => {
+    const { markdownToBody } = await import("./mdexport");
+    const html = await markdownToBody("| a | b |\n| :-- | --: |\n| 1 | 2 |\n");
+    expect(html).toContain("<table>");
+    expect(html).toContain('align="right"');
+  });
+});
