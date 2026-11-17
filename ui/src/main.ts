@@ -452,6 +452,7 @@ function ensureCsvSupport() {
 async function syncCsv(tab: TabState) {
   if (effectiveLang(tab) !== "csv" || csvSettings(tab).delimiter !== "auto") return;
   if (tab.large && csvDetected.has(tab.id)) return; // arquivo grande: o mesmo separador em todos os trechos
+  if (tab.large && largeGate.has(tab.id)) return; // ainda no cartão "Carregar": o editor está vazio, não há o que detectar nem perguntar
   // o separador que a pessoa já escolheu para este arquivo vale mais que a detecção
   const kept = rememberedDelim(tab.path);
   if (kept) {
@@ -465,7 +466,9 @@ async function syncCsv(tab: TabState) {
   }
   const st = states.get(tab.id);
   if (!st) return;
-  const found = await api.csvDetect(st.sliceDoc(0, 200_000), extOf(tab.path ?? "") || null).catch(() => ",");
+  if (tab.large && st.doc.length === 0) return; // a janela de lotes ainda não chegou
+  // arquivo (ou nota) vazio não tem o que perguntar: vale a vírgula, como sempre valeu
+  const found = st.doc.length === 0 ? "," : await api.csvDetect(st.sliceDoc(0, 200_000), extOf(tab.path ?? "") || null).catch(() => ",");
   if (csvSettings(tab).delimiter !== "auto") return; // escolheu enquanto detectava
   if (!found) {
     // a estrutura não diz qual é: fica no código e a faixa pergunta
@@ -491,7 +494,7 @@ async function syncCsv(tab: TabState) {
 
 /** Mostra ou esconde a faixa "Qual é o separador?" do painel, conforme a aba esteja sem separador decidido. */
 function syncCsvAsk(g: Group, tab: TabState | undefined) {
-  const on = !!tab && effectiveLang(tab) === "csv" && csvUndecided.has(tab.id) && csvSettings(tab).delimiter === "auto" && !tab.detached;
+  const on = !!tab && effectiveLang(tab) === "csv" && csvUndecided.has(tab.id) && csvSettings(tab).delimiter === "auto" && !tab.detached && !largeGate.has(tab.id);
   if (!on) {
     g.csvAskEl.hidden = true;
     g.csvAskEl.replaceChildren();
