@@ -730,8 +730,8 @@ function syncCsvTable(textChanged: boolean) {
         g.view.dispatch({ changes, userEvent: "input.csv" });
         return true;
       },
-      onUndo: () => void undo(g.view),
-      onRedo: () => void redo(g.view),
+      onUndo: () => undoIn(g),
+      onRedo: () => redoIn(g),
       // células selecionadas / sob o mouse → o texto delas ganha fundo no código
       onSelection: (spans, rev) => g.view.dispatch({ effects: csvSelectionMarks(spans && rev === g.rev ? csvDocSpans(g, spans) : null) }),
       onHover: (spans, rev) => g.view.dispatch({ effects: csvHoverMarks(spans && rev === g.rev ? csvDocSpans(g, spans) : null) }),
@@ -1663,6 +1663,18 @@ function findLarge() {
   const sel = g.view.state.selection.main;
   const text = sel.empty ? "" : g.view.state.sliceDoc(sel.from, sel.to);
   g.largeFind.open(text && !text.includes("\n") && text.length <= 200 ? text : undefined);
+}
+
+/** Ctrl+Z / Ctrl+Y do painel: numa aba grande vale também para os lotes que já saíram da janela. */
+function undoIn(g: Group) {
+  const lt = largeOf(tabOf(g));
+  if (lt) void lt.undo();
+  else undo(g.view);
+}
+function redoIn(g: Group) {
+  const lt = largeOf(tabOf(g));
+  if (lt) void lt.redo();
+  else redo(g.view);
 }
 
 function flashLarge(text: string) {
@@ -3768,8 +3780,8 @@ const menuActions = {
   checkUpdates: () => void checkUpdates(true),
   releaseNotes: () => void showReleaseNotes(),
   changelog: () => void showChangelog(),
-  undo: () => (undo(cur.view), cur.view.focus()),
-  redo: () => (redo(cur.view), cur.view.focus()),
+  undo: () => (undoIn(cur), cur.view.focus()),
+  redo: () => (redoIn(cur), cur.view.focus()),
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
   find: () => void (readerZoom((r) => r.find()) || (largeOf(tabOf(cur)) ? (findLarge(), true) : openSearch(cur.view))),
   replace: () => (largeOf(tabOf(cur)) ? flashLarge("Substituir não está disponível em arquivo grande.") : openSearch(cur.view, true)),
@@ -3958,6 +3970,8 @@ document.addEventListener("visibilitychange", () => {
 
 async function boot() {
   largeKeys.find = findLarge;
+  largeKeys.undo = () => undoIn(cur);
+  largeKeys.redo = () => redoIn(cur);
   largeKeys.replace = () => flashLarge("Substituir não está disponível em arquivo grande.");
   document.body.classList.toggle("floating", !isMain); // janelas flutuantes: sem menu superior
   document.body.classList.toggle("postit", isPostit);
@@ -4020,8 +4034,8 @@ async function boot() {
     const t = tabOf(cur);
     if (!t || cur.csvTab !== t.id || !cur.csvEl.classList.contains("on")) return;
     e.preventDefault();
-    if (redoKey) redo(cur.view);
-    else undo(cur.view);
+    if (redoKey) redoIn(cur);
+    else undoIn(cur);
   });
   setZoom(loadZoom()); // reaplica o zoom lembrado
   if (!idle) {

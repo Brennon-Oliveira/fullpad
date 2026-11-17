@@ -2,11 +2,11 @@
 // **janela** de lotes seguidos (`state.ts`). Aqui estão as operações sobre ela: carregar em volta de uma
 // linha, deslizar ao rolar, ir para a linha, mandar as edições de cada lote ao Rust e refazer a janela
 // depois de salvar. Nada aqui lê o arquivo inteiro nem toca na nota da aba (`notes/` é só um marcador).
-import { EditorSelection, type EditorState, type Extension } from "@codemirror/state";
+import { EditorSelection, Transaction, type EditorState, type Extension } from "@codemirror/state";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
 import type { LargeBatch, LargeEdit, LargeInfo } from "../api";
 import { MAX_WINDOW_BATCHES, nearEdge, stripBreaks, windowAround } from "./model";
-import { appendBatch, dropFirst, dropLast, fileLineAt, largeExtensions, largeField, loadSpec, prependBatch, resetWindow, windowLoad, type WindowState } from "./state";
+import { appendBatch, docPos, dropFirst, dropLast, fileLineAt, largeExtensions, largeField, loadSpec, prependBatch, resetWindow, windowLoad, type WindowState } from "./state";
 
 /** O que o controlador pede ao Rust (o `api` do app, ou um de mentira nos testes). */
 export interface LargeIo {
@@ -48,6 +48,41 @@ function offsetOfLine(text: string, k: number): number {
   return at;
 }
 
+/**
+ * Um passo de edição de um lote, como o Rust o recebeu: no texto **do arquivo** do lote, `del` virou `ins` a partir de `at`.
+ * É pequeno (só o trecho que mudou) e é tudo o que o Ctrl+Z de uma aba grande usa: o histórico do CodeMirror guarda posições
+ * da janela, e ao trocar a janela ele aplicaria o desfazer num lugar errado do texto novo.
+ */
+interface Step {
+  index: number;
+  at: number;
+  del: string;
+  ins: string;
+}
+
+/** Quanto de texto de passos antigos se guarda para desfazer (por aba): passada a conta, os mais velhos se perdem. */
+const MAX_STEP_BYTES = 64 * 1024 * 1024;
+const MAX_STEPS = 5000;
+
+/** O trecho que mudou entre dois textos: o que fica igual no começo e no fim (em UTF-16). */
+export function changedSpan(a: string, b: string): { from: number; toA: number; toB: number } {
+  const max = Math.min(a.length, b.length);
+  let from = 0;
+  while (from < max && a.charCodeAt(from) === b.charCodeAt(from)) from++;
+  // não corta no meio de um par substituto (emoji)
+  if (from > 0 && from < max + 1) {
+    const c = a.charCodeAt(from - 1);
+    if (c >= 0xd800 && c <= 0xdbff) from--;
+  }
+  let tail = 0;
+  while (tail < max - from && a.charCodeAt(a.length - 1 - tail) === b.charCodeAt(b.length - 1 - tail)) tail++;
+  if (tail > 0) {
+    const c = a.charCodeAt(a.length - tail);
+    if (c >= 0xdc00 && c <= 0xdfff) tail--;
+  }
+  return { from, toA: a.length - tail, toB: b.length - tail };
+}
+
 export class LargeTab {
   info: LargeInfo;
   /** O último estado do editor desta aba (a janela atual), com ou sem o editor mostrando-a. */
@@ -70,6 +105,16 @@ export class LargeTab {
   private onDown = () => void ((this.pointerDown = true), (this.lastUser = Date.now()));
   private onUp = () => void ((this.pointerDown = false), (this.lastUser = Date.now()));
   private raf = 0;
+  /**
+   * Passos de edição por lote (o texto do arquivo antes e depois de cada envio ao Rust), na ordem em que foram dados.
+   * O histórico do CodeMirror só enxerga o que está na janela e se perde quando um lote sai dela: com estes passos
+   * o Ctrl+Z volta também às alterações feitas em lotes que já não estão carregados (carrega o lote e desfaz).
+   */
+  private undoSteps: Step[] = [];
+  private redoSteps: Step[] = [];
+  private stepBytes = 0;
+  /** Desfazendo ou refazendo um passo: o envio que isso causa não vira um passo novo. */
+  private stepping = false;
   dirty: boolean;
 
   constructor(
@@ -217,7 +262,9 @@ export class LargeTab {
       this.hooks.onDirty(true);
     }
     window.clearTimeout(this.commitTimer);
-    this.commitTimer = window.setTimeout(() => void this.commit(), COMMIT_MS);
+    // uma edição da tabela é um passo só dela (digitar espera a pausa, e agrupa o que foi digitado junto)
+    const wait = u.transactions.some((t) => t.isUserEvent("input.csv")) ? 0 : COMMIT_MS;
+    this.commitTimer = window.setTimeout(() => void this.commit(), wait);
   }
 
   // ---- ler a posição ---------------------------------------------------------------------
@@ -404,7 +451,7 @@ export class LargeTab {
   // ---- ir para a linha -------------------------------------------------------------------
 
   /** Troca a janela inteira por outra em volta do lote `batch` (as edições vão ao Rust antes). */
-  private async loadWindow(batch: number, commit = true, line?: number): Promise<void> {
+  private async loadWindow(batch: number, commit = true, line?: number, focus?: number): Promise<void> {
     const v = this.view;
     if (commit) await this.doCommit();
     const [lo, hi] = windowAround(batch, this.info.batches);
@@ -414,7 +461,7 @@ export class LargeTab {
     if (!v) return;
     // o cursor já nasce na linha pedida: um estado intermediário com o cursor no começo da janela seria
     // gravado na sessão pelo autosave e restauraria a posição errada
-    const at = line === undefined ? 0 : offsetOfLine(doc, Math.max(0, line - win.startLine));
+    const at = line !== undefined ? offsetOfLine(doc, Math.max(0, line - win.startLine)) : focus !== undefined ? (win.bounds[focus - win.first] ?? 0) : 0;
     v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: doc }, effects: resetWindow.of(win), selection: EditorSelection.cursor(at), annotations: loadSpec });
   }
 
@@ -473,8 +520,10 @@ export class LargeTab {
     for (const { index, text } of this.windowTexts()) {
       if (this.sent.get(index) === text) continue;
       try {
+        const prev = this.sent.get(index);
         const out = await this.io.edit(this.id, index, text);
         this.sent.set(index, text);
+        if (prev !== undefined && !this.stepping) this.record(index, prev, text);
         this.info = { ...this.info, lines: out.total_lines, edited_batches: out.dirty ? Math.max(1, this.info.edited_batches) : 0 };
         if (out.dirty !== this.dirty) {
           this.dirty = out.dirty;
@@ -491,6 +540,106 @@ export class LargeTab {
       this.hooks.onDirty(false);
     }
     this.hooks.onChange();
+  }
+
+  // ---- desfazer entre lotes ---------------------------------------------------------------
+
+  /** Guarda o passo (só o trecho que mudou) e encerra o refazer: uma edição nova. */
+  private record(index: number, before: string, after: string) {
+    const span = changedSpan(before, after);
+    const step: Step = { index, at: span.from, del: before.slice(span.from, span.toA), ins: after.slice(span.from, span.toB) };
+    this.undoSteps.push(step);
+    this.stepBytes += step.del.length + step.ins.length;
+    this.redoSteps = [];
+    while (this.undoSteps.length > MAX_STEPS || this.stepBytes > MAX_STEP_BYTES) {
+      const old = this.undoSteps.shift();
+      if (!old) break;
+      this.stepBytes -= old.del.length + old.ins.length;
+    }
+  }
+
+  /** Há algo a desfazer? */
+  get canUndo(): boolean {
+    return this.undoSteps.length > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.redoSteps.length > 0;
+  }
+
+  /**
+   * Ctrl+Z. Desfaz o passo mais recente, esteja o lote na janela ou não: se não está, carrega o lote (a tela vai até ele) e
+   * desfaz lá. O que foi digitado há menos de um instante vai ao Rust antes, para também ser um passo.
+   */
+  async undo(): Promise<boolean> {
+    await this.commit();
+    return this.stepThrough("undo");
+  }
+
+  /** Ctrl+Y / Ctrl+Shift+Z: o contrário. */
+  async redo(): Promise<boolean> {
+    await this.commit();
+    return this.stepThrough("redo");
+  }
+
+  private stepThrough(dir: "undo" | "redo"): Promise<boolean> {
+    const from = dir === "undo" ? this.undoSteps : this.redoSteps;
+    const to = dir === "undo" ? this.redoSteps : this.undoSteps;
+    return this.enqueue(async () => {
+      const v = this.view;
+      if (!v) return false;
+      while (from.length > 0) {
+        const step = from.pop()!;
+        this.stepBytes -= step.del.length + step.ins.length;
+        const [gone, back] = dir === "undo" ? [step.ins, step.del] : [step.del, step.ins];
+        if (!this.inWindow(step.index)) await this.loadWindow(step.index, true, undefined, step.index);
+        const cur = this.windowTexts().find((x) => x.index === step.index)?.text;
+        // o lote já não está como o passo supõe (outro passo velho, texto trocado): este passo não se aplica
+        if (cur === undefined || cur.slice(step.at, step.at + gone.length) !== gone) continue;
+        this.replaceBatch(step.index, cur, cur.slice(0, step.at) + back + cur.slice(step.at + gone.length));
+        this.stepping = true;
+        try {
+          await this.doCommit();
+        } finally {
+          this.stepping = false;
+        }
+        to.push(step);
+        this.stepBytes += step.del.length + step.ins.length;
+        this.hooks.onChange();
+        return true;
+      }
+      return false;
+    });
+  }
+
+  private inWindow(index: number): boolean {
+    const st = this.current();
+    if (!st) return false;
+    const w = st.field(largeField);
+    return index >= w.first && index < w.first + w.bounds.length - 1;
+  }
+
+  /**
+   * Troca, no editor, o texto do lote `index` (texto de arquivo `cur`) por `want`, só no trecho que muda (as divisas dos lotes
+   * ficam onde estão) e **fora do histórico do editor**: é o passo de desfazer, não uma edição nova. Põe o cursor no começo do
+   * trecho e o mostra no meio da tela.
+   */
+  private replaceBatch(index: number, cur: string, want: string) {
+    const v = this.view;
+    if (!v) return;
+    const w = v.state.field(largeField);
+    const k = index - w.first;
+    const [a, b] = [w.bounds[k], w.bounds[k + 1]];
+    const rel = w.vbreaks.filter((p) => p >= a && p < b).map((p) => p - a);
+    const span = changedSpan(cur, want);
+    const from = a + docPos({ vbreaks: rel }, span.from);
+    const to = a + docPos({ vbreaks: rel }, span.toA, true);
+    v.dispatch({
+      changes: { from, to, insert: want.slice(span.from, span.toB) },
+      selection: EditorSelection.cursor(from),
+      effects: EditorView.scrollIntoView(from, { y: "center" }),
+      annotations: Transaction.addToHistory.of(false),
+    });
   }
 
   /** Manda ao Rust os lotes editados (o Rust os guarda no diário em disco; o arquivo do usuário não muda). */
@@ -515,6 +664,12 @@ export class LargeTab {
     this.info = info;
     this.dirty = false;
     this.hooks.onDirty(false);
+    if (!(keepWindow && info.done && info.batches === before)) {
+      // o arquivo é outro (ou os lotes mudaram de numeração): os passos guardados já não valem
+      this.undoSteps = [];
+      this.redoSteps = [];
+      this.stepBytes = 0;
+    }
     if (keepWindow && info.done && info.batches === before) {
       for (const x of this.windowTexts()) this.sent.set(x.index, x.text);
       this.hooks.onChange();

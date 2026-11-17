@@ -148,7 +148,7 @@ const protectLossy = EditorState.transactionFilter.of((tr) => {
  * Atalhos que, numa aba grande, o app trata no lugar do CodeMirror: o painel de busca dele só
  * enxergaria os lotes carregados. O app troca estas funções ao iniciar.
  */
-export const largeKeys: { find: () => void; replace: () => void } = { find() {}, replace() {} };
+export const largeKeys: { find: () => void; replace: () => void; undo: () => void; redo: () => void } = { find() {}, replace() {}, undo() {}, redo() {} };
 
 /** O que uma aba grande acrescenta ao editor. */
 export const largeExtensions: Extension = [
@@ -156,6 +156,10 @@ export const largeExtensions: Extension = [
     keymap.of([
       { key: "Mod-f", run: () => (largeKeys.find(), true) },
       { key: "Mod-h", run: () => (largeKeys.replace(), true) },
+      // desfazer/refazer vale também para os lotes que já saíram da janela (o histórico do CodeMirror só enxerga o que está nela)
+      { key: "Mod-z", run: () => (largeKeys.undo(), true), preventDefault: true },
+      { key: "Mod-y", run: () => (largeKeys.redo(), true), preventDefault: true },
+      { key: "Mod-Shift-z", run: () => (largeKeys.redo(), true), preventDefault: true },
     ]),
   ),
   // o arquivo só quebra linha em `\n`: um `\r` solto é um caractere (como no índice do Rust)

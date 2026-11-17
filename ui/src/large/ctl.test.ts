@@ -5,7 +5,7 @@ import type { EditorView } from "@codemirror/view";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { LargeBatch, LargeEdit, LargeInfo } from "../api";
 import { createState, createView } from "../editor";
-import { LargeTab, type LargeHooks, type LargeIo } from "./ctl";
+import { changedSpan, LargeTab, type LargeHooks, type LargeIo } from "./ctl";
 import { stripBreaks } from "./model";
 import { largeField } from "./state";
 
@@ -639,5 +639,141 @@ describe("desfazer uma edição da tabela (antes de salvar)", () => {
     expect(undoDepth(view.state)).toBeGreaterThan(0);
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).not.toContain("ZZ");
+  });
+});
+
+describe("desfazer em lotes que saíram da janela", () => {
+  const edit = (v: EditorView, from: number, to: number, insert: string) => v.dispatch({ changes: { from, to, insert }, userEvent: "input.csv" });
+  /** Edita o primeiro lote da janela e depois a empurra para longe (salto), deixando o lote editado fora dela. */
+  async function editThenLeave() {
+    const r = await rig(FakeRust.lines(40), 6);
+    const firstBatch = win(r.view).first;
+    const original = r.rust.batches[firstBatch].text;
+    edit(r.view, 0, 1, "ZZ");
+    await r.ctl.commit();
+    await r.ctl.goto(110); // outra região do arquivo: o lote editado sai da janela
+    expect(win(r.view).first).toBeGreaterThan(firstBatch + 1);
+    return { ...r, firstBatch, original };
+  }
+
+  it("o Ctrl+Z leva ao lote que saiu da janela e desfaz a edição de lá", async () => {
+    const { ctl, view, rust, firstBatch, original } = await editThenLeave();
+    expect(rust.batches[firstBatch].text).not.toBe(original);
+    expect(await ctl.undo()).toBe(true);
+    expect(rust.batches[firstBatch].text).toBe(original);
+    expect(win(view).first).toBeLessThanOrEqual(firstBatch);
+    expect(view.state.doc.toString()).not.toContain("ZZ");
+    expect(ctl.dirty).toBe(false);
+  });
+
+  it("depois de desfazer lá fora, Ctrl+Y refaz", async () => {
+    const { ctl, view, rust, firstBatch } = await editThenLeave();
+    await ctl.undo();
+    await ctl.goto(110);
+    expect(await ctl.redo()).toBe(true);
+    expect(rust.batches[firstBatch].text.startsWith("ZZ")).toBe(true);
+    expect(view.state.doc.toString()).toContain("ZZ");
+    expect(ctl.dirty).toBe(true);
+  });
+
+  it("a ordem é a das edições: a mais nova primeiro, mesmo em outro lote", async () => {
+    const { ctl, view, rust, firstBatch, original } = await editThenLeave();
+    edit(view, 0, 1, "YY"); // na janela de agora (outro lote)
+    await ctl.commit();
+    const here = win(view).first;
+    const hereOriginal = rust.original[here];
+    await ctl.undo(); // a mais nova: o YY
+    expect(rust.batches[here].text).toBe(hereOriginal);
+    expect(rust.batches[firstBatch].text).not.toBe(original); // o ZZ ainda está lá
+    await ctl.undo(); // agora o ZZ, que está fora da janela
+    expect(rust.batches[firstBatch].text).toBe(original);
+    expect(ctl.dirty).toBe(false);
+  });
+
+  it("uma edição nova depois de desfazer encerra o refazer", async () => {
+    const { ctl, view } = await editThenLeave();
+    await ctl.undo();
+    edit(view, 0, 1, "WW");
+    await ctl.commit();
+    await ctl.goto(110);
+    expect(await ctl.redo()).toBe(false);
+  });
+
+  it("sem nada a desfazer devolve falso", async () => {
+    const { ctl } = await rig(FakeRust.lines(12), 6);
+    expect(await ctl.undo()).toBe(false);
+    expect(await ctl.redo()).toBe(false);
+  });
+
+  it("depois de salvar com os lotes renumerados os passos antigos somem", async () => {
+    const { ctl, rust } = await editThenLeave();
+    const info = await rust.info();
+    await ctl.afterWrite({ ...info, batches: info.batches + 1 }, true);
+    expect(await ctl.undo()).toBe(false);
+  });
+});
+
+describe("changedSpan", () => {
+  it("acha só o miolo que mudou", () => {
+    expect(changedSpan("abcdef", "abXYef")).toEqual({ from: 2, toA: 4, toB: 4 });
+    expect(changedSpan("abc", "abc")).toEqual({ from: 3, toA: 3, toB: 3 });
+    expect(changedSpan("abc", "abXc")).toEqual({ from: 2, toA: 2, toB: 3 });
+    expect(changedSpan("", "ab")).toEqual({ from: 0, toA: 0, toB: 2 });
+  });
+
+  it("não corta no meio de um emoji", () => {
+    const a = "x😀y";
+    const b = "x😁y"; // os dois emojis dividem o primeiro substituto
+    const s = changedSpan(a, b);
+    expect(s.from).toBe(1);
+    expect(s.toA).toBe(3);
+    expect(s.toB).toBe(3);
+  });
+});
+
+describe("desfazer não aplica um passo velho num lugar errado", () => {
+  it("depois de a janela trocar, o Ctrl+Z do app leva ao lote certo e não mexe no texto de agora", async () => {
+    const { ctl, view, rust } = await rig(FakeRust.lines(40), 6);
+    const first = win(view).first;
+    const original = rust.batches[first].text;
+    view.dispatch({ changes: { from: 0, to: 1, insert: "ZZ" }, userEvent: "input.csv" });
+    await ctl.commit();
+    await ctl.goto(110);
+    const here = view.state.doc.toString();
+    await ctl.undo();
+    expect(rust.batches[first].text).toBe(original);
+    // o texto do outro trecho (onde se estava) não foi tocado: era a corrupção do histórico do CodeMirror
+    await ctl.goto(110);
+    expect(view.state.doc.toString()).toBe(here);
+  });
+
+  it("cada edição da tabela vale um passo, mesmo duas seguidas no mesmo lote", async () => {
+    const { ctl, view, rust } = await rig(FakeRust.lines(12), 6);
+    const first = win(view).first;
+    const original = rust.batches[first].text;
+    view.dispatch({ changes: { from: 0, to: 1, insert: "AA" }, userEvent: "input.csv" });
+    await vi.waitFor(() => expect(rust.edits).toHaveLength(1)); // a edição da tabela vai ao Rust na hora, não espera a pausa
+    view.dispatch({ changes: { from: 3, to: 4, insert: "BB" }, userEvent: "input.csv" });
+    await vi.waitFor(() => expect(rust.edits).toHaveLength(2));
+    await ctl.undo();
+    expect(rust.batches[first].text).not.toBe(original); // sobrou um dos dois
+    await ctl.undo();
+    expect(rust.batches[first].text).toBe(original);
+    expect(await ctl.undo()).toBe(false);
+  });
+
+  it("desfazer e refazer em sequência volta exatamente ao mesmo texto", async () => {
+    const { ctl, view, rust } = await rig(FakeRust.lines(12), 6);
+    const first = win(view).first;
+    const original = rust.batches[first].text;
+    view.dispatch({ changes: { from: 0, to: 1, insert: "AA" }, userEvent: "input.csv" });
+    await ctl.commit();
+    const edited = rust.batches[first].text;
+    await ctl.undo();
+    expect(rust.batches[first].text).toBe(original);
+    await ctl.redo();
+    expect(rust.batches[first].text).toBe(edited);
+    await ctl.undo();
+    expect(rust.batches[first].text).toBe(original);
   });
 });
