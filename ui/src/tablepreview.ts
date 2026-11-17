@@ -127,7 +127,7 @@ class TableWidget extends WidgetType {
     const p = pendingFocus;
     if (p && p.text === this.text) {
       pendingFocus = null;
-      requestAnimationFrame(() => cells[p.row + 1]?.[p.col]?.focus());
+      requestAnimationFrame(() => (cells[p.row + 1]?.[p.col] as (HTMLElement & { edit?: () => void }) | undefined)?.edit?.());
     }
     return wrap;
   }
@@ -141,69 +141,65 @@ class TableWidget extends WidgetType {
     apply: (next: MdTable | null, focus?: { row: number; col: number }) => boolean,
     cells: HTMLElement[][],
   ) {
-    c.contentEditable = "plaintext-only";
     c.classList.add("editable");
-    let editing = false;
-    c.addEventListener("focus", () => {
-      editing = true;
-      c.textContent = cellToText(raw); // o texto cru, sem as marcas desenhadas
-      c.style.whiteSpace = "pre-wrap";
-    });
-    const done = (next: { row: number; col: number } | null): boolean => {
-      if (!editing) return false;
-      editing = false;
-      const value = textToCell(c.innerText ?? c.textContent ?? "");
-      return apply(value === raw ? null : setCell(model, row, col, value), next ?? undefined);
-    };
-    c.addEventListener("blur", () => {
-      if (!editing) return;
-      if (!done(null)) {
+    const edit = (): void => {
+      if (c.querySelector("textarea")) return;
+      const ta = document.createElement("textarea");
+      ta.className = "cm-md-table-input";
+      ta.value = cellToText(raw);
+      ta.rows = Math.max(1, ta.value.split("\n").length);
+      c.textContent = "";
+      c.append(ta);
+      let over = false;
+      const restore = () => {
         c.textContent = "";
-        c.style.whiteSpace = "";
         inlineTo(c, raw);
-      }
-    });
-    c.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        editing = false;
-        c.blur();
-        c.textContent = "";
-        c.style.whiteSpace = "";
-        inlineTo(c, raw);
-        e.preventDefault();
-        return;
-      }
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        if (!done({ row, col })) c.blur();
-        return;
-      }
-      if (e.key === "Tab") {
-        e.preventDefault();
-        const n = model.header.length;
-        const idx = row * n + col + (e.shiftKey ? -1 : 1);
-        const at = idx < -n ? -n : idx; // do cabeçalho (linha -1) em diante
-        const r = Math.floor(at / n);
-        const k = ((at % n) + n) % n;
-        if (r < -1) return;
-        if (r >= model.rows.length) {
-          // Tab na última célula: abre uma linha nova e segue para ela
-          const next = insertRow(editedModel(), model.rows.length);
-          if (!apply(next, { row: model.rows.length, col: 0 })) c.blur();
-          editing = false;
-          return;
+      };
+      const finish = (next: { row: number; col: number } | null, extra?: (m: MdTable) => MdTable): void => {
+        if (over) return;
+        over = true;
+        const value = textToCell(ta.value);
+        const m = value === raw ? model : setCell(model, row, col, value);
+        const target = extra ? extra(m) : value === raw ? null : m;
+        if (!apply(target, next ?? undefined)) {
+          restore();
+          const el = next ? cells[next.row + 1]?.[next.col] : null;
+          (el as (HTMLElement & { edit?: () => void }) | null)?.edit?.();
         }
-        if (!done({ row: r, col: k })) {
-          const target = cells[r + 1]?.[k];
-          editing = false;
-          target?.focus();
+      };
+      const stop = (e: Event) => e.stopPropagation();
+      for (const t of ["mousedown", "click", "dblclick", "keyup", "keypress", "copy", "cut", "paste", "input"]) ta.addEventListener(t, stop);
+      ta.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") {
+          e.preventDefault();
+          over = true;
+          restore();
+        } else if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          finish(null);
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          const n = model.header.length;
+          const idx = row * n + col + (e.shiftKey ? -1 : 1);
+          const r = Math.floor(idx / n);
+          const k = ((idx % n) + n) % n;
+          if (r < -1) return;
+          if (r >= model.rows.length) finish({ row: model.rows.length, col: 0 }, (m) => insertRow(m, model.rows.length));
+          else finish({ row: r, col: k });
         }
-      }
-    });
-    const editedModel = () => {
-      const value = textToCell(c.innerText ?? c.textContent ?? "");
-      return value === raw ? model : setCell(model, row, col, value);
+      });
+      ta.addEventListener("blur", () => finish(null));
+      ta.focus();
+      ta.select();
     };
+    (c as HTMLElement & { edit?: () => void }).edit = edit;
+    c.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault(); // o foco vai para o campo, não para o editor
+      edit();
+    });
     void cells;
   }
 

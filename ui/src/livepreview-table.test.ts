@@ -27,9 +27,10 @@ function make(doc: string, cursor: number, fixed = false, readOnly = false) {
 const cell = (v: EditorView, row: number, col: number) =>
   v.dom.querySelector<HTMLElement>(`.cm-md-table [data-row="${row}"][data-col="${col}"]`)!;
 const type = (c: HTMLElement, text: string) => {
-  c.dispatchEvent(new FocusEvent("focus")); // o jsdom não dá foco a contenteditable
-  c.textContent = text;
-  c.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  c.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+  const ta = c.querySelector("textarea")!;
+  ta.value = text;
+  ta.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 };
 
 describe("tabelas no live preview", () => {
@@ -72,7 +73,8 @@ describe("tabelas no live preview", () => {
   it("painel fixo e aba só de leitura não editam", () => {
     for (const view of [make(DOC, 0, true), make(DOC, DOC.length, false, true)]) {
       expect(view.dom.querySelectorAll(".cm-md-table").length).toBe(1);
-      expect(cell(view, 0, 0).isContentEditable || cell(view, 0, 0).getAttribute("contenteditable")).toBeFalsy();
+      cell(view, 0, 0).dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+      expect(cell(view, 0, 0).querySelector("textarea")).toBeNull();
       view.destroy();
     }
   });
