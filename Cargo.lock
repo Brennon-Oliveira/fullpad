@@ -1108,7 +1108,7 @@ dependencies = [
 
 [[package]]
 name = "fullpad"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "fullpad-core",
  "serde",

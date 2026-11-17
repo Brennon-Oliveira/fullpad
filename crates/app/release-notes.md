@@ -1,11 +1,7 @@
 ## Novidades
 
-- **Arquivos gigantes**: arquivos de texto acima de 20 MB (um CSV de 15 GB, um log de centenas de MB, Markdown, JSON...) abrem sem ser lidos por inteiro. Dá para rolar pelo arquivo todo, ir a qualquer linha (Ctrl+G), buscar no disco (Ctrl+F) e editar, sem travar o app nem gastar a memória da máquina.
-- **Abrir não carrega**: a aba de um arquivo grande mostra o nome e o tamanho, e o arquivo só é lido quando você clica em **Carregar arquivo** (reabrir o Fullpad não lê arquivos de GB). **Abrir direto na linha** pergunta o número da linha e vai direto para ela: a tela aparece na hora e o índice de linhas segue em segundo plano.
-- **CSV gigante vira tabela editável**: a primeira coluna é a linha do arquivo, dá para editar célula por célula e a tabela rola junto com o código. Ordenar e filtrar não valem nesses arquivos.
-- **Desfazer em todo o arquivo**: Ctrl+Z e Ctrl+Y valem também nos trechos que já saíram da tela: o Fullpad volta até lá, desfaz e mostra onde foi. Nada se perde ao fechar o app.
-- **Salvar arquivo gigante com escolha**: trocar um valor por outro do mesmo tamanho grava no lugar, na hora. Se o tamanho mudou, uma janela explica e recomenda entre **salvar com segurança** (monta o arquivo novo ao lado, só troca o original no fim, dá para cancelar e mostra o andamento) e **salvar direto** (regrava só do ponto editado em diante, sem espaço extra e sem proteção contra queda).
-
-## Correções
-
-- Na tabela do CSV, editar uma célula logo depois de outra edição agora espera a tabela atualizar, em vez de recusar com "A tabela está atualizando; tente de novo".
+- **Tabelas no Markdown**: as tabelas (`| a | b |`) agora aparecem como tabela de verdade, no próprio texto, no painel renderizado e na exportação. Passou o cursor por cima, o código aparece para editar.
+- **Edição direto na tabela**: clique numa célula e digite. Enter grava e desce, Tab anda para a próxima (na última, abre uma linha nova), as setas passam à célula vizinha e Shift+Enter quebra a linha dentro da célula. A tabela é reescrita sempre alinhada no texto, e Ctrl+Z desfaz cada edição.
+- **Botões + ao passar o mouse**: na borda direita para adicionar uma coluna, embaixo para adicionar uma linha, e entre linhas e colunas para inserir no meio.
+- **Botão direito na tabela**: inserir e apagar linha e coluna, mover coluna, alinhar (esquerda, centro, direita) e copiar a tabela como CSV.
+- **Colar CSV, TSV ou planilha vira tabela**: texto copiado do Excel ou de um CSV vira uma tabela do Markdown ao colar (Ctrl+Shift+V cola como texto, Ctrl+Z desfaz). Colar uma grade dentro de uma célula preenche as células vizinhas. No menu Markdown há também "Inserir tabela" e "Colar CSV/TSV como tabela", e "Tabela" na barra de formatação.
