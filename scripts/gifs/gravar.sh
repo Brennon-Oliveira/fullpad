@@ -12,7 +12,8 @@
 #
 # O que ele faz com o app: navega, passa o mouse, seleciona, rola, ordena e filtra a tabela do CSV,
 # divide a janela em painéis e desfaz. NÃO edita nenhum arquivo e não exporta nada (só mostra os
-# menus). As coordenadas dos cliques são para a janela do Fullpad MAXIMIZADA numa tela de 2582×1550
+# menus). Exceção: a cena `gigantes-salvar` edita e SALVA, mas só numa cópia gerada em %TEMP%\fpgifs\arquivos
+# (veja "Arquivos grandes" mais abaixo); a `gigantes` edita e desfaz sem salvar, e nunca no seu arquivo. As coordenadas dos cliques são para a janela do Fullpad MAXIMIZADA numa tela de 2582×1550
 # pixels (a captura sai nesse tamanho); em outro tamanho, ajuste as coordenadas das cenas.
 #
 # Cada cena abre a aba pela paleta (Ctrl+P) SEM gravar, porque a lista da paleta mostra o caminho dos
@@ -118,6 +119,27 @@ cena codigo "$(nav example.py)|r|w:1.0|p:336,1523|g:336,1523|k|w:1.2|g:336,1400|
 
 # Equações do .tex: um cartão por equação, ligado ao código. Termina nesta aba, como o app costuma ficar.
 cena latex "$(nav example.tex)|r|w:1.0|p:1900,382|g:1900,382|w:0.7|g:1900,501|w:0.7|g:1900,866|k|w:1.0|g:1900,1037|w:0.7|g:1900,1166|k|w:1.2|x"
+
+# Arquivos grandes (modo de lotes). PRÉ-REQUISITOS (nada gigante fica no projeto): gere as cópias em %TEMP%\fpgifs\arquivos
+# com os geradores de `examples/large/` e abra-as no Fullpad (cada uma vira uma aba com o cartão "Carregar"); o 15 GB
+# (`grande-15gb.csv`, `python3 examples/large/gerar_csv.py 15000 --saida <caminho>`) também precisa estar aberto e AINDA NÃO
+# carregado nesta execução do app (reinicie o app para os cartões voltarem). Como cada cena carrega a aba que mostra, rode
+# numa sessão recém-aberta e não repita uma cena sem reiniciar.
+#   python3 examples/large/gerar_csv.py 300 --saida "$WT/fpgifs/arquivos/vendas-grande.csv"
+#   python3 examples/large/gerar_txt.py 300 --saida "$WT/fpgifs/arquivos/log-grande.txt"
+#   python3 examples/large/gerar_md.py  150 --saida "$WT/fpgifs/arquivos/relatorio-grande.md"
+# Coordenadas dos botões do cartão (tela 2582×1550, zoom 106%): "Abrir direto na linha" 1181,929; "Carregar arquivo" 1415,929.
+
+# 15 GB: o cartão, "Abrir direto na linha" (a tela já mostra o trecho; o índice ainda corre), rolar, editar uma célula e desfazer
+# (nada é salvo: a bolinha de "não salvo" acende e apaga).
+cena gigantes "$(nav grande-15gb)|r|w:1.4|g:1181,929|w:0.4|k|w:1.2|t:120000|w:0.7|c:enter|w:3.6|h:-5|w:0.7|h:-5|w:0.8|g:418,470|K|w:0.7|c:ctrl+a|t:Lote editado|c:enter|w:1.6|c:ctrl+z|w:2.2|x" 6 960 1.1
+
+# Salvar: trocar um valor do mesmo tamanho grava no lugar, na hora; um valor maior muda o tamanho e abre a escolha entre
+# salvar com segurança e direto. Só numa cópia de 300 MB em %TEMP%.
+cena gigantes-salvar "$(nav vendas-grande)|r|w:1.0|g:1415,929|w:0.3|k|w:2.4|g:1096,323|K|w:0.7|c:ctrl+a|t:2026-12-31|c:enter|w:1.2|c:ctrl+s|w:2.6|g:418,361|K|w:0.7|c:ctrl+a|t:Fulana de Tal Silva|c:enter|w:1.2|c:ctrl+s|w:3.0|g:1016,820|w:0.6|k|w:3.2|x" 6 960 1.1
+
+# Texto e Markdown gigantes: abrem como texto, vão à linha na hora e a busca roda no disco, em fluxo.
+cena gigantes-texto "$(nav log-grande)|r|w:1.0|g:1415,929|w:0.3|k|w:2.0|h:-8|w:0.5|h:-8|w:0.5|c:ctrl+g|q:0.5|t:3000000|c:enter|w:2.2|c:ctrl+f|q:0.5|t:RARA|c:enter|w:2.6|c:esc|w:0.4|x|$(nav relatorio-grande)|r|w:1.0|g:1415,929|w:0.3|k|w:2.0|c:ctrl+g|q:0.5|t:200000|c:enter|w:2.6|x" 6 960 1.1
 
 rm -rf "$TMP"
 echo "feito: confira docs/img/*.gif antes de commitar"
