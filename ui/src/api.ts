@@ -228,6 +228,9 @@ export interface LargeInfo {
   orphaned: boolean;
   error: string | null;
   path: string;
+  /** Salvando: bytes gravados e total (`0` sem salvar em andamento). */
+  save_done: number;
+  save_total: number;
 }
 /** Um lote para o editor. `breaks` são os `\n` virtuais (cortes de linha gigante), em UTF-16 dentro de `text`. */
 export interface LargeBatch {
@@ -422,6 +425,7 @@ export const api = {
   /** Busca em fluxo: os resultados chegam pelo evento `large-hits`; devolve o fim. */
   largeSearch: (id: string, search: string, query: string, opts: SearchOptions) =>
     invoke<LargeSearchEnd>("large_search", { id, search, query, opts }),
+  largeSaveCancel: (id: string) => invoke<void>("large_save_cancel", { id }),
   largeCancel: (search: string) => invoke<void>("large_cancel", { search }),
   /** Layout do diagrama (`.dbmlx`): a cópia de trabalho (alterações não salvas) ou o arquivo ao lado. */
   layoutLoad: (id: string) => invoke<LayoutState>("layout_load", { id }),

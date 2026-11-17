@@ -43,7 +43,7 @@ class FakeRust implements LargeIo {
     return this.batches.reduce((a, b) => a + nl(b.text), 0) + 1;
   }
   async info(): Promise<LargeInfo> {
-    return { size: 1000, encoding: "utf8", eol: "lf", batches: this.batches.length, lines: this.total(), done: this.done, indexed: 1000, edited_batches: this.edits.length ? 1 : 0, orphaned: false, error: null, path: "/x.log" };
+    return { size: 1000, encoding: "utf8", eol: "lf", batches: this.batches.length, lines: this.total(), done: this.done, indexed: 1000, edited_batches: this.edits.length ? 1 : 0, orphaned: false, error: null, path: "/x.log", save_done: 0, save_total: 0 };
   }
   async batch(_id: string, index: number): Promise<LargeBatch> {
     this.batchCalls.push(index);

@@ -1137,3 +1137,46 @@ fn csv_with_crlf_rows_keeps_untouched_batches_byte_identical() {
     assert_eq!(saved.iter().filter(|&&b| b == b'\n').count(), text.matches('\n').count(), "nenhuma quebra a mais nem a menos");
     assert!(!crate::csv::Csv::parse(String::from_utf8(saved).unwrap(), ',').unterminated());
 }
+
+#[test]
+fn a_cancelled_save_leaves_the_file_and_the_pending_edits_alone_and_no_temp_behind() {
+    let bytes = b"1\n2\n3\n4\n5\n6\n";
+    let (d, p) = file(bytes);
+    let l = open(&p, small());
+    l.edit(1, "quatro\n5\n6\n").unwrap();
+    l.close(); // o mesmo sinal de quem cancela
+    let err = l.save(None).unwrap_err();
+    assert!(err.to_string().contains("cancelado"), "{err}");
+    assert_eq!(std::fs::read(&p).unwrap(), bytes, "o arquivo não muda");
+    assert!(l.is_dirty(), "a alteração continua guardada");
+    let leftovers: Vec<_> = std::fs::read_dir(d.path()).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().starts_with(".tmp-")).collect();
+    assert!(leftovers.is_empty(), "o temporário foi apagado");
+    let info = l.info().unwrap();
+    assert_eq!((info.save_done, info.save_total), (0, 0), "sem salvar em andamento");
+    // salvar de novo (sem o sinal) funciona e a cópia não ficou travada
+    l.save_cancel.store(false, Ordering::Relaxed);
+}
+
+#[test]
+fn edits_are_refused_while_a_save_runs_and_reads_still_work() {
+    let (_d, p) = file(b"1\n2\n3\n4\n");
+    let l = open(&p, small());
+    l.saving.store(true, Ordering::Relaxed);
+    assert!(l.edit(0, "x\n2\n3\n").is_err());
+    assert!(l.discard_edits().is_err());
+    assert!(l.info().is_ok(), "info não espera o salvar");
+    assert!(l.read_batch(0).is_ok(), "ler também não");
+    l.saving.store(false, Ordering::Relaxed);
+    assert!(l.edit(0, "x\n2\n3\n").is_ok());
+}
+
+#[test]
+fn the_progress_counts_every_byte_of_the_save() {
+    let bytes = b"1\n2\n3\n4\n5\n6\n7\n";
+    let (_d, p) = file(bytes);
+    let l = open(&p, small());
+    l.edit(0, "UM\n2\n3\n").unwrap();
+    l.save(None).unwrap();
+    assert_eq!(std::fs::read(&p).unwrap(), b"UM\n2\n3\n4\n5\n6\n7\n");
+    assert_eq!(l.info().unwrap().save_total, 0, "zera ao terminar");
+}

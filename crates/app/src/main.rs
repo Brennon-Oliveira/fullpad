@@ -1682,6 +1682,7 @@ fn main() {
             largefile::large_edit,
             largefile::large_check,
             largefile::large_save,
+            largefile::large_save_cancel,
             largefile::large_reload,
             largefile::large_discard,
             largefile::large_search,

@@ -714,3 +714,11 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 #status .seg.editchk { cursor: pointer; user-select: none; }
 #status .seg.editchk input { margin: 0; accent-color: var(--accent); }
 #status .seg.editchk[hidden] { display: none; }
+
+/* "Salvando…" de um arquivo grande */
+.saving-back { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); }
+.saving-card { width: min(420px, 90vw); padding: 16px 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; gap: 10px; }
+.saving-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.saving-bar > div { height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
+.saving-hint { font-size: 12px; opacity: 0.7; }
+.saving-card button { align-self: flex-end; }

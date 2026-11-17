@@ -58,6 +58,7 @@ import { type Layout, type Node, type Side, type Zone, groupsOf, leaf, nodeAt, n
 import { mountPostitBar, type PostitBar } from "./postit";
 import { LargeTab, type LargeHooks, type LargeIo } from "./large/ctl";
 import { type LargeFind, mountLargeFind } from "./large/find";
+import { showSaving } from "./large/saving";
 import { firstRecord, humanSize, statusText, stripBreaks as stripBreaksOf } from "./large/model";
 import { type LargeScroll, mountLargeScroll } from "./large/scrollbar";
 import { docPos, filePos, largeField, largeKeys, lineNumberFormat, windowLoad } from "./large/state";
@@ -1693,9 +1694,21 @@ async function saveLarge(tab: TabState, forceDialog: boolean): Promise<boolean> 
   if (showing) snapshotGroup(showing);
   await ctl.commit();
   let saved: Awaited<ReturnType<typeof api.largeSave>>;
+  const progress = showSaving({
+    poll: async () => {
+      const i = await api.largeInfo(tab.id);
+      return { done: i.save_done, total: i.save_total };
+    },
+    cancel: () => void api.largeSaveCancel(tab.id).catch(() => {}),
+  });
   try {
     saved = await enqueue(() => api.largeSave(tab.id, dest));
   } catch (e) {
+    progress.close();
+    if (String(e).includes("salvar cancelado")) {
+      flashLarge("Salvar cancelado: o arquivo ficou como estava");
+      return false;
+    }
     if (isConflict(e)) {
       // o arquivo mudou fora do Fullpad: os lotes editados não valem sobre outro conteúdo, então não há "sobrescrever"
       const r = await message(`"${tab.title}" foi alterado fora do Fullpad. As suas alterações não podem ser aplicadas a ele.`, {
@@ -1709,6 +1722,7 @@ async function saveLarge(tab: TabState, forceDialog: boolean): Promise<boolean> 
     }
     return false;
   }
+  progress.close();
   tab.disk = saved.stamp;
   tab.path = saved.path;
   tab.title = saved.title;

@@ -89,6 +89,12 @@ export function statusText(line: number, info: { lines: number; done: boolean; i
   return `Arquivo grande · linha ${nf.format(line + 1)} de ${total}${progress ? ` · ${progress}` : ""}`;
 }
 
+/** "Salvando… 3,2 GB de 15 GB (21%)". */
+export function saveProgress(done: number, total: number): string {
+  const pct = total > 0 ? Math.min(99, Math.floor((done / total) * 100)) : 0;
+  return `Salvando… ${humanSize(done)} de ${humanSize(total)} (${pct}%)`;
+}
+
 /** Tamanho legível ("290 MB"). */
 export function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

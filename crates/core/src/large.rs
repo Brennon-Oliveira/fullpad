@@ -30,7 +30,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// A partir de que tamanho (bytes) um arquivo de texto abre em modo grande.
@@ -379,6 +379,11 @@ pub struct Large {
     bom: u64,
     journal: Option<PathBuf>,
     cancel: AtomicBool,
+    /// Um salvar está copiando o arquivo (não há lock durante a cópia: ler e fechar a aba seguem livres).
+    saving: AtomicBool,
+    save_cancel: AtomicBool,
+    save_done: AtomicU64,
+    save_total: AtomicU64,
     inner: RwLock<Inner>,
 }
 
@@ -399,6 +404,9 @@ pub struct Info {
     pub orphaned: bool,
     pub error: Option<String>,
     pub path: PathBuf,
+    /// Salvando: bytes já gravados e total a gravar (`0` quando não há salvar em andamento).
+    pub save_done: u64,
+    pub save_total: u64,
 }
 
 /// Um lote pronto para o editor.
@@ -479,6 +487,10 @@ impl Large {
             bom: sn.bom,
             journal,
             cancel: AtomicBool::new(false),
+            saving: AtomicBool::new(false),
+            save_cancel: AtomicBool::new(false),
+            save_done: AtomicU64::new(0),
+            save_total: AtomicU64::new(0),
             inner: RwLock::new(Inner {
                 path: path.to_path_buf(),
                 size: stamp.size,
@@ -574,6 +586,7 @@ impl Large {
     /// Para o índice e qualquer trabalho em andamento (ao fechar a aba).
     pub fn close(&self) {
         self.cancel.store(true, Ordering::Relaxed);
+        self.save_cancel.store(true, Ordering::Relaxed);
     }
 
     /// Constrói o índice inteiro, publicando os lotes à medida que saem.
@@ -662,7 +675,14 @@ impl Large {
             orphaned: g.orphaned,
             error: g.index_error.clone(),
             path: g.path.clone(),
+            save_done: self.save_done.load(Ordering::Relaxed),
+            save_total: self.save_total.load(Ordering::Relaxed),
         })
+    }
+
+    /// Pede para o salvar em andamento parar (o temporário é apagado e o arquivo fica como está).
+    pub fn cancel_save(&self) {
+        self.save_cancel.store(true, Ordering::Relaxed);
     }
 
     pub fn path(&self) -> Result<PathBuf> {
@@ -755,6 +775,9 @@ impl Large {
     /// Nada é gravado no arquivo do usuário; o diário em disco guarda a alteração. Se o texto voltou
     /// a ser o original, a alteração some.
     pub fn edit(&self, index: usize, text: &str) -> Result<EditOut> {
+        if self.saving.load(Ordering::Relaxed) {
+            return Err(Error::Invalid("salvando: espere o fim para editar".into()));
+        }
         let mut g = self.write()?;
         if g.orphaned {
             return Err(Error::Conflict);
@@ -784,6 +807,9 @@ impl Large {
 
     /// Descarta todas as alterações pendentes (e o diário).
     pub fn discard_edits(&self) -> Result<()> {
+        if self.saving.load(Ordering::Relaxed) {
+            return Err(Error::Invalid("salvando: espere o fim".into()));
+        }
         let mut g = self.write()?;
         g.edits.clear();
         g.orphaned = false;
@@ -801,16 +827,32 @@ impl Large {
     /// novo sai das contas do próprio salvar; se não (`info().done == false` depois), quem chamou
     /// manda refazê-lo com `start_index`.
     pub fn save(&self, dest: Option<&Path>) -> Result<DiskStamp> {
-        let mut g = self.write()?;
-        if !g.done {
-            return Err(Error::Invalid("aguarde o fim da leitura do arquivo para salvar".into()));
+        if self.saving.swap(true, Ordering::AcqRel) {
+            return Err(Error::Invalid("já há um salvar em andamento".into()));
         }
-        if g.orphaned {
-            return Err(Error::Conflict);
-        }
-        let src = g.path.clone();
+        self.save_cancel.store(false, Ordering::Relaxed);
+        let r = self.save_inner(dest);
+        self.save_done.store(0, Ordering::Relaxed);
+        self.save_total.store(0, Ordering::Relaxed);
+        self.saving.store(false, Ordering::Release);
+        r
+    }
+
+    fn save_inner(&self, dest: Option<&Path>) -> Result<DiskStamp> {
+        // fotografia do que importa, com o lock só pelo tempo de copiá-la: a cópia do arquivo (minutos,
+        // num de 15 GB) roda sem lock, e as edições ficam recusadas enquanto salva (`saving`)
+        let (src, size, stamp, batches, edits) = {
+            let g = self.read()?;
+            if !g.done {
+                return Err(Error::Invalid("aguarde o fim da leitura do arquivo para salvar".into()));
+            }
+            if g.orphaned {
+                return Err(Error::Conflict);
+            }
+            (g.path.clone(), g.size, g.stamp, g.batches.clone(), g.edits.clone())
+        };
         let target = dest.map_or_else(|| src.clone(), Path::to_path_buf);
-        match check_stamp(&src, &g.stamp)? {
+        match check_stamp(&src, &stamp)? {
             DiskState::Unchanged => {}
             // mesmo num "Salvar como", os lotes guardados não valem sobre um original que mudou
             DiskState::Changed => return Err(Error::Conflict),
@@ -818,19 +860,32 @@ impl Large {
         }
         let dir = target.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
         std::fs::create_dir_all(dir).at(dir)?;
+        self.save_total.store(size, Ordering::Relaxed);
         let tmp = tempfile::Builder::new().prefix(".tmp-").tempfile_in(dir).at(dir)?;
         let mut input = File::open(&src).at(&src)?;
         let mut out = std::io::BufWriter::with_capacity(1024 * 1024, tmp);
-        let mut new_batches = Vec::with_capacity(g.batches.len());
+        let mut new_batches = Vec::with_capacity(batches.len());
         let mut pos = 0u64;
         // um lote editado que termina sem `\n`, ou que continua a linha do anterior, mexe nos cortes
         // virtuais de uma linha longa: aí o índice precisa ser refeito
         let mut reindex = false;
+        let stopped = || self.save_cancel.load(Ordering::Relaxed) || self.cancel.load(Ordering::Relaxed);
         let copy = |input: &mut File, out: &mut dyn Write, from: u64, len: u64| -> Result<()> {
             input.seek(SeekFrom::Start(from)).at(&src)?;
-            let n = std::io::copy(&mut Read::take(&mut *input, len), out).at(&target)?;
-            if n != len {
-                return Err(Error::Conflict); // o arquivo encolheu durante a gravação
+            let mut buf = vec![0u8; 4 * 1024 * 1024];
+            let mut left = len;
+            while left > 0 {
+                if stopped() {
+                    return Err(Error::Invalid("salvar cancelado".into()));
+                }
+                let want = left.min(buf.len() as u64) as usize;
+                let n = input.read(&mut buf[..want]).at(&src)?;
+                if n == 0 {
+                    return Err(Error::Conflict); // o arquivo encolheu durante a gravação
+                }
+                out.write_all(&buf[..n]).at(&target)?;
+                left -= n as u64;
+                self.save_done.fetch_add(n as u64, Ordering::Relaxed);
             }
             Ok(())
         };
@@ -838,12 +893,13 @@ impl Large {
             copy(&mut input, &mut out, 0, self.bom)?;
             pos = self.bom;
         }
-        for b in &g.batches {
-            let len = match g.edits.get(&b.start) {
+        for b in &batches {
+            let len = match edits.get(&b.start) {
                 Some(e) => {
                     let bytes = encode_chunk(&e.text, self.encoding, self.eol)?;
                     out.write_all(&bytes).at(&target)?;
-                    if bytes.last() != Some(&b'\n') && b.end < g.size {
+                    self.save_done.fetch_add(b.end - b.start, Ordering::Relaxed);
+                    if bytes.last() != Some(&b'\n') && b.end < size {
                         reindex = true;
                     }
                     // o lote continua uma linha do anterior: o corte virtual no fim do anterior olha
@@ -863,18 +919,23 @@ impl Large {
                     b.end - b.start
                 }
             };
-            new_batches.push(Batch { start: pos, end: pos + len, nl: g.nl(b) });
+            let nl = edits.get(&b.start).map_or(b.nl, |e| e.nl);
+            new_batches.push(Batch { start: pos, end: pos + len, nl });
             pos += len;
         }
         drop(input);
+        if stopped() {
+            return Err(Error::Invalid("salvar cancelado".into()));
+        }
         out.flush().at(&target)?;
         let tmp = out.into_inner().map_err(|e| Error::Io { path: target.clone(), source: e.into_error() })?;
         tmp.as_file().sync_all().at(&target)?;
         tmp.persist(&target).map_err(|e| Error::Io { path: target.clone(), source: e.error })?;
-        let stamp = stamp_large(&target)?.ok_or_else(|| Error::Invalid("o arquivo sumiu logo depois de gravar".into()))?;
+        let new_stamp = stamp_large(&target)?.ok_or_else(|| Error::Invalid("o arquivo sumiu logo depois de gravar".into()))?;
+        let mut g = self.write()?;
         g.path = target;
         g.size = pos;
-        g.stamp = stamp;
+        g.stamp = new_stamp;
         if reindex {
             g.batches.clear();
             g.indexed_bytes = self.bom;
@@ -885,7 +946,7 @@ impl Large {
         }
         g.edits.clear();
         self.journal_clear();
-        Ok(stamp)
+        Ok(new_stamp)
     }
 
     // ---- busca ----

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstRecord, humanSize, indexProgress, lineAtFraction, lineFraction, nearEdge, statusText, stripBreaks, windowAround } from "./model";
+import { firstRecord, humanSize, indexProgress, lineAtFraction, lineFraction, nearEdge, saveProgress, statusText, stripBreaks, windowAround } from "./model";
 
 describe("stripBreaks", () => {
   it("tira só os \\n virtuais e deixa os reais", () => {
@@ -96,5 +96,14 @@ describe("firstRecord (o cabeçalho de um CSV)", () => {
   });
   it("respeita o separador", () => {
     expect(firstRecord('a;"b;c"\n1', ";")).toBe('a;"b;c"');
+  });
+});
+
+describe("andamento do salvar", () => {
+  it("mostra o que já foi gravado e a porcentagem, sem chegar a 100% antes de terminar", () => {
+    expect(saveProgress(0, 1000)).toContain("(0%)");
+    expect(saveProgress(500, 1000)).toContain("(50%)");
+    expect(saveProgress(1000, 1000)).toContain("(99%)");
+    expect(saveProgress(5, 0)).toContain("(0%)");
   });
 });

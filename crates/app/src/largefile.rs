@@ -143,6 +143,14 @@ pub async fn large_check(state: State<'_, AppState>, id: String) -> Result<DiskS
     blocking!(state, id, |l| l.check_disk())
 }
 
+/// Pede para o salvar em andamento parar: o temporário é apagado e o arquivo fica como estava.
+#[tauri::command]
+pub fn large_save_cancel(state: State<AppState>, id: String) -> Result<(), String> {
+    let id = parse_id(&id)?;
+    get(&state, id)?.cancel_save();
+    Ok(())
+}
+
 #[derive(Serialize)]
 pub struct LargeSaved {
     stamp: DiskStamp,
