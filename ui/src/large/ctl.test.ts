@@ -27,7 +27,10 @@ class FakeRust implements LargeIo {
   batchCalls: number[] = [];
   constructor(batches: { text: string; breaks?: number[]; lossy?: boolean }[]) {
     this.batches = batches.map((b) => ({ text: b.text, breaks: b.breaks ?? [], lossy: b.lossy }));
+    this.original = this.batches.map((b) => b.text);
   }
+  /** O texto de cada lote no arquivo: o Rust só tem alteração onde o texto difere dele. */
+  original: string[];
   /** `n` lotes de 3 linhas: "L<n>" numeradas de 0. */
   static lines(n: number, per = 3): FakeRust {
     return new FakeRust(Array.from({ length: n }, (_, b) => ({ text: Array.from({ length: per }, (_, i) => `L${b * per + i}\n`).join("") })));
@@ -43,7 +46,7 @@ class FakeRust implements LargeIo {
     return this.batches.reduce((a, b) => a + nl(b.text), 0) + 1;
   }
   async info(): Promise<LargeInfo> {
-    return { size: 1000, encoding: "utf8", eol: "lf", batches: this.batches.length, lines: this.total(), done: this.done, indexed: 1000, edited_batches: this.edits.length ? 1 : 0, orphaned: false, error: null, path: "/x.log", save_done: 0, save_total: 0 };
+    return { size: 1000, encoding: "utf8", eol: "lf", batches: this.batches.length, lines: this.total(), done: this.done, indexed: 1000, edited_batches: this.batches.filter((b, i) => b.text !== this.original[i]).length, orphaned: false, error: null, path: "/x.log", save_done: 0, save_total: 0 };
   }
   async batch(_id: string, index: number): Promise<LargeBatch> {
     this.batchCalls.push(index);
@@ -64,7 +67,7 @@ class FakeRust implements LargeIo {
     if (this.failEdit) throw new Error("O texto tem caracteres que não existem em Windows-1252");
     this.edits.push({ index, text });
     this.batches[index] = { ...this.batches[index], text, breaks: [] };
-    return { edited: true, lines: nl(text), total_lines: this.total(), dirty: true };
+    return { edited: text !== this.original[index], lines: nl(text), total_lines: this.total(), dirty: this.batches.some((b, i) => b.text !== this.original[i]) };
   }
   whole() {
     return this.batches.map((b) => b.text).join("");
@@ -395,6 +398,49 @@ describe("edição", () => {
     undo(view);
     await ctl.commit();
     expect(rust.edits).toEqual([]);
+  });
+
+  it("editar e desfazer antes de enviar apaga o \"não salvo\" (o texto voltou ao do arquivo)", async () => {
+    const { ctl, view, hooks } = await rig(FakeRust.lines(12), 20);
+    view.dispatch({ changes: { from: 0, insert: "x" }, userEvent: "input.csv" });
+    expect(hooks.dirty.at(-1)).toBe(true);
+    undo(view);
+    await ctl.commit();
+    expect(hooks.dirty.at(-1)).toBe(false);
+  });
+
+  it("depois de salvar, editar e desfazer também volta a \"salvo\"", async () => {
+    const { ctl, view, rust, hooks } = await rig(FakeRust.lines(12), 20);
+    view.dispatch({ changes: { from: 0, insert: "x" }, userEvent: "input.csv" });
+    await ctl.commit();
+    rust.original = rust.batches.map((b) => b.text); // salvar: o texto de agora passa a ser o do arquivo
+    await ctl.afterWrite(await rust.info(), true);
+    expect(hooks.dirty.at(-1)).toBe(false);
+    view.dispatch({ changes: { from: 0, insert: "y" }, userEvent: "input.csv" });
+    expect(hooks.dirty.at(-1)).toBe(true);
+    undo(view);
+    await ctl.commit();
+    expect(hooks.dirty.at(-1)).toBe(false);
+  });
+
+  it("desfazer tudo depois de enviar também apaga o \"não salvo\"", async () => {
+    const { ctl, view, hooks } = await rig(FakeRust.lines(12), 20);
+    view.dispatch({ changes: { from: 0, insert: "x" }, userEvent: "input.csv" });
+    await ctl.commit();
+    expect(hooks.dirty.at(-1)).toBe(true);
+    undo(view);
+    await ctl.commit();
+    expect(hooks.dirty.at(-1)).toBe(false);
+  });
+
+  it("desfazer uma edição enquanto outro lote segue editado mantém o \"não salvo\"", async () => {
+    const { ctl, view, hooks } = await rig(FakeRust.lines(12), 20);
+    view.dispatch({ changes: { from: 0, insert: "x" }, userEvent: "input.csv" });
+    await ctl.commit();
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "y" }, userEvent: "input.csv" });
+    undo(view); // desfaz só a última
+    await ctl.commit();
+    expect(hooks.dirty.at(-1)).toBe(true);
   });
 
   it("desfazer depois de enviar manda o texto original de volta", async () => {

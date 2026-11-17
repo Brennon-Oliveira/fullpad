@@ -485,6 +485,11 @@ export class LargeTab {
         return;
       }
     }
+    // desfez tudo antes de o Rust ver (ou logo depois de salvar): o texto já é o do arquivo e a bolinha de "não salvo" apaga
+    if (this.dirty && this.info.edited_batches === 0 && !this.pending) {
+      this.dirty = false;
+      this.hooks.onDirty(false);
+    }
     this.hooks.onChange();
   }
 
