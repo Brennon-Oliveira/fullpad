@@ -4009,6 +4009,20 @@ async function boot() {
   }
   void refreshClosed();
   menubar = mountMenuBar(menubarEl, menuActions);
+  // Ctrl+Z / Ctrl+Y com a tabela do CSV à vista e o foco perdido (depois de salvar, de um aviso…): o desfazer vale do mesmo jeito
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    const redoKey = k === "y" || (k === "z" && e.shiftKey);
+    if (k !== "z" && !redoKey) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && a !== document.documentElement) return;
+    const t = tabOf(cur);
+    if (!t || cur.csvTab !== t.id || !cur.csvEl.classList.contains("on")) return;
+    e.preventDefault();
+    if (redoKey) redo(cur.view);
+    else undo(cur.view);
+  });
   setZoom(loadZoom()); // reaplica o zoom lembrado
   if (!idle) {
     forEachGroup(applyTabConfig);

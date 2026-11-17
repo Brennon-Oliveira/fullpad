@@ -59,6 +59,18 @@ describe("janela de como salvar", () => {
     expect(document.querySelector(".savemode")).toBeNull();
   });
 
+  it("ao fechar, o foco volta para onde estava (senão Ctrl+Z não chega à tabela)", async () => {
+    const t = document.createElement("div");
+    t.tabIndex = 0;
+    document.body.append(t);
+    t.focus();
+    const p = chooseSaveMode(plan(), "grande.csv");
+    expect(document.activeElement).not.toBe(t);
+    document.querySelector<HTMLButtonElement>(".savemode-cancel")!.click();
+    await p;
+    expect(document.activeElement).toBe(t);
+  });
+
   it("o saiba mais explica o salvamento de arquivos grandes", () => {
     void chooseSaveMode(plan(), "grande.csv");
     expect(document.querySelector(".savemode-more summary")?.textContent).toContain("Como funciona o salvamento");

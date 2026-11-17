@@ -37,6 +37,7 @@ export function showSaving(opts: { poll: () => Promise<{ done: number; total: nu
     e.stopPropagation();
     if (e.key === "Escape" && !btn.hidden) btn.click();
   });
+  const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   document.body.append(back);
   if (!btn.hidden) btn.focus();
   let alive = true;
@@ -59,6 +60,7 @@ export function showSaving(opts: { poll: () => Promise<{ done: number; total: nu
     close() {
       alive = false;
       back.remove();
+      if (before?.isConnected) before.focus(); // sem isto o foco ia para o fundo e Ctrl+Z não chegava à tabela
     },
   };
 }

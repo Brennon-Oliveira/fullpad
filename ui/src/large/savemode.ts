@@ -48,8 +48,10 @@ export function chooseSaveMode(plan: SavePlan, title: string): Promise<SaveMode 
     why.className = "savemode-why";
     why.textContent = `${plan.resized === 1 ? "Um trecho que você editou mudou" : `${plan.resized} trechos que você editou mudaram`} de tamanho, então o que vem depois dele precisa mudar de lugar no arquivo. ${advice.text}`;
 
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const done = (v: SaveMode | null) => {
       back.remove();
+      if (before?.isConnected) before.focus();
       document.removeEventListener("keydown", onKey, true);
       resolve(v);
     };

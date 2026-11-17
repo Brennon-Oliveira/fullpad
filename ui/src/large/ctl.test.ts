@@ -548,3 +548,50 @@ describe("total de linhas", () => {
 });
 
 void stripBreaks;
+
+describe("desfazer uma edição da tabela (antes de salvar)", () => {
+  const tableEdit = (v: EditorView, from: number, to: number, insert: string) => v.dispatch({ changes: { from, to, insert }, userEvent: "input.csv" });
+
+  it("depois de confirmar o lote no Rust, Ctrl+Z ainda desfaz", async () => {
+    const { ctl, view } = await rig(FakeRust.lines(12), 20);
+    const before = view.state.doc.toString();
+    tableEdit(view, 0, 1, "ZZ");
+    await ctl.commit();
+    expect(undoDepth(view.state)).toBeGreaterThan(0);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(before);
+  });
+
+  it("depois de a janela deslizar para baixo e para cima, Ctrl+Z ainda desfaz", async () => {
+    const { ctl, view } = await rig(FakeRust.lines(12), 20);
+    const before = view.state.doc.toString();
+    tableEdit(view, 0, 1, "ZZ");
+    await ctl.slide("down");
+    await ctl.slide("up");
+    await ctl.commit();
+    expect(undoDepth(view.state)).toBeGreaterThan(0);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toContain("L");
+    expect(view.state.doc.toString()).not.toContain("ZZ");
+    expect(before.length).toBeGreaterThan(0);
+  });
+
+  it("uma edição no começo da janela sobrevive a carregar o lote de cima (o texto entra na posição 0)", async () => {
+    const { ctl, view } = await rig(FakeRust.lines(12), 20);
+    tableEdit(view, 0, 1, "ZZ");
+    await ctl.slide("up");
+    expect(undoDepth(view.state)).toBeGreaterThan(0);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).not.toContain("ZZ");
+  });
+
+  it("depois de salvar com a janela mantida, Ctrl+Z ainda desfaz e o lote volta a ficar alterado", async () => {
+    const { ctl, view, rust } = await rig(FakeRust.lines(12), 20);
+    tableEdit(view, 0, 1, "ZZ");
+    await ctl.commit();
+    await ctl.afterWrite(await rust.info(), true);
+    expect(undoDepth(view.state)).toBeGreaterThan(0);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).not.toContain("ZZ");
+  });
+});
