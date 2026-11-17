@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://brennon-oliveira.github.io/fullpad/sitemap.xml

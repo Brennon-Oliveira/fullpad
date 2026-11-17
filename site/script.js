@@ -86,7 +86,10 @@
   renderHero(true);
 
   /* ---------- formatos ---------- */
-  var B = function (n) { return 'img/' + n + '.gif'; };
+  var vidHtml = function (n, alt, auto) {
+    return '<video muted loop playsinline preload="' + (auto ? 'auto' : 'none') + '" poster="img/' + n + '.webp" role="img" aria-label="' + esc(alt) + '"' + (auto ? ' autoplay' : '') + '>' +
+      '<source src="img/' + n + '.mp4" type="video/mp4"><source src="img/' + n + '.webm" type="video/webm"></video>';
+  };
   var fmts = [
     { name: 'Markdown', ext: '.md', file: 'leia-me.md', img: 'markdown', alt: 'Markdown com live preview, tabela, equação, diagrama Mermaid e a barra de formatação', desc: 'Preview que você edita direto, com tabela, equação, Mermaid e barra de formatação.', cap: 'Markdown: preview editável, tabela em grade, KaTeX e Mermaid no mesmo arquivo.' },
     { name: 'CSV e TSV', ext: '.csv', file: 'vendas.csv', img: 'csv', alt: 'CSV como tabela: ordenar, filtrar, selecionar com estatísticas e ver o código', desc: 'Tabela com ordenação, filtro, estatísticas da seleção e edição de células.', cap: 'CSV: selecione uma coluna e veja soma e média sem abrir planilha.' },
@@ -108,7 +111,8 @@
     var f = fmts[cur];
     $('curfile').textContent = f.file;
     $('curcap').textContent = f.cap;
-    $('shot').innerHTML = '<div class="in"><img src="' + B(f.img) + '" alt="' + esc(f.alt) + '"></div>';
+    $('shot').innerHTML = '<div class="in">' + vidHtml(f.img, f.alt, true) + '</div>';
+    var v = $('shot').querySelector('video'); v.muted = true; var p = v.play(); if (p && p.catch) p.catch(function () {});
   }
   $('fmtlist').addEventListener('click', function (e) {
     var b = e.target.closest('[data-i]');
@@ -150,4 +154,16 @@
     ['Buscar', 'Ctrl+F'], ['Desfazer, refazer', 'Ctrl+Z Y'], ['Recarregar do disco', 'F5']
   ];
   $('keys').innerHTML = keys.map(function (k) { return '<div class="key"><span>' + k[0] + '</span><kbd>' + k[1] + '</kbd></div>'; }).join('');
+  /* ---------- vídeos: só tocam enquanto estão na tela ---------- */
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduce && 'IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        var v = e.target;
+        if (e.isIntersecting) { v.muted = true; var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+        else v.pause();
+      });
+    }, { rootMargin: '150px 0px', threshold: 0.2 });
+    document.querySelectorAll('main video[preload="none"]').forEach(function (v) { io.observe(v); });
+  }
 })();

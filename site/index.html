@@ -3,10 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>fullpad, editor de texto do branaos/labs</title>
-<meta name="description" content="Editor de texto e Markdown que trata cada arquivo do jeito dele: Markdown renderizado, CSV em tabela, JSON em árvore, Mermaid, DBML, PDF e arquivos de GBs. Grátis, de código aberto, Windows e Linux.">
+<title>Fullpad: editor de Markdown, CSV e JSON que abre arquivos de GBs</title>
+<meta name="description" content="Editor de texto grátis e de código aberto para Windows e Linux. Markdown renderizado, CSV em tabela, JSON em árvore, Mermaid, DBML, PDF e arquivos de GBs, sem perder nada ao fechar.">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<link rel="canonical" href="https://brennon-oliveira.github.io/fullpad/">
 <meta name="theme-color" content="#0e0f14">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e0f14'/%3E%3Crect x='11' y='7' width='10' height='18' rx='2' fill='%23c8f25a'/%3E%3C/svg%3E">
+<meta name="color-scheme" content="dark">
+<meta name="application-name" content="Fullpad">
+<meta name="apple-mobile-web-app-title" content="Fullpad">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Fullpad">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:url" content="https://brennon-oliveira.github.io/fullpad/">
+<meta property="og:title" content="Fullpad: um editor que trata cada arquivo do jeito dele">
+<meta property="og:description" content="Markdown renderizado, CSV em tabela, JSON em árvore, diagramas e arquivos de GBs. Nada se perde ao fechar. Grátis, MIT, Windows e Linux.">
+<meta property="og:image" content="https://brennon-oliveira.github.io/fullpad/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Fullpad, editor de texto: o nome fullpad ao lado do ícone do app, sobre fundo escuro com grade">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Fullpad: um editor que trata cada arquivo do jeito dele">
+<meta name="twitter:description" content="Markdown renderizado, CSV em tabela, JSON em árvore, diagramas e arquivos de GBs. Nada se perde ao fechar. Grátis, MIT, Windows e Linux.">
+<meta name="twitter:image" content="https://brennon-oliveira.github.io/fullpad/og-image.png">
+<meta name="twitter:image:alt" content="Fullpad, editor de texto: o nome fullpad ao lado do ícone do app, sobre fundo escuro com grade">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Fullpad", "description": "Editor de texto grátis e de código aberto para Windows e Linux. Markdown renderizado, CSV em tabela, JSON em árvore, Mermaid, DBML, PDF e arquivos de GBs, sem perder nada ao fechar.", "url": "https://brennon-oliveira.github.io/fullpad/", "applicationCategory": "DeveloperApplication", "operatingSystem": "Windows 10, Windows 11, Linux", "softwareHelp": {"@type": "WebPage", "url": "https://github.com/Brennon-Oliveira/fullpad/blob/main/docs/AGENTS.md"}, "downloadUrl": "https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest", "codeRepository": "https://github.com/Brennon-Oliveira/fullpad", "license": "https://opensource.org/licenses/MIT", "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "BRL"}, "image": "https://brennon-oliveira.github.io/fullpad/og-image.png", "inLanguage": "pt-BR", "publisher": {"@type": "Organization", "name": "branaos/labs"}}, {"@context": "https://schema.org", "@type": "WebSite", "name": "Fullpad", "url": "https://brennon-oliveira.github.io/fullpad/", "inLanguage": "pt-BR"}]</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
@@ -29,6 +55,7 @@
 <a class="btn btn-p btn-s" href="https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest">Baixar</a>
 </div>
 </header>
+<main>
 
 <!-- HERO -->
 <section id="topo" class="hero">
@@ -120,11 +147,11 @@
 </div>
 <div class="two" style="margin-top: 56px;">
 <figure class="rv2" style="margin: 0;">
-<div class="win"><div class="shot"><img src="img/visoes.gif" alt="Visões do Markdown e o sumário lateral" loading="lazy"></div></div>
+<div class="win"><div class="shot"><video muted loop playsinline preload="none" poster="img/visoes.webp" role="img" aria-label="Visões do Markdown e o sumário lateral"><source src="img/visoes.mp4" type="video/mp4"><source src="img/visoes.webm" type="video/webm"></video></div></div>
 <figcaption class="cap"><b>Visões e sumário.</b> Só código, só preview ou os dois lado a lado.</figcaption>
 </figure>
 <figure class="rv2" style="margin: 0;">
-<div class="win"><div class="shot"><img src="img/exportar.gif" alt="Exportar o Markdown para HTML ou PDF, ou copiar como HTML" loading="lazy"></div></div>
+<div class="win"><div class="shot"><video muted loop playsinline preload="none" poster="img/exportar.webp" role="img" aria-label="Exportar o Markdown para HTML ou PDF, ou copiar como HTML"><source src="img/exportar.mp4" type="video/mp4"><source src="img/exportar.webm" type="video/webm"></video></div></div>
 <figcaption class="cap"><b>Exportar.</b> HTML, PDF ou direto para a área de transferência.</figcaption>
 </figure>
 </div>
@@ -152,7 +179,7 @@
 <div class="bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="tab on">dados-2026.csv · 14,6 GB</span></div>
 <div class="giantShot">
 <div class="rush" aria-hidden="true"><div id="rushlines"></div></div>
-<div class="shot"><img src="img/gigantes.gif" alt="Um CSV de 14,6 GB: o cartão para carregar, abrir direto na linha e a tabela já na linha 120.000" loading="lazy"></div>
+<div class="shot"><video muted loop playsinline preload="none" poster="img/gigantes.webp" role="img" aria-label="Um CSV de 14,6 GB: o cartão para carregar, abrir direto na linha e a tabela já na linha 120.000"><source src="img/gigantes.mp4" type="video/mp4"><source src="img/gigantes.webm" type="video/webm"></video></div>
 </div>
 </div>
 </div>
@@ -160,11 +187,11 @@
 </div>
 <div class="two" style="margin-top: 72px;">
 <figure class="rv2" style="margin: 0;">
-<div class="win"><div class="shot"><img src="img/gigantes-texto.gif" alt="Um log de 300 MB e um Markdown de 150 MB: ir para a linha 3.000.000, buscar no disco e ir à linha 200.000" loading="lazy"></div></div>
+<div class="win"><div class="shot"><video muted loop playsinline preload="none" poster="img/gigantes-texto.webp" role="img" aria-label="Um log de 300 MB e um Markdown de 150 MB: ir para a linha 3.000.000, buscar no disco e ir à linha 200.000"><source src="img/gigantes-texto.mp4" type="video/mp4"><source src="img/gigantes-texto.webm" type="video/webm"></video></div></div>
 <figcaption class="cap"><b>Logs e textos longos.</b> Ctrl+G leva à linha 3.000.000 de um log de 300 MB.</figcaption>
 </figure>
 <figure class="rv2" style="margin: 0;">
-<div class="win"><div class="shot"><img src="img/gigantes-salvar.gif" alt="Salvar numa cópia de 300 MB: valor do mesmo tamanho grava no lugar; um valor maior abre a escolha" loading="lazy"></div></div>
+<div class="win"><div class="shot"><video muted loop playsinline preload="none" poster="img/gigantes-salvar.webp" role="img" aria-label="Salvar numa cópia de 300 MB: valor do mesmo tamanho grava no lugar; um valor maior abre a escolha"><source src="img/gigantes-salvar.mp4" type="video/mp4"><source src="img/gigantes-salvar.webm" type="video/webm"></video></div></div>
 <figcaption class="cap"><b>Salvar sem reescrever tudo.</b> Uma troca do mesmo tamanho grava no lugar; uma maior pergunta antes como prefere salvar.</figcaption>
 </figure>
 </div>
@@ -229,22 +256,22 @@
 <p class="empty" id="nocmd" hidden>Nenhum comando com esse nome. Tente "salvar" ou "painel".</p>
 </div>
 <figure class="rv2" style="margin: 0;">
-<div class="win"><div class="shot"><img src="img/paleta.gif" alt="Paleta de comandos do fullpad: todos os itens dos menus, com atalho, achados por busca aproximada" loading="lazy"></div></div>
+<div class="win"><div class="shot"><video muted loop playsinline preload="none" poster="img/paleta.webp" role="img" aria-label="Paleta de comandos do fullpad: todos os itens dos menus, com atalho, achados por busca aproximada"><source src="img/paleta.mp4" type="video/mp4"><source src="img/paleta.webm" type="video/webm"></video></div></div>
 <figcaption class="cap"><b>A paleta de verdade.</b> A mesma busca, dentro do app.</figcaption>
 </figure>
 </div>
 <div class="keys" id="keys" style="margin-top: 64px;"></div>
 <div class="three" style="margin-top: 72px;">
 <figure class="rv2" style="margin: 0;">
-<div class="win"><div class="shot"><img src="img/paineis.gif" alt="Arrastar uma aba para dividir a janela em painéis" loading="lazy"></div></div>
+<div class="win"><div class="shot"><video muted loop playsinline preload="none" poster="img/paineis.webp" role="img" aria-label="Arrastar uma aba para dividir a janela em painéis"><source src="img/paineis.mp4" type="video/mp4"><source src="img/paineis.webm" type="video/webm"></video></div></div>
 <figcaption class="cap"><b>Painéis.</b> Arraste uma aba para dividir a janela.</figcaption>
 </figure>
 <figure class="rv2" style="margin: 0;">
-<div class="win"><div class="shot"><img src="img/encaixe.gif" alt="Alvos de encaixe ao arrastar uma aba: cada área azul mostra onde ela cairia" loading="lazy"></div></div>
+<div class="win"><div class="shot"><video muted loop playsinline preload="none" poster="img/encaixe.webp" role="img" aria-label="Alvos de encaixe ao arrastar uma aba: cada área azul mostra onde ela cairia"><source src="img/encaixe.mp4" type="video/mp4"><source src="img/encaixe.webm" type="video/webm"></video></div></div>
 <figcaption class="cap"><b>Encaixe.</b> A área azul mostra onde a aba vai cair antes de você soltar.</figcaption>
 </figure>
 <figure class="rv2" style="margin: 0;">
-<div class="win"><div class="shot"><img src="img/busca.gif" alt="Busca global em todas as abas abertas" loading="lazy"></div></div>
+<div class="win"><div class="shot"><video muted loop playsinline preload="none" poster="img/busca.webp" role="img" aria-label="Busca global em todas as abas abertas"><source src="img/busca.mp4" type="video/mp4"><source src="img/busca.webm" type="video/webm"></video></div></div>
 <figcaption class="cap"><b>Busca global.</b> Ctrl+Shift+F procura em todas as abas abertas.</figcaption>
 </figure>
 </div>
@@ -298,6 +325,8 @@
 </div>
 </div>
 </section>
+
+</main>
 
 <footer class="foot">
 <div class="wrap in">
