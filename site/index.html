@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fullpad, editor de texto do branaos/labs</title>
+<meta name="description" content="Editor de texto e Markdown que trata cada arquivo do jeito dele: Markdown renderizado, CSV em tabela, JSON em árvore, Mermaid, DBML, PDF e arquivos de GBs. Grátis, de código aberto, Windows e Linux.">
+<meta name="theme-color" content="#0e0f14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e0f14'/%3E%3Crect x='11' y='7' width='10' height='18' rx='2' fill='%23c8f25a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="fp">
+
+<!-- NAV -->
+<header class="nav">
+<div class="wrap in">
+<a class="wm" href="#topo" aria-label="fullpad, início">fullpad<span class="caret" aria-hidden="true"></span></a>
+<nav class="navlinks" aria-label="Seções">
+<a href="#formatos">Formatos</a>
+<a href="#markdown">Markdown</a>
+<a href="#grandes">Arquivos grandes</a>
+<a href="#teclado">Atalhos</a>
+<a href="#bancada">Como foi feito</a>
+</nav>
+<a class="btn btn-p btn-s" href="https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest">Baixar</a>
+</div>
+</header>
+
+<!-- HERO -->
+<section id="topo" class="hero">
+<svg class="poly" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><polygon class="fc" points="-19,-39 216,-47 8,188"></polygon><polygon class="fa" points="216,-47 253,149 8,188"></polygon><polygon class="fa" points="216,-47 404,-15 440,176"></polygon><polygon class="fc" points="216,-47 440,176 253,149"></polygon><polygon class="fb" points="404,-15 550,0 440,176"></polygon><polygon class="fb" points="550,0 560,157 440,176"></polygon><polygon class="fa" points="550,0 778,235 560,157"></polygon><polygon class="fa" points="748,-7 951,-45 778,235"></polygon><polygon class="fb" points="951,-45 964,209 778,235"></polygon><polygon class="fb" points="951,-45 1191,36 1215,185"></polygon><polygon class="fb" points="951,-45 1215,185 964,209"></polygon><polygon class="fa" points="1191,36 1357,-30 1215,185"></polygon><polygon class="fb" points="8,188 179,409 20,391"></polygon><polygon class="fa" points="440,176 394,377 179,409"></polygon><polygon class="fa" points="778,235 964,209 1002,442"></polygon><polygon class="fb" points="964,209 1215,185 1002,442"></polygon><polygon class="fa" points="1215,185 1405,151 1453,357"></polygon><polygon class="fb" points="1215,185 1453,357 1225,376"></polygon><polygon class="fa" points="1405,151 1550,167 1453,357"></polygon><polygon class="fb" points="179,409 148,618 -38,598"></polygon><polygon class="fa" points="179,409 394,377 429,608"></polygon><polygon class="fc" points="179,409 429,608 148,618"></polygon><polygon class="fa" points="394,377 632,422 429,608"></polygon><polygon class="fa" points="632,422 771,408 821,610"></polygon><polygon class="fa" points="771,408 1002,442 821,610"></polygon><polygon class="fb" points="1002,442 1008,595 821,610"></polygon><polygon class="fa" points="1002,442 1238,649 1008,595"></polygon><polygon class="fc" points="1225,376 1453,357 1238,649"></polygon><polygon class="fa" points="1453,357 1550,622 1397,618"></polygon><polygon class="fb" points="-38,598 236,775 16,855"></polygon><polygon class="fa" points="148,618 429,608 236,775"></polygon><polygon class="fb" points="429,608 546,795 387,818"></polygon><polygon class="fc" points="642,579 821,610 546,795"></polygon><polygon class="fc" points="821,610 950,830 762,757"></polygon><polygon class="fa" points="1238,649 1158,771 950,830"></polygon><polygon class="fa" points="1238,649 1397,618 1387,841"></polygon><polygon class="fc" points="236,775 387,818 375,990"></polygon><polygon class="fb" points="546,795 762,757 851,960"></polygon><polygon class="fb" points="1158,771 1387,841 1170,998"></polygon><polygon class="fa" points="1387,841 1553,794 1544,990"></polygon></svg>
+<div class="gridbg" aria-hidden="true"></div>
+<div class="glow" id="glow" aria-hidden="true" style="left: 72%; top: 38%;"></div>
+<svg class="meshline" viewBox="0 0 1440 700" preserveAspectRatio="none" style="left: 0; top: 40px; width: 100%; height: 700px;" aria-hidden="true"><path class="dash" d="M -20 520 L 180 560 L 320 470 L 520 540 L 640 430 L 780 470"></path><circle cx="320" cy="470" r="3"></circle><circle cx="640" cy="430" r="3"></circle></svg>
+
+<div class="wrap" style="position: relative;">
+<div class="heroGrid">
+<div>
+<p class="label rise" style="animation-delay: .05s;"><b>branaos/labs</b> · editor de texto · MIT</p>
+<h1 class="rise" style="margin-top: 24px; animation-delay: .15s;">Um editor que trata cada arquivo do jeito dele</h1>
+<p class="lead rise" style="animation-delay: .3s;">Markdown aparece renderizado, CSV vira tabela com estatísticas, JSON ganha uma árvore ao lado do código, Mermaid e DBML viram diagrama e PDF abre num leitor com busca. Cada aba ainda guarda o texto enquanto você digita, sem depender do Ctrl+S.</p>
+<div class="ctas rise" style="animation-delay: .45s;">
+<a class="btn btn-p" href="https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest">Baixar para Windows</a>
+<a class="btn btn-g" href="https://github.com/Brennon-Oliveira/fullpad">Ver no GitHub</a>
+</div>
+<p class="rise mono" style="margin-top: 20px; font-size: 13px; color: #a3a7b5; animation-delay: .55s;">Windows 10/11 e Linux · grátis e de código aberto</p>
+</div>
+
+<div class="heroWin rise" style="animation-delay: .35s;">
+<div class="frameGlow">
+<div class="win">
+<div class="bar" role="tablist" aria-label="Arquivos de exemplo">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+<span id="htabs" style="display: contents;"></span>
+</div>
+<div class="hview">
+
+<div id="hview" style="height: 100%;"></div>
+
+</div>
+<div class="status">
+<span id="hstat"></span>
+<span class="saved"><span class="sdot" aria-hidden="true"></span>salvo agora</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- FORMATOS -->
+<section id="formatos" class="sec" style="background: linear-gradient(180deg, #0e0f14 0%, #101218 50%, #0e0f14 100%);">
+<div class="wrap">
+<div class="rv">
+<p class="label"><b>01</b> · formatos</p>
+<h2 class="h2" style="margin-top: 20px;">Uma visão própria para cada formato</h2>
+<p class="lead" style="margin-top: 20px;">O fullpad olha a extensão e põe, ao lado do texto, a visão que faz sentido para aquele arquivo. Você continua no mesmo editor, com as mesmas abas e os mesmos atalhos.</p>
+</div>
+<div class="fmtGrid">
+<div class="fmtList" role="tablist" aria-label="Formatos suportados">
+<span id="fmtlist" style="display: contents;"></span>
+</div>
+<div class="sticky">
+<div class="frameGlow">
+<div class="win">
+<div class="bar">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+<span class="tab on" id="curfile"></span>
+</div>
+<div class="shot">
+<span id="shot" style="display: contents;"></span>
+</div>
+</div>
+</div>
+<p class="cap" id="curcap"></p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- MARKDOWN -->
+<section id="markdown" class="sec">
+<div class="gridbg" aria-hidden="true" style="opacity: .3;"></div>
+<div class="wrap" style="position: relative;">
+<div class="rv">
+<p class="label"><b>02</b> · markdown</p>
+<h2 class="h2" style="margin-top: 20px;">O formato que recebeu mais cuidado</h2>
+<p class="lead" style="margin-top: 20px;">Quem escreve em Markdown vive alternando entre o código e o resultado. No fullpad você troca de visão com Ctrl+E, edita direto no preview e pula de seção pelo sumário lateral.</p>
+</div>
+<div class="cards" style="margin-top: 56px;">
+<div class="card rv"><span class="ic">| a | b |</span><h3>Tabelas em grade</h3><p>Edite a tabela como numa planilha, sem alinhar barra vertical na mão.</p></div>
+<div class="card rv"><span class="ic">$e^{i\pi}$</span><h3>Equações KaTeX</h3><p>A fórmula aparece renderizada no meio do texto, enquanto você escreve.</p></div>
+<div class="card rv"><span class="ic">graph LR</span><h3>Diagramas Mermaid</h3><p>Um bloco de código vira fluxograma ali mesmo, sem abrir outra ferramenta.</p></div>
+<div class="card rv"><span class="ic">.html .pdf</span><h3>Exportação</h3><p>Gere HTML ou PDF, ou copie como HTML para colar formatado num e-mail.</p></div>
+</div>
+<div class="two" style="margin-top: 56px;">
+<figure class="rv2" style="margin: 0;">
+<div class="win"><div class="shot"><img src="img/visoes.gif" alt="Visões do Markdown e o sumário lateral" loading="lazy"></div></div>
+<figcaption class="cap"><b>Visões e sumário.</b> Só código, só preview ou os dois lado a lado.</figcaption>
+</figure>
+<figure class="rv2" style="margin: 0;">
+<div class="win"><div class="shot"><img src="img/exportar.gif" alt="Exportar o Markdown para HTML ou PDF, ou copiar como HTML" loading="lazy"></div></div>
+<figcaption class="cap"><b>Exportar.</b> HTML, PDF ou direto para a área de transferência.</figcaption>
+</figure>
+</div>
+</div>
+</section>
+
+<!-- GRANDES -->
+<section id="grandes" class="sec" style="background: radial-gradient(ellipse 60% 50% at 70% 50%, rgba(200,242,90,.05), transparent 70%), #0c0d11;">
+<div class="wrap">
+<div class="giant">
+<div class="rv">
+<p class="label"><b>03</b> · arquivos grandes</p>
+<h2 class="h2" style="margin-top: 20px;">Um CSV de 14,6 GB abre em menos de meio segundo</h2>
+<p class="lead" style="margin-top: 20px;">Acima de 20 MB, o fullpad lê o arquivo por partes, conforme você navega, por isso o tamanho quase não pesa na abertura. Dá para pular para uma linha, buscar direto no disco e editar com desfazer, sem esperar o arquivo inteiro subir para a memória.</p>
+<div class="spec">
+<div class="row"><span class="v">14,6 GB</span><span class="d">CSV aberto em menos de meio segundo, direto na linha 120.000</span></div>
+<div class="row"><span class="v">300 MB</span><span class="d">log de servidor, salto para a linha 3.000.000</span></div>
+<div class="row"><span class="v">150 MB</span><span class="d">Markdown, salto para a linha 200.000</span></div>
+<div class="row"><span class="v">20 MB</span><span class="d">a partir daqui, a leitura passa a ser sob demanda</span></div>
+</div>
+</div>
+<div class="rv2">
+<div class="frameGlow">
+<div class="win">
+<div class="bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="tab on">dados-2026.csv · 14,6 GB</span></div>
+<div class="giantShot">
+<div class="rush" aria-hidden="true"><div id="rushlines"></div></div>
+<div class="shot"><img src="img/gigantes.gif" alt="Um CSV de 14,6 GB: o cartão para carregar, abrir direto na linha e a tabela já na linha 120.000" loading="lazy"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="two" style="margin-top: 72px;">
+<figure class="rv2" style="margin: 0;">
+<div class="win"><div class="shot"><img src="img/gigantes-texto.gif" alt="Um log de 300 MB e um Markdown de 150 MB: ir para a linha 3.000.000, buscar no disco e ir à linha 200.000" loading="lazy"></div></div>
+<figcaption class="cap"><b>Logs e textos longos.</b> Ctrl+G leva à linha 3.000.000 de um log de 300 MB.</figcaption>
+</figure>
+<figure class="rv2" style="margin: 0;">
+<div class="win"><div class="shot"><img src="img/gigantes-salvar.gif" alt="Salvar numa cópia de 300 MB: valor do mesmo tamanho grava no lugar; um valor maior abre a escolha" loading="lazy"></div></div>
+<figcaption class="cap"><b>Salvar sem reescrever tudo.</b> Uma troca do mesmo tamanho grava no lugar; uma maior pergunta antes como prefere salvar.</figcaption>
+</figure>
+</div>
+</div>
+</section>
+
+<!-- NÃO PERDE NADA -->
+<section class="sec">
+<div class="wrap">
+<div class="loss">
+<div class="rv2">
+<div class="win" style="position: relative;">
+<div class="demoTabs">
+<span class="dots" aria-hidden="true" style="align-self: center;"><i></i><i></i><i></i></span>
+<span class="tab">notas.txt</span>
+<span class="closer"><span class="tab on"><span class="sdot" aria-hidden="true"></span>rascunho.md</span></span>
+<span class="tab">todo.md</span>
+</div>
+<div class="keyflash" aria-hidden="true"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd></div>
+<div class="code ghost" aria-label="Exemplo: uma aba fechada e reaberta com o texto intacto">
+<div class="gut" aria-hidden="true">1<br>2<br>3<br>4<br>5</div>
+<div>
+<div class="ln k1"># Carta para o cliente</div>
+<div class="ln">&nbsp;</div>
+<div class="ln">Oi, Marina. Segue o orçamento que</div>
+<div class="ln">combinamos ontem, com o prazo novo</div>
+<div class="ln">para a segunda entrega.<span class="cursor" aria-hidden="true"></span></div>
+</div>
+</div>
+<div class="status"><span>rascunho.md · nunca salvo com Ctrl+S</span><span class="saved"><span class="sdot" aria-hidden="true"></span>guardado</span></div>
+</div>
+</div>
+<div class="rv">
+<p class="label"><b>04</b> · confiança</p>
+<h2 class="h2" style="margin-top: 20px;">Fechou sem querer? Ctrl+Shift+T traz de volta</h2>
+<p class="lead" style="margin-top: 20px;">Cada aba guarda o texto enquanto você digita. Fechar a aba ou o app não descarta nada, e o histórico de abas, no Ctrl+Shift+H, mostra tudo o que passou por ali.</p>
+</div>
+</div>
+<div class="guar">
+<div class="card rv"><span class="ic">tmp + rename</span><h3>Escrita atômica</h3><p>O arquivo é gravado por inteiro ou continua como estava. Uma queda de energia no meio do salvamento não deixa meio texto no disco.</p></div>
+<div class="card rv"><span class="ic">utf-8 · latin-1</span><h3>Codificação preservada</h3><p>Abriu em Latin-1, salva em Latin-1. Os acentos daquele CSV antigo continuam no lugar.</p></div>
+<div class="card rv"><span class="ic">crlf · lf</span><h3>Quebras de linha mantidas</h3><p>CRLF continua CRLF e LF continua LF, então o diff do Git mostra só o que você mudou.</p></div>
+<div class="card rv"><span class="ic">F5</span><h3>Aviso de mudança externa</h3><p>Se outro programa mexer no arquivo aberto, o fullpad avisa. F5 recarrega a versão do disco.</p></div>
+</div>
+</div>
+</section>
+
+<!-- TECLADO -->
+<section id="teclado" class="sec" style="background: linear-gradient(180deg, #0e0f14, #111319 40%, #0e0f14);">
+<div class="wrap">
+<div class="rv">
+<p class="label"><b>05</b> · teclado</p>
+<h2 class="h2" style="margin-top: 20px;">Tudo o que está nos menus cabe no Ctrl+P</h2>
+<p class="lead" style="margin-top: 20px;">A paleta de comandos lista cada item dos menus com o atalho ao lado e entende busca aproximada: "dvd" acha "Dividir painel". Experimente aqui.</p>
+</div>
+<div class="two" style="margin-top: 56px; align-items: start;">
+<div class="win pal rv2" style="position: relative;">
+<svg class="srch" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a3a7b5" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+<label for="palq" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Buscar comando</label>
+<input id="palq" type="text" placeholder="Digite um comando" autocomplete="off">
+<ul id="cmdlist"></ul>
+<p class="empty" id="nocmd" hidden>Nenhum comando com esse nome. Tente "salvar" ou "painel".</p>
+</div>
+<figure class="rv2" style="margin: 0;">
+<div class="win"><div class="shot"><img src="img/paleta.gif" alt="Paleta de comandos do fullpad: todos os itens dos menus, com atalho, achados por busca aproximada" loading="lazy"></div></div>
+<figcaption class="cap"><b>A paleta de verdade.</b> A mesma busca, dentro do app.</figcaption>
+</figure>
+</div>
+<div class="keys" id="keys" style="margin-top: 64px;"></div>
+<div class="three" style="margin-top: 72px;">
+<figure class="rv2" style="margin: 0;">
+<div class="win"><div class="shot"><img src="img/paineis.gif" alt="Arrastar uma aba para dividir a janela em painéis" loading="lazy"></div></div>
+<figcaption class="cap"><b>Painéis.</b> Arraste uma aba para dividir a janela.</figcaption>
+</figure>
+<figure class="rv2" style="margin: 0;">
+<div class="win"><div class="shot"><img src="img/encaixe.gif" alt="Alvos de encaixe ao arrastar uma aba: cada área azul mostra onde ela cairia" loading="lazy"></div></div>
+<figcaption class="cap"><b>Encaixe.</b> A área azul mostra onde a aba vai cair antes de você soltar.</figcaption>
+</figure>
+<figure class="rv2" style="margin: 0;">
+<div class="win"><div class="shot"><img src="img/busca.gif" alt="Busca global em todas as abas abertas" loading="lazy"></div></div>
+<figcaption class="cap"><b>Busca global.</b> Ctrl+Shift+F procura em todas as abas abertas.</figcaption>
+</figure>
+</div>
+</div>
+</section>
+
+<!-- BANCADA -->
+<section id="bancada" class="sec">
+<div class="gridbg" aria-hidden="true"></div>
+<div class="wrap" style="position: relative;">
+<div class="two" style="gap: 64px; align-items: start;">
+<div class="rv">
+<p class="label"><b>06</b> · bancada</p>
+<p class="term" style="margin-top: 20px;">$ cargo tauri build</p>
+<h2 class="h2" style="margin-top: 20px;">Como foi feito</h2>
+<p class="lead" style="margin-top: 20px;">Rust no núcleo, Tauri 2 para a janela e CodeMirror 6 no editor. O código é aberto sob licença MIT, e qualquer pessoa pode compilar com Rust, Node e pnpm.</p>
+<p style="margin-top: 24px; font-size: 15px; display: flex; flex-wrap: wrap; gap: 20px;"><a href="https://github.com/Brennon-Oliveira/fullpad/blob/main/docs/AGENTS.md">Ler a arquitetura</a><a href="https://github.com/Brennon-Oliveira/fullpad/blob/main/CONTRIBUTING.md">Como contribuir</a><a href="https://github.com/Brennon-Oliveira/fullpad">Código no GitHub</a></p>
+</div>
+<div class="rv2">
+<div class="tbl">
+<div class="r"><div>Núcleo</div><div>Rust</div></div>
+<div class="r"><div>Janela</div><div>Tauri 2</div></div>
+<div class="r"><div>Editor</div><div>CodeMirror 6</div></div>
+<div class="r"><div>Testes</div><div class="mono" style="font-size: 14px;">cargo test · vitest</div></div>
+<div class="r"><div>Licença</div><div>MIT</div></div>
+<div class="r"><div>Sistemas</div><div>Windows 10/11 · Linux x86_64</div></div>
+</div>
+<p class="label" style="margin-top: 40px;">o que ainda não funciona</p>
+<ul class="todo">
+<li>Não há versão para macOS.</li>
+<li>O instalador do Windows não tem certificado da Microsoft, então o SmartScreen avisa na primeira execução. As atualizações automáticas são assinadas pelo projeto.</li>
+<li>Arquivos .tex mostram as equações, mas o fullpad não compila o documento.</li>
+<li>PDF e EPUB são só leitura: dá para buscar e copiar, nada é gravado no arquivo.</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<!-- BAIXAR -->
+<section id="baixar" class="sec" style="background: radial-gradient(ellipse 50% 60% at 50% 100%, rgba(200,242,90,.07), transparent 70%), #0e0f14;">
+<div class="wrap" style="text-align: center;">
+<div class="rv" style="display: flex; flex-direction: column; align-items: center;">
+<p class="label"><b>07</b> · baixar</p>
+<h2 class="h2" style="margin-top: 20px; max-width: 16ch;">Baixe e abra aquele arquivo que travava tudo</h2>
+<p class="lead" style="margin-top: 20px;">No Windows, o instalador é por usuário e não pede permissão de administrador. No Linux, escolha o pacote da sua distribuição; ele precisa do WebKitGTK 4.1.</p>
+</div>
+<div class="dl" style="text-align: left; max-width: 860px; margin-left: auto; margin-right: auto;">
+<a class="dlc rv2" href="https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest"><span class="os">Windows</span><span class="pk">10 e 11 · instalador .exe</span><span class="go">Baixar a versão mais recente</span></a>
+<a class="dlc rv2" href="https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest"><span class="os">Linux</span><span class="pk">x86_64 · AppImage, .deb ou .rpm</span><span class="go">Baixar a versão mais recente</span></a>
+</div>
+</div>
+</section>
+
+<footer class="foot">
+<div class="wrap in">
+<span><span class="labs">branaos<b>/</b>labs</span> · o fullpad é um projeto do Labs, aberto sob licença MIT</span>
+<span style="display: flex; gap: 20px;"><a href="https://github.com/Brennon-Oliveira/fullpad">GitHub</a><a href="https://github.com/Brennon-Oliveira/fullpad-releases/releases/latest">Versões</a></span>
+</div>
+</footer>
+
+</div>
+<script src="script.js"></script>
+</body>
+</html>
