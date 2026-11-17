@@ -11,7 +11,6 @@ pub mod disk;
 pub mod fileio;
 pub mod json;
 pub mod large;
-pub mod large_csv;
 pub mod model;
 pub mod reader;
 pub mod search;

@@ -40,19 +40,17 @@ fn utf16_len(s: &str) -> usize {
 }
 
 /// Um registro encontrado pela varredura.
-pub(crate) struct Rec {
+struct Rec {
     /// Fim do registro, sem o terminador.
-    pub(crate) end: usize,
+    end: usize,
     /// Onde começa o próximo (depois do terminador).
-    pub(crate) next: usize,
-    pub(crate) cells: u32,
+    next: usize,
+    cells: u32,
     /// Terminou o texto com uma aspa ainda aberta.
-    pub(crate) open: bool,
+    open: bool,
 }
 
-/// A varredura de um registro a partir de `start` (a mesma do índice de `Csv::parse`, que o CSV de
-/// arquivo grande usa para achar o começo de cada linha sem ler o arquivo todo de uma vez).
-pub(crate) fn scan_record(b: &[u8], start: usize, delim: u8) -> Rec {
+fn scan_record(b: &[u8], start: usize, delim: u8) -> Rec {
     let n = b.len();
     let mut i = start;
     let mut cells = 1u32;
@@ -143,6 +141,9 @@ struct Row {
     start16: usize,
     end: usize,
     cells: u32,
+    /// Linha do texto (a partir de 0, contando só `\n`) em que o registro começa: uma célula entre aspas
+    /// com quebra de linha dentro faz o registro seguinte começar mais de uma linha depois.
+    line: usize,
 }
 
 /// Uma célula. `from`/`to` cobrem o texto como está no arquivo (aspas incluídas).
@@ -166,6 +167,9 @@ pub struct Cell {
 #[derive(Debug, Clone, Serialize)]
 pub struct RowOut {
     pub index: usize,
+    /// Linha do texto (a partir de 0) em que o registro começa. Com o texto de uma janela de arquivo grande, é
+    /// o que liga a linha da tabela à linha do código.
+    pub line: usize,
     /// Início e fim do registro no texto (UTF-16), sem o terminador.
     pub from: usize,
     pub to: usize,
@@ -279,9 +283,11 @@ impl Csv {
         let mut unterminated = false;
         let mut pos = bom_len(&text);
         let mut pos16 = if pos > 0 { 1 } else { 0 };
+        let mut line = 0usize;
         while pos < b.len() {
             let rec = scan_record(b, pos, delim);
-            rows.push(Row { start: pos, start16: pos16, end: rec.end, cells: rec.cells });
+            rows.push(Row { start: pos, start16: pos16, end: rec.end, cells: rec.cells, line });
+            line += b[pos..rec.next].iter().filter(|&&c| c == b'\n').count();
             max_cols = max_cols.max(rec.cells as usize);
             unterminated |= rec.open;
             pos16 += utf16_len(&text[pos..rec.next]);
@@ -390,7 +396,7 @@ impl Csv {
                     }
                 }
                 let to = cells.last().map_or(self.rows[ri].start16, |c| c.to);
-                RowOut { index: ri, from: self.rows[ri].start16, to, cells }
+                RowOut { index: ri, line: self.rows[ri].line, from: self.rows[ri].start16, to, cells }
             })
             .collect()
     }
@@ -463,6 +469,11 @@ impl Csv {
             return None;
         }
         self.parse_cells(row).into_iter().nth(col)
+    }
+
+    /// O registro que contém a linha `line` do texto (a partir de 0): o último que começa nela ou antes.
+    pub fn row_for_line(&self, line: usize) -> Option<usize> {
+        self.rows.partition_point(|r| r.line <= line).checked_sub(1)
     }
 
     /// A célula sob uma posição do texto (UTF-16). Antes do primeiro registro é a primeira célula;
@@ -1672,4 +1683,57 @@ c
         let nh = csv("b\na");
         assert_eq!(apply(&nh, nh.sort_file(false, '.', Sort { col: 0, desc: false })), "a\nb");
     }
+
+    // ---- a linha do texto em que cada registro começa (liga a tabela ao código) ----
+
+    fn lines(c: &Csv) -> Vec<usize> {
+        c.rows(0, c.row_count()).iter().map(|r| r.line).collect()
+    }
+
+    #[test]
+    fn cada_registro_sabe_em_que_linha_do_texto_comeca() {
+        assert_eq!(lines(&csv("a,b\n1,2\n3,4\n")), [0, 1, 2]);
+        assert_eq!(lines(&csv("a,b\n1,2\n3,4")), [0, 1, 2], "sem quebra no fim");
+        assert_eq!(lines(&csv("")), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn quebra_de_linha_dentro_de_aspas_empurra_os_registros_seguintes() {
+        // o registro 1 ocupa as linhas 1 e 2 do texto; o registro 2 começa na linha 3
+        let c = csv("id,obs\n1,\"linha um\nlinha dois\"\n2,x\n3,\"a\nb\nc\"\n4,y\n");
+        assert_eq!(lines(&c), [0, 1, 3, 4, 7]);
+        assert_eq!(c.rows(1, 1)[0].cells[1].value, "linha um\nlinha dois");
+    }
+
+    #[test]
+    fn crlf_conta_uma_linha_e_cr_sozinho_nao_conta() {
+        assert_eq!(lines(&csv("a\r\nb\r\nc\r\n")), [0, 1, 2]);
+        // `\r` é terminador de registro no CSV, mas o editor do arquivo grande só quebra linha em `\n`:
+        // três registros na mesma linha do texto
+        assert_eq!(lines(&csv("a\rb\rc\r")), [0, 0, 0]);
+    }
+
+    #[test]
+    fn a_linha_nao_depende_do_bom() {
+        assert_eq!(lines(&csv("\u{FEFF}a,b\n1,2\n")), [0, 1]);
+    }
+
+    #[test]
+    fn row_for_line_acha_o_registro_que_cobre_a_linha() {
+        let c = csv("id,obs\n1,\"x\ny\"\n2,z\n"); // registros nas linhas 0, 1 e 3
+        assert_eq!(lines(&c), [0, 1, 3]);
+        let got: Vec<_> = (0..6).map(|l| c.row_for_line(l)).collect();
+        assert_eq!(got, [Some(0), Some(1), Some(1), Some(2), Some(2), Some(2)], "a linha 2 ainda é do registro 1; depois do fim vale o último");
+        assert_eq!(csv("").row_for_line(0), None);
+    }
+
+    #[test]
+    fn row_for_line_e_inverso_de_line_em_arquivo_grande() {
+        let text: String = (0..500).map(|i| if i % 7 == 0 { format!("{i},\"a\nb\"\n") } else { format!("{i},x\n") }).collect();
+        let c = csv(&text);
+        for (ri, l) in lines(&c).into_iter().enumerate() {
+            assert_eq!(c.row_for_line(l), Some(ri), "registro {ri}");
+        }
+    }
 }
+

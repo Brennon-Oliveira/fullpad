@@ -6,9 +6,7 @@
 //! travar o laço de eventos (num comando síncrono o Windows deixa todo `invoke` sem resposta).
 
 use crate::{err, parse_id, AppState};
-use fullpad_core::csv::{Cell, RowOut, Stats};
 use fullpad_core::large::{self, BatchOut, EditOut, Hit, Info, Located, Probe, SearchEnd, LARGE_THRESHOLD, MAX_HITS};
-use fullpad_core::large_csv::{CsvLimits, LargeCsv, Summary};
 use fullpad_core::search::Options as SearchOptions;
 use fullpad_core::{DiskStamp, DiskState, TabState};
 use serde::Serialize;
@@ -30,13 +28,6 @@ pub fn forget(state: &AppState, id: Uuid) {
     if let Some(l) = state.larges.lock().unwrap().remove(&id) {
         l.close();
     }
-    if let Some(t) = state.large_csvs.lock().unwrap().remove(&id) {
-        t.close();
-    }
-}
-
-fn csv_table(state: &AppState, id: Uuid) -> Result<Arc<LargeCsv>, String> {
-    state.large_csvs.lock().unwrap().get(&id).cloned().ok_or_else(|| "a tabela desta aba não está aberta".to_string())
 }
 
 #[derive(Serialize)]
@@ -271,64 +262,4 @@ pub fn large_cancel(state: State<AppState>, search: String) {
     if let Some(c) = state.searches.lock().unwrap().get(&search) {
         c.store(true, Ordering::Relaxed);
     }
-}
-
-// ---- a tabela de um CSV grande (leitura por faixas; ver `large_csv.rs`) -------------------------
-
-/// Abre a tabela do CSV da aba grande: separador (`"auto"`: detecta pelo começo do arquivo), cabeçalho e
-/// decimal vêm das escolhas da aba. A varredura corre em segundo plano; `large_csv_info` mostra o progresso.
-/// Chamar de novo (depois de salvar, ou ao mudar uma escolha) troca a tabela.
-#[tauri::command]
-pub async fn large_csv_open(state: State<'_, AppState>, id: String, delimiter: String, header: bool, decimal: String) -> Result<Summary, String> {
-    let uuid = parse_id(&id)?;
-    let l = get(&state, uuid)?;
-    let (delim, dec) = (delimiter.chars().next().filter(|_| delimiter.chars().count() == 1), decimal.chars().next().unwrap_or('.'));
-    let table = tauri::async_runtime::spawn_blocking(move || {
-        let path = l.path().map_err(err)?;
-        let ext = path.extension().map(|e| e.to_string_lossy().into_owned());
-        LargeCsv::open(&l, delim, header, dec, ext.as_deref(), CsvLimits::default()).map_err(err)
-    })
-    .await
-    .map_err(err)??;
-    table.start_index();
-    let summary = table.summary().map_err(err)?;
-    if let Some(old) = state.large_csvs.lock().unwrap().insert(uuid, table) {
-        old.close();
-    }
-    Ok(summary)
-}
-
-#[tauri::command]
-pub async fn large_csv_info(state: State<'_, AppState>, id: String) -> Result<Summary, String> {
-    let t = csv_table(&state, parse_id(&id)?)?;
-    tauri::async_runtime::spawn_blocking(move || t.summary().map_err(err)).await.map_err(err)?
-}
-
-/// Linhas de dados `[from, from + count)` (até 500 por chamada).
-#[tauri::command]
-pub async fn large_csv_rows(state: State<'_, AppState>, id: String, from: usize, count: usize) -> Result<Vec<RowOut>, String> {
-    let t = csv_table(&state, parse_id(&id)?)?;
-    tauri::async_runtime::spawn_blocking(move || t.rows(from, count.min(500)).map_err(err)).await.map_err(err)?
-}
-
-/// A célula inteira (a tabela recebe as muito grandes cortadas).
-#[tauri::command]
-pub async fn large_csv_cell(state: State<'_, AppState>, id: String, row: usize, col: usize) -> Result<Option<Cell>, String> {
-    let t = csv_table(&state, parse_id(&id)?)?;
-    tauri::async_runtime::spawn_blocking(move || t.cell(row, col).map_err(err)).await.map_err(err)?
-}
-
-/// Estatísticas de uma seleção (até 200 mil linhas).
-#[tauri::command]
-pub async fn large_csv_stats(state: State<'_, AppState>, id: String, r0: usize, r1: usize, c0: usize, c1: usize) -> Result<Stats, String> {
-    let t = csv_table(&state, parse_id(&id)?)?;
-    tauri::async_runtime::spawn_blocking(move || t.stats(r0, r1, c0, c1).map_err(err)).await.map_err(err)?
-}
-
-#[tauri::command]
-pub fn large_csv_close(state: State<AppState>, id: String) -> Result<(), String> {
-    if let Some(t) = state.large_csvs.lock().unwrap().remove(&parse_id(&id)?) {
-        t.close();
-    }
-    Ok(())
 }

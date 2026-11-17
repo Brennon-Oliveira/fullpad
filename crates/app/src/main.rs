@@ -53,8 +53,6 @@ struct AppState {
     epubs: Mutex<std::collections::HashMap<Uuid, fullpad_core::epub::Epub>>,
     /// Arquivos grandes abertos (modo de lotes), por aba: o texto fica no disco e só o lote pedido é lido.
     larges: Mutex<std::collections::HashMap<Uuid, std::sync::Arc<fullpad_core::large::Large>>>,
-    /// Tabelas de CSV de arquivo grande (lidas por faixas do disco), por aba.
-    large_csvs: Mutex<std::collections::HashMap<Uuid, std::sync::Arc<fullpad_core::large_csv::LargeCsv>>>,
     /// Buscas em arquivo grande em andamento, por id da busca: `large_cancel` as interrompe.
     searches: Mutex<std::collections::HashMap<String, std::sync::Arc<std::sync::atomic::AtomicBool>>>,
     /// CSVs indexados, por aba: a tabela pede faixas de linhas sem reenviar o texto a cada rolagem.
@@ -1405,6 +1403,14 @@ fn csv_locate(state: State<AppState>, tab: String, pos: usize) -> Result<Option<
     Ok(e.csv.cell_at(pos).map(|p| CsvLocated { row: p.row, col: p.col, view: e.view.iter().position(|&r| r as usize == p.row) }))
 }
 
+/// A linha da tabela (posição na visão) do registro que cobre a linha `line` do texto (a partir de 0): liga a rolagem
+/// do código à da tabela. Sem ordem nem filtro (o arquivo grande), a visão é a ordem do arquivo.
+#[tauri::command]
+fn csv_row_for_line(state: State<AppState>, tab: String, line: usize) -> Result<Option<usize>, String> {
+    let e = csv_entry(&state, &tab)?;
+    Ok(e.csv.row_for_line(line).map(|ri| e.view.iter().position(|&r| r as usize == ri).unwrap_or(0)))
+}
+
 #[derive(Deserialize)]
 struct CsvCellValue {
     /// Linha do arquivo (`RowOut.index`), não a posição na tabela.
@@ -1622,7 +1628,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState { store, spare: Mutex::new(None), drag_over: Mutex::new(None), drag_accept: Mutex::new(false),
-        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), epubs: Mutex::new(Default::default()), larges: Mutex::new(Default::default()), large_csvs: Mutex::new(Default::default()), searches: Mutex::new(Default::default()), csvs: Mutex::new(Default::default()), closed: Mutex::new(HashSet::new()),
+        self_drag: Mutex::new(None), previews: Mutex::new(Default::default()), session_lock: Mutex::new(()), positions_lock: Mutex::new(()), epubs: Mutex::new(Default::default()), larges: Mutex::new(Default::default()), searches: Mutex::new(Default::default()), csvs: Mutex::new(Default::default()), closed: Mutex::new(HashSet::new()),
         open_paths: Mutex::new(std::env::current_dir().map(|cwd| paths_from_args(&std::env::args().collect::<Vec<_>>(), &cwd)).unwrap_or_default()),
         update: Mutex::new(None), update_bytes: Mutex::new(None), just_updated: Mutex::new(false), previous_version: Mutex::new(None) })
         .setup(|app| {
@@ -1680,12 +1686,6 @@ fn main() {
             largefile::large_discard,
             largefile::large_search,
             largefile::large_cancel,
-            largefile::large_csv_open,
-            largefile::large_csv_info,
-            largefile::large_csv_rows,
-            largefile::large_csv_cell,
-            largefile::large_csv_stats,
-            largefile::large_csv_close,
             reader_info,
             reader_check,
             epub_open,
@@ -1742,6 +1742,7 @@ fn main() {
             csv_rows,
             csv_stats,
             csv_locate,
+            csv_row_for_line,
             csv_cell,
             csv_edit,
             csv_structure,
