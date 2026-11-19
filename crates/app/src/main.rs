@@ -1549,6 +1549,64 @@ fn json_preview_image(value: String, base: Option<PathBuf>) -> Result<tauri::ipc
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// O que a UI precisa para escrever a imagem no texto e avisar a pessoa.
+#[derive(Serialize)]
+struct ImageSaved {
+    /// O destino para `![](…)`: relativo à pasta da nota ou `file:///…` (nota solta).
+    target: String,
+    /// Nome do arquivo (o hash do conteúdo).
+    name: String,
+    /// A pasta onde está (ou ficará), para mostrar ao arrastar.
+    folder: String,
+    /// Já havia um arquivo igual: nada foi (ou será) gravado.
+    reused: bool,
+    size: u64,
+}
+
+fn image_saved(note: Option<&std::path::Path>, saved: &fullpad_core::images::Saved, size: usize) -> ImageSaved {
+    ImageSaved {
+        target: fullpad_core::images::markdown_target(note, &saved.path),
+        name: saved.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+        folder: saved.path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default(),
+        reused: saved.reused,
+        size: size as u64,
+    }
+}
+
+/// Guarda a imagem colada (bytes crus no corpo, id da aba no cabeçalho `x-tab`) e devolve o destino a escrever
+/// no markdown. Reaproveita o arquivo igual que já está na pasta; o formato vem dos bytes, não da UI.
+#[tauri::command]
+async fn image_save(state: State<'_, AppState>, request: tauri::ipc::Request<'_>) -> Result<ImageSaved, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("esperava os bytes da imagem".into()) };
+    let id = request.headers().get("x-tab").and_then(|v| v.to_str().ok()).ok_or("aba não informada")?;
+    let id = parse_id(id)?;
+    let bytes = bytes.clone();
+    let store = state.store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (dir, note) = store.image_target(id).map_err(err)?;
+        let saved = fullpad_core::images::save(&dir, &bytes).map_err(err)?;
+        Ok(image_saved(note.as_deref(), &saved, bytes.len()))
+    })
+    .await
+    .map_err(err)?
+}
+
+/// Copia para a pasta das imagens da aba um arquivo de imagem solto (arrastado de fora para o editor). Com
+/// `dry_run`, só diz onde ficaria e se já existe igual (a prévia do arrastar), sem gravar nada.
+#[tauri::command]
+async fn image_import(state: State<'_, AppState>, id: String, path: PathBuf, dry_run: bool) -> Result<ImageSaved, String> {
+    let id = parse_id(&id)?;
+    let store = state.store.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (dir, note) = store.image_target(id).map_err(err)?;
+        let bytes = fullpad_core::images::read_source(&path).map_err(err)?;
+        let saved = if dry_run { fullpad_core::images::plan(&dir, &bytes) } else { fullpad_core::images::save(&dir, &bytes) }.map_err(err)?;
+        Ok(image_saved(note.as_deref(), &saved, bytes.len()))
+    })
+    .await
+    .map_err(err)?
+}
+
 /// Lê os arquivos que um `.dbmlx` inclui com `!include "x"` (e os que eles incluem). `base` é a pasta do arquivo
 /// da aba (os caminhos são relativos a ela); sem ela, as diretivas voltam como problema. Só lê, nunca grava.
 #[tauri::command]
@@ -1778,6 +1836,8 @@ fn main() {
             csv_structure,
             json_format,
             json_preview_image,
+            image_save,
+            image_import,
             dbml_includes,
             dbml_include_path,
             open_url
