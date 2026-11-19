@@ -10,6 +10,7 @@ pub mod epub;
 pub mod error;
 pub mod disk;
 pub mod fileio;
+pub mod images;
 pub mod json;
 pub mod large;
 pub mod model;

@@ -98,6 +98,25 @@ impl Store {
         self.root.join("trash").join(format!("{id}.layout.json"))
     }
 
+    /// Imagens coladas numa nota **solta** (sem arquivo, logo sem pasta "ao lado"): uma pasta por nota.
+    pub fn images_dir(&self, id: Uuid) -> PathBuf {
+        self.root.join("images").join(id.to_string())
+    }
+
+    /// Onde as imagens da aba `id` são guardadas e o arquivo dela (se há): `imagens/<nome>/` ao lado do arquivo,
+    /// ou a pasta de dados do app para a nota solta. Sempre pelo id de uma aba que existe, nunca por caminho da UI.
+    pub fn image_target(&self, id: Uuid) -> Result<(PathBuf, Option<PathBuf>)> {
+        let session = self.load_session()?;
+        let tab = session.tabs.iter().find(|t| t.id == id).ok_or_else(|| Error::Invalid("aba não encontrada".into()))?;
+        if tab.kind != TabKind::Text || tab.large || tab.release_notes {
+            return Err(Error::Invalid("só uma aba de texto editável recebe imagens".into()));
+        }
+        match tab.path.as_deref().and_then(|p| crate::images::dir_for_file(p).map(|d| (d, p.to_path_buf()))) {
+            Some((dir, file)) => Ok((dir, Some(file))),
+            None => Ok((self.images_dir(id), None)),
+        }
+    }
+
     /// Alterações pendentes de um arquivo grande (`large.rs`): uma pasta por aba.
     pub fn large_dir(&self, id: Uuid) -> PathBuf {
         self.root.join("large").join(id.to_string())
