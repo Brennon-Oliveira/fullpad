@@ -1552,8 +1552,27 @@ fn json_preview_image(value: String, base: Option<PathBuf>) -> Result<tauri::ipc
 /// Lê os arquivos que um `.dbmlx` inclui com `!include "x"` (e os que eles incluem). `base` é a pasta do arquivo
 /// da aba (os caminhos são relativos a ela); sem ela, as diretivas voltam como problema. Só lê, nunca grava.
 #[tauri::command]
-async fn dbml_includes(text: String, base: Option<PathBuf>) -> Result<fullpad_core::dbmlinc::Resolved, String> {
-    tauri::async_runtime::spawn_blocking(move || fullpad_core::dbmlinc::resolve(base.as_deref(), &text)).await.map_err(err)
+async fn dbml_includes(
+    text: String,
+    base: Option<PathBuf>,
+    root: Option<PathBuf>,
+    root_text: Option<String>,
+    own: Option<PathBuf>,
+) -> Result<fullpad_core::dbmlinc::Resolved, String> {
+    tauri::async_runtime::spawn_blocking(move || match root {
+        // módulo aberto sozinho: o contexto é a raiz que o inclui (e o que ela inclui), menos ele mesmo
+        Some(r) => fullpad_core::dbmlinc::resolve_root(&r, root_text.as_deref(), own.as_deref()),
+        None => fullpad_core::dbmlinc::resolve(base.as_deref(), &text),
+    })
+    .await
+    .map_err(err)
+}
+
+/// O caminho completo do arquivo que um `!include "x"` aponta (para abri-lo com Ctrl+clique); recusa o que a
+/// leitura recusa (caminho absoluto, extensão que não é de DBML) e o que não existe.
+#[tauri::command]
+fn dbml_include_path(written: String, base: PathBuf) -> Result<String, String> {
+    fullpad_core::dbmlinc::include_path(&base, &written).map(|p| p.to_string_lossy().into_owned()).map_err(err)
 }
 
 /// Abre um link no navegador do sistema. Só `http`, `https` e `mailto`: um JSON não pode mandar
@@ -1760,6 +1779,7 @@ fn main() {
             json_format,
             json_preview_image,
             dbml_includes,
+            dbml_include_path,
             open_url
         ])
         .run(tauri::generate_context!())

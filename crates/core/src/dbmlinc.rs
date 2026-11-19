@@ -37,6 +37,12 @@ pub struct Part {
     /// Linha, no arquivo principal, do `!include` de mais alto nível que trouxe este arquivo.
     pub line: usize,
     pub text: String,
+    /// Caminho completo do arquivo (para abri-lo).
+    pub path: String,
+    /// Contexto, não incluído por quem está aberto: é o arquivo raiz (ou o que ele inclui) de um módulo aberto
+    /// sozinho. Existe para as relações fecharem; erros dele não são mostrados como do arquivo aberto.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub context: bool,
 }
 
 /// Um problema ao incluir (arquivo que não existe, caminho recusado, teto estourado).
@@ -206,10 +212,56 @@ pub fn resolve(base: Option<&Path>, text: &str) -> Resolved {
         let file = canon.strip_prefix(&root).map(|p| p.to_string_lossy().replace('\\', "/")).unwrap_or_else(|_| d.path.clone());
         let child_dir = canon.parent().map(Path::to_path_buf).unwrap_or_else(|| root.clone());
         let nested = scan(&body);
-        res.parts.push(Part { file, line, text: body });
+        res.parts.push(Part { file, line, text: body, path: canon.to_string_lossy().into_owned(), context: false });
         for n in nested.into_iter().rev() {
             stack.push((n, child_dir.clone(), line, depth + 1));
         }
+    }
+    res
+}
+
+/// O arquivo que um `!include "written"` aponta, existente (para abri-lo): a mesma resolução e as mesmas
+/// recusas de [`resolve`], contra a pasta `base` do arquivo que inclui.
+pub fn include_path(base: &Path, written: &str) -> Result<PathBuf, String> {
+    let p = target(base, written)?;
+    let canon = p.canonicalize().map_err(|_| format!("arquivo incluído não encontrado: {written}"))?;
+    if !canon.is_file() {
+        return Err(format!("arquivo incluído não encontrado: {written}"));
+    }
+    Ok(canon)
+}
+
+/// Contexto de um módulo aberto sozinho: o texto do arquivo **raiz** (o de `root_text`, se a aba dele está aberta
+/// com alterações, senão o do disco) e tudo o que ele inclui, menos o próprio módulo (`exclude`), que é o texto
+/// principal. Assim as relações que a raiz declara entre módulos e as tabelas dos outros arquivos existem para o
+/// compilador. Tudo marcado como `context`.
+pub fn resolve_root(root: &Path, root_text: Option<&str>, exclude: Option<&Path>) -> Resolved {
+    let mut res = Resolved::default();
+    let Some(dir) = root.parent() else { return res };
+    let canon_root = match root.canonicalize() {
+        Ok(c) if allowed_ext(&c) && c.is_file() => c,
+        _ => return res,
+    };
+    let exclude = exclude.and_then(|e| e.canonicalize().ok());
+    let text = match root_text {
+        Some(t) => t.to_string(),
+        None => match std::fs::metadata(&canon_root) {
+            Ok(m) if m.len() <= MAX_FILE_BYTES => std::fs::read(&canon_root)
+                .map(|b| String::from_utf8_lossy(b.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&b)).into_owned())
+                .unwrap_or_default(),
+            _ => return res,
+        },
+    };
+    let root_name = canon_root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let inner = resolve(Some(dir), &text);
+    res.parts.push(Part { file: root_name, line: 1, text, path: canon_root.to_string_lossy().into_owned(), context: true });
+    for mut p in inner.parts {
+        if exclude.as_ref().is_some_and(|e| Path::new(&p.path) == e.as_path()) || Path::new(&p.path) == canon_root {
+            continue;
+        }
+        p.context = true;
+        p.line = 1;
+        res.parts.push(p);
     }
     res
 }
@@ -282,6 +334,29 @@ mod tests {
         let r = resolve(Some(dir.path()), "!include \"g.dbmlx\"\n");
         assert!(r.parts.is_empty());
         assert!(r.issues[0].message.contains("grande demais"));
+    }
+
+    #[test]
+    fn caminho_do_include_e_contexto_da_raiz() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "raiz.dbmlx", "!include \"a.dbmlx\"\n!include \"b.dbmlx\"\nRef: a.id > b.a_id\n");
+        write(dir.path(), "a.dbmlx", "Table a { id int }\n");
+        write(dir.path(), "b.dbmlx", "Table b { a_id int }\n");
+        let p = include_path(dir.path(), "a.dbmlx").unwrap();
+        assert!(p.ends_with("a.dbmlx"));
+        assert!(include_path(dir.path(), "falta.dbmlx").is_err());
+        assert!(include_path(dir.path(), "/etc/passwd.dbmlx").is_err());
+        // módulo `a` aberto sozinho: o contexto é a raiz e o `b`, sem o próprio `a`
+        let r = resolve_root(&dir.path().join("raiz.dbmlx"), None, Some(&p));
+        let names: Vec<_> = r.parts.iter().map(|x| x.file.as_str()).collect();
+        assert_eq!(names, ["raiz.dbmlx", "b.dbmlx"]);
+        assert!(r.parts.iter().all(|x| x.context));
+        // o texto da aba da raiz (com alterações não salvas) vale mais que o do disco
+        let r2 = resolve_root(&dir.path().join("raiz.dbmlx"), Some("Table nova { id int }"), Some(&p));
+        assert_eq!(r2.parts.len(), 1);
+        assert!(r2.parts[0].text.contains("nova"));
+        // raiz que não existe ou de extensão não aceita: nada
+        assert!(resolve_root(&dir.path().join("x.dbmlx"), None, None).parts.is_empty());
     }
 
     #[test]

@@ -1,5 +1,5 @@
 // Fullpad — módulo incluído por example.dbmlx (`!include "example-modulo.dbmlx"`).
-// Abra o example.dbmlx: as tabelas daqui aparecem no diagrama dele, e as relações com as tabelas de lá
+// Abra o example.dbmlx e dê Ctrl+clique no caminho do !include para chegar aqui. As tabelas daqui aparecem no diagrama dele, e as relações com as tabelas de lá
 // (e o enum nivel_cefr) funcionam. Este arquivo sozinho não fecha (falta pessoas.alunos).
 //
 // Anotações de migração do dbmlx: [add] (nova), [drop] (removida), [modify: ...] (mudou). O Fullpad as aceita

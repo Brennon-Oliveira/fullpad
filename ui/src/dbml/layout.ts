@@ -111,7 +111,7 @@ interface GraphLike {
 }
 
 export function tableSize(t: Diagram["tables"][number]): { w: number; h: number } {
-  let chars = t.name.length + (t.schema ? t.schema.length + 1 : 0) + (t.note ? 3 : 0); // o ícone da nota ocupa o fim do cabeçalho
+  let chars = t.name.length + (t.schema ? t.schema.length + 1 : 0) + (t.note ? 3 : 0) + (t.external ? 9 : 0); // o ícone da nota e a marca de externos ocupam o fim do cabeçalho
   for (const c of t.columns) chars = Math.max(chars, c.name.length + c.type.length + 4 + (c.note ? 3 : 0));
   return { w: Math.max(MIN_W, Math.ceil(chars * CHAR_W) + PAD_X), h: HEADER_H + Math.max(1, t.columns.length) * ROW_H };
 }

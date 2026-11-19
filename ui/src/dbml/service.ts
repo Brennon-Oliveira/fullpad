@@ -54,7 +54,7 @@ export interface DbmlParse {
 
 /** Arquivos que o texto inclui com `!include` (lidos pelo Rust) e o que deu errado ao incluir. */
 export interface DbmlProject {
-  parts: { file: string; line: number; text: string }[];
+  parts: { file: string; line: number; text: string; context?: boolean }[];
   issues: { line: number; message: string }[];
 }
 
@@ -110,7 +110,7 @@ export function createDbmlService(parse: DbmlParse): DbmlService {
   // o que o compilador vê agora: o texto limpo da aba + os incluídos (ver `composeSource`)
   let source = "";
   let mainLen = 0;
-  let segments: { start: number; file: string; line: number }[] = [];
+  let segments: { start: number; file: string; line: number; context: boolean }[] = [];
 
   /** Aponta o compilador para o texto; ele invalida o cache sozinho quando o texto muda. */
   const sync = (text: string) => {
@@ -119,7 +119,7 @@ export function createDbmlService(parse: DbmlParse): DbmlService {
     const c = composeSource(text, project?.parts ?? []);
     source = c.source;
     mainLen = c.mainLength;
-    segments = c.offsets.map((start, i) => ({ start, file: project!.parts[i].file, line: project!.parts[i].line }));
+    segments = c.offsets.map((start, i) => ({ start, file: project!.parts[i].file, line: project!.parts[i].line, context: !!project!.parts[i].context }));
     layout.setSource(entry, source);
     current = key;
   };
@@ -151,7 +151,7 @@ export function createDbmlService(parse: DbmlParse): DbmlService {
         }
         // o erro está num arquivo incluído: aparece na linha do `!include` que o trouxe
         const w = segmentAt(off);
-        if (!w) continue;
+        if (!w || w.seg.context) continue; // o que é só contexto (a raiz do módulo e os outros arquivos) não é problema deste arquivo
         const k = `${w.seg.file}:${w.localLine}:${d.text}`;
         if (seen.has(k)) continue;
         seen.add(k);

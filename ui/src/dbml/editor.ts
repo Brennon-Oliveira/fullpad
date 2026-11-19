@@ -1,6 +1,7 @@
 import { type Completion, type CompletionContext, type CompletionResult, autocompletion, snippet } from "@codemirror/autocomplete";
 import { type Diagnostic, linter } from "@codemirror/lint";
-import type { Extension, Text } from "@codemirror/state";
+import { type Extension, type Text } from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { type DbmlCompletion, type DbmlDiagnostic, type DbmlService, loadDbmlService } from "./service";
 
 /** Acima disso o diagnóstico no editor desliga para não pesar. */
@@ -82,10 +83,62 @@ export function dbmlCompletionSource(svc: DbmlService) {
   };
 }
 
-/** Recursos de editor exclusivos do DBML: sublinhado de erros e autocomplete. */
-export async function dbmlEditorSupport(): Promise<Extension> {
+const INCLUDE = /^(\s*!include\s+)(["'])(.*?)\2/;
+
+/**
+ * O caminho de um `!include "x"` é um link: sublinhado ao passar o mouse e **Ctrl+clique** (ou Cmd+clique) abre
+ * o arquivo (`open` recebe o caminho como está escrito e o editor onde se clicou).
+ */
+export function includeLinks(open: (written: string, view: EditorView) => void): Extension {
+  const mark = Decoration.mark({ class: "cm-include-link" });
+  const build = (view: EditorView): DecorationSet => {
+    const ranges = [];
+    for (const { from, to } of view.visibleRanges) {
+      for (let pos = from; pos <= to; ) {
+        const line = view.state.doc.lineAt(pos);
+        const m = INCLUDE.exec(line.text);
+        if (m) ranges.push(mark.range(line.from + m[1].length + 1, line.from + m[1].length + 1 + m[3].length));
+        pos = line.to + 1;
+      }
+    }
+    return Decoration.set(ranges, true);
+  };
+  return [
+    ViewPlugin.fromClass(
+      class {
+        decorations: DecorationSet;
+        constructor(view: EditorView) {
+          this.decorations = build(view);
+        }
+        update(u: ViewUpdate) {
+          if (u.docChanged || u.viewportChanged) this.decorations = build(u.view);
+        }
+      },
+      { decorations: (v) => v.decorations },
+    ),
+    EditorView.domEventHandlers({
+      mousedown(e, view) {
+        if (e.button !== 0 || !(e.ctrlKey || e.metaKey)) return false;
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+        if (pos === null) return false;
+        const line = view.state.doc.lineAt(pos);
+        const m = INCLUDE.exec(line.text);
+        if (!m) return false;
+        const from = line.from + m[1].length + 1;
+        if (pos < from || pos > from + m[3].length) return false; // só o caminho (entre as aspas) é o link
+        e.preventDefault();
+        open(m[3], view);
+        return true;
+      },
+    }),
+  ];
+}
+
+/** Recursos de editor exclusivos do DBML: sublinhado de erros, autocomplete e o Ctrl+clique do `!include`. */
+export async function dbmlEditorSupport(openInclude?: (written: string, view: EditorView) => void): Promise<Extension> {
   const svc = await loadDbmlService();
   return [
+    openInclude ? includeLinks(openInclude) : [],
     linter(
       (view) => {
         if (view.state.doc.length > MAX_SUPPORT_CHARS) return [];

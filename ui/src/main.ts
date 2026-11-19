@@ -25,12 +25,16 @@ interface DiagramPanel {
   flush?(): void;
   /** Só o diagrama DBML: desenha de novo o texto de agora (os arquivos incluídos mudaram). */
   refresh?(): void;
+  /** Só o diagrama DBML: o que ver (tudo, um arquivo incluído ou um grupo) e o nome do arquivo da aba; chamar antes de `show`. */
+  setScope?(scope: DiagramScope, own: string): void;
   /** Só o diagrama DBML: liga/desliga a edição pelo diagrama (desligado, só se vê). */
   setEditable?(on: boolean): void;
 }
 import type { CsvPanel, LargeCtx } from "./csv/panel";
 import type { LayoutView } from "./dbml/layoutview";
 import type { DbmlProject } from "./dbml/service";
+import { parseRoots, topRoot, withRoot } from "./dbml/roots";
+import type { DiagramScope } from "./dbml/scope";
 import type { JsonPanel, TreeFormat } from "./json/panel";
 import { mapCursor } from "./json/format";
 import type { MarkdownPane } from "./mdpreview";
@@ -153,6 +157,7 @@ interface Group {
   /** Faixa de aviso logo abaixo das abas (CSV grande demais para a tabela). */
   noteEl: HTMLElement;
   csvAskEl: HTMLElement;
+  backEl: HTMLElement;
   /** Faixa de aviso: o arquivo da aba mudou fora do Fullpad, ou sumiu. */
   diskEl: HTMLElement;
   csv?: CsvPanel;
@@ -332,7 +337,7 @@ function ensureDbmlSupport() {
   if (dbmlSupport || dbmlSupportLoading || effectiveLang(activeTab()) !== "dbml") return;
   dbmlSupportLoading = true;
   import("./dbml/editor")
-    .then((m) => m.dbmlEditorSupport())
+    .then((m) => m.dbmlEditorSupport((written, view) => void openIncludeFrom(view, written)))
     .then((ext) => {
       dbmlSupport = ext;
       forEachGroup(() => effectiveLang(activeTab()) === "dbml" && applyTabConfig());
@@ -1343,9 +1348,15 @@ async function refreshDbmlProject(id: string) {
   const g = tab ? groupShowing(id) : undefined;
   if (!tab || !g || effectiveLang(tab) !== "dbml") return;
   const text = g.view.state.doc.toString();
-  const has = /^[ \t]*!include\b/m.test(text);
+  const root = dbmlRootOf(tab);
+  const has = root !== null || /^[ \t]*!include\b/m.test(text);
   let project: DbmlProject | null = null;
-  if (has) project = await api.dbmlIncludes(text, dirOf(tab.path)).catch(() => null);
+  if (root !== null) {
+    // módulo aberto a partir de outro: a raiz (com o texto de agora, se a aba dela tem alterações) dá o contexto
+    const rootTab = session.tabs.find((t) => t.path === root);
+    const rootText = rootTab ? await textOf(rootTab.id) : null;
+    project = await api.dbmlIncludes(text, dirOf(tab.path), root, rootText, tab.path).catch(() => null);
+  } else if (has) project = await api.dbmlIncludes(text, dirOf(tab.path)).catch(() => null);
   if (groupShowing(id) !== g || g.view.state.doc.toString() !== text) return; // mudou enquanto lia: a próxima leitura já está agendada
   const svc = has ? await (await import("./dbml/service")).loadDbmlService() : (await import("./dbml/service")).peekDbmlService();
   if (!svc) return;
@@ -1354,6 +1365,85 @@ async function refreshDbmlProject(id: string) {
   void import("@codemirror/lint").then((m) => m.forceLinting(g.view));
   g.diagram?.refresh?.();
   if (tab.detached && previewOpen.has(id)) void pushPreview(tab); // a janela separada recebe os incluídos junto do texto
+}
+
+// ---- módulo dbmlx aberto de outro (Ctrl+clique no `!include`): raiz lembrada, faixa de voltar e escopo ----
+
+const DBML_ROOTS_KEY = "dbmlRoots";
+const loadRoots = () => parseRoots(readString(DBML_ROOTS_KEY, ""));
+/** A raiz que inclui este arquivo (lembrada por caminho), se for outro arquivo. */
+const dbmlRootOf = (tab: TabState): string | null => {
+  if (!tab.path) return null;
+  const r = loadRoots()[tab.path];
+  return r && r !== tab.path ? r : null;
+};
+const includeParent = new Map<string, string>(); // aba do módulo → aba de onde foi aberta (só nesta execução)
+const dbmlScopes = new Map<string, DiagramScope>(); // o que cada aba DBML está vendo (só nesta execução)
+
+/** O que a aba vê: o escolhido; sem escolha, um módulo vê só o próprio arquivo e o resto vê tudo. */
+const scopeOf = (tab: TabState): DiagramScope => dbmlScopes.get(tab.id) ?? (dbmlRootOf(tab) !== null ? { kind: "file", file: null } : { kind: "all" });
+
+/** Ctrl+clique num `!include "x"`: abre o arquivo e lembra de onde veio (a faixa dele volta para cá). */
+async function openIncludeFrom(view: CMEditorView, written: string) {
+  const g = [...groups.values()].find((x) => x.view === view);
+  const tab = g && tabOf(g);
+  if (!tab || !tab.path) {
+    await message("Salve o arquivo para abrir os incluídos: os caminhos do !include são relativos a ele.", { title: "Abrir incluído", kind: "info" });
+    return;
+  }
+  let target: string;
+  try {
+    target = await api.dbmlIncludePath(written, dirOf(tab.path)!);
+  } catch (e) {
+    await message(String(e), { title: "Abrir incluído", kind: "error" });
+    return;
+  }
+  const roots = loadRoots();
+  const root = topRoot(roots, tab.path); // quem abre um módulo de um módulo continua apontando para a raiz de verdade
+  writeString(DBML_ROOTS_KEY, JSON.stringify(withRoot(roots, target, root)));
+  await openPaths([target]);
+  const child = session.tabs.find((t) => t.path === target);
+  if (child) includeParent.set(child.id, tab.id);
+  const cg = child && groupShowing(child.id);
+  if (cg) withGroup(cg, () => syncDiagram());
+}
+
+/** A faixa "← voltar" de um módulo aberto a partir de outro arquivo. */
+function renderBackBar(g: Group, tab: TabState | undefined) {
+  const root = tab && effectiveLang(tab) === "dbml" ? dbmlRootOf(tab) : null;
+  if (!tab || root === null) {
+    g.backEl.hidden = true;
+    g.backEl.replaceChildren();
+    return;
+  }
+  const key = `${tab.id}|${root}`;
+  if (!g.backEl.hidden && g.backEl.dataset.key === key) return;
+  g.backEl.dataset.key = key;
+  const name = baseName(root);
+  const msg = document.createElement("span");
+  msg.textContent = `Módulo de ${name} (as tabelas dos outros arquivos aparecem como externas).`;
+  const back = document.createElement("button");
+  back.type = "button";
+  back.textContent = `← Voltar para ${name}`;
+  back.title = "Volta ao arquivo que inclui este (Ctrl+clique no !include faz o caminho de ida)";
+  back.addEventListener("click", () => {
+    const parent = includeParent.get(tab.id);
+    if (parent && session.tabs.some((t) => t.id === parent)) void activate(parent);
+    else void openPaths([root]);
+  });
+  const forget = document.createElement("button");
+  forget.type = "button";
+  forget.textContent = "Ver sozinho";
+  forget.title = "Esquece o arquivo raiz: este arquivo volta a ser compilado sozinho";
+  forget.addEventListener("click", () => {
+    if (tab.path) writeString(DBML_ROOTS_KEY, JSON.stringify(withRoot(loadRoots(), tab.path, tab.path)));
+    dbmlProjects.delete(tab.id);
+    dbmlScopes.delete(tab.id);
+    g.backEl.hidden = true;
+    scheduleDbmlProject(tab, 0);
+  });
+  g.backEl.replaceChildren(msg, back, forget);
+  g.backEl.hidden = false;
 }
 
 function scheduleDbmlProject(tab: TabState, delay: number) {
@@ -1376,6 +1466,7 @@ function syncDiagram(textChanged = false) {
     void import("./dbml/service").then((m) => m.peekDbmlService()?.setProject(dbmlProjects.get(tab.id) ?? null));
     scheduleDbmlProject(tab, textChanged ? 500 : 0);
   }
+  renderBackBar(g, tab);
   // sozinho, o diagrama cobre o painel e o editor (que segue vivo, escondido, com o texto e o histórico) some
   g.bodyEl.classList.toggle("diagramonly", diagramWanted(tab) && viewKind(tab) === "only");
   if (!diagramWanted(tab)) {
@@ -1407,6 +1498,7 @@ function syncDiagram(textChanged = false) {
       g.diagram.setLayout(l ? { tables: l.tables, groups: l.groups, viewport: l.viewport, error: l.error } : null);
     }
     g.diagram.setEditable?.(diagramEdit);
+    g.diagram.setScope?.(scopeOf(t), t.title || baseName(t.path ?? "") || "este arquivo");
     if (textChanged && g.diagramTab === tab.id) g.diagram.update(text, g.rev);
     else g.diagram.show(text, g.diagramTab !== tab.id, g.rev);
     g.diagramTab = tab.id;
@@ -1446,6 +1538,8 @@ function syncDiagram(textChanged = false) {
             },
             // tabela arrastada ou vista mexida → grava no layout da aba que está na tela
             onLayoutEdit: (edit) => g.diagramTab && void saveLayoutEdit(g.diagramTab, edit),
+            // escolheu o que ver (tudo, um arquivo ou um grupo): vale para esta aba
+            onScope: (s) => g.diagramTab && dbmlScopes.set(g.diagramTab, s),
             onLayoutLive: (edit) => g.diagramTab && previewDragInJson(g.diagramTab, edit),
             // duplo clique no nome (tabela, coluna, enum, valor, grupo) → renomear
             onRename: (decl, at, rev) => void renameSymbolAt(g, decl, "decl", at, rev),
@@ -2624,11 +2718,13 @@ function createGroup(id: number): Group {
   diskEl.hidden = true;
   const csvAskEl = div("csvask");
   csvAskEl.hidden = true;
+  const backEl = div("backbar");
+  backEl.hidden = true;
   const largeNoteEl = div("largenote");
   largeNoteEl.hidden = true;
-  el.append(tabsEl, diskEl, csvAskEl, noteEl, largeNoteEl, bodyEl);
+  el.append(tabsEl, diskEl, backEl, csvAskEl, noteEl, largeNoteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, csvAskEl, diskEl, readerEl, gateEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, csvAskEl, backEl, diskEl, readerEl, gateEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
   const bigOf = () => largeOf(tabOf(g));
   // a barra de rolagem do arquivo vale para o editor e para a tabela (por isso fica no corpo do painel, não no editor)
   const tableShown = () => {

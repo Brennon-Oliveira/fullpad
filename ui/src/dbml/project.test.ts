@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { parseDbml } from "./model";
+import { scopeChoices, scopeDiagram, validScope } from "./scope";
 import { applyChanges, renameChanges, targetForDecl } from "./rename";
 import { service } from "./test-util";
 
@@ -149,5 +150,58 @@ DiagramView todas {
     expect(errs.map((e) => `${e.startRow}: ${e.text}`)).toEqual([]);
     const r = parseDbml(service.interpret, t, service.explain);
     expect(r.error).toBeUndefined();
+  });
+
+  it("escopo: só um arquivo, com as relações para fora marcadas como externas", () => {
+    service.setProject(project);
+    const d = parseDbml(service.interpret, MAIN, service.explain).diagram!;
+    expect(d.tables.find((t) => t.id === "events")!.file).toBe("calendar.dbmlx");
+    expect(d.tables.find((t) => t.id === "audit")!.file).toBeUndefined();
+    expect(scopeChoices(d).files.sort()).toEqual(["calendar.dbmlx", "foundation.dbmlx", "sub/extra.dbmlx"]);
+    const cal = scopeDiagram(d, { kind: "file", file: "calendar.dbmlx" });
+    expect(cal.tables.map((t) => t.id)).toEqual(["events"]);
+    expect(cal.refs).toEqual([]); // a única relação vai para schools (outro arquivo)
+    expect(cal.tables[0].external).toEqual({ count: 1, targets: [{ id: "schools", file: "foundation.dbmlx" }] });
+    const own = scopeDiagram(d, { kind: "file", file: null });
+    expect(own.tables.map((t) => t.id)).toEqual(["audit"]);
+    expect(own.tables[0].external).toBeUndefined();
+    expect(scopeDiagram(d, { kind: "all" })).toBe(d);
+  });
+
+  it("escopo: grupo, e escopo que sumiu volta a tudo", () => {
+    service.setProject(project);
+    const t = MAIN + "\nTableGroup g1 {\n  schools\n  events\n}\n";
+    const d = parseDbml(service.interpret, t, service.explain).diagram!;
+    const g = scopeDiagram(d, { kind: "group", name: "g1" });
+    expect(g.tables.map((x) => x.id).sort()).toEqual(["events", "schools"]);
+    expect(g.refs.length).toBe(1); // as duas pontas estão no grupo
+    expect(g.groups.map((x) => x.name)).toEqual(["g1"]);
+    expect(validScope({ kind: "group", name: "nao-existe" }, d)).toEqual({ kind: "all" });
+    expect(validScope({ kind: "file", file: "calendar.dbmlx" }, d)).toEqual({ kind: "file", file: "calendar.dbmlx" });
+  });
+
+  it("módulo aberto sozinho compila com o contexto da raiz e só mostra o que é dele", () => {
+    const child = "Table public.events {\n  id int [pk]\n  school_id int\n}\n";
+    const root = '!include "foundation.dbmlx"\n!include "calendar.dbmlx"\nRef: public.events.school_id > public.schools.id\nTableGroup g { schools\n events }\n';
+    // sem contexto: a tabela da relação não existe
+    service.setProject(null);
+    expect(service.diagnostics(child).filter((d) => d.type === "error")).toEqual([]); // sem a Ref, nada falta
+    service.setProject({
+      parts: [
+        { file: "raiz.dbmlx", line: 1, text: root, context: true },
+        { file: "foundation.dbmlx", line: 1, text: FOUNDATION, context: true },
+      ],
+      issues: [],
+    });
+    expect(service.diagnostics(child).filter((d) => d.type === "error")).toEqual([]);
+    const d = parseDbml(service.interpret, child, service.explain).diagram!;
+    expect(d.refs.length).toBe(1); // a relação da raiz fecha com a tabela deste arquivo
+    const own = scopeDiagram(d, { kind: "file", file: null });
+    expect(own.tables.map((t) => t.id)).toEqual(["events"]);
+    expect(own.tables[0].external?.count).toBe(1);
+    // erro num arquivo de contexto não vira erro do módulo no editor
+    service.setProject({ parts: [{ file: "raiz.dbmlx", line: 1, text: "Table x {\n  id int [pk\n}", context: true }], issues: [] });
+    expect(service.diagnostics(child).filter((d) => d.type === "error")).toEqual([]);
+    expect(parseDbml(service.interpret, child, service.explain).error?.file).toBe("raiz.dbmlx"); // mas o diagrama diz de onde vem
   });
 });

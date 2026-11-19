@@ -118,6 +118,13 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
   if (ink) title.setAttribute("style", `fill:${ink}`);
   g.append(title);
   if (t.note) g.append(noteIcon("table", t.span?.from, t.note, w - 24, (HEADER_H - 13) / 2));
+  if (t.external) {
+    // há relações com tabelas que ficaram fora do escopo: a marca diz quantas e o texto de ajuda, com quem
+    const who = t.external.targets.map((x) => (x.file ? `${x.id} (${x.file})` : x.id)).join(", ");
+    const badge = el("text", { class: "dbml-ext", x: w - (t.note ? 30 : 10), y: HEADER_H / 2 + 4, "text-anchor": "end" }, `↗ ${t.external.count} ext.`);
+    badge.append(el("title", {}, `${t.external.count} ${t.external.count === 1 ? "relação" : "relações"} com tabelas externas (fora do que está sendo visto): ${who}`));
+    g.append(badge);
+  }
   t.columns.forEach((c, i) => {
     const cy = HEADER_H + i * ROW_H + ROW_H / 2 + 4;
     const row = el("rect", { class: "dbml-row", "data-k": colKey(t.id, c.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H });

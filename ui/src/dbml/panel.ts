@@ -2,7 +2,9 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "../api";
 import { buildSvg, svgToPng } from "./export";
 import { type Box, type DagreLike, type Layout, type SavedGroups, type SavedPositions, fitExtent, frameGroups, groupKey, groupMembers, layoutDiagram } from "./layout";
+import { showMenuAt } from "../popup";
 import { type Diagram, type Interpreter, type Span, parseDbml } from "./model";
+import { ALL_SCOPE, type DiagramScope, sameScope, scopeChoices, scopeDiagram, scopeLabel, validScope } from "./scope";
 import { loadDbmlService } from "./service";
 import { type Rendered, renderDiagram } from "./render";
 import { attachTableDrag } from "./tabledrag";
@@ -86,6 +88,8 @@ export interface PanelHooks {
    * da coluna começa no texto da versão `rev`; `at` é onde abrir a caixa (coordenadas da tela).
    */
   onNote?(info: { decl: number; kind: "table" | "column" }, at: { x: number; y: number }, rev: number): void;
+  /** A pessoa escolheu outro escopo (o que ver: tudo, um arquivo ou um grupo). */
+  onScope?(scope: DiagramScope): void;
 }
 
 export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
@@ -107,6 +111,36 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     b.addEventListener("click", run);
     tools.append(b);
   };
+  // escopo: o que se vê (tudo, um arquivo incluído ou um grupo); o botão só aparece havendo o que escolher
+  let scope: DiagramScope = ALL_SCOPE;
+  let ownName = "";
+  let full: Diagram | null = null; // o diagrama completo, de onde saem as escolhas
+  const scopeBtn = document.createElement("button");
+  scopeBtn.className = "dbml-scope";
+  scopeBtn.hidden = true;
+  scopeBtn.addEventListener("click", () => {
+    if (!full) return;
+    const c = scopeChoices(full);
+    const pick = (s: DiagramScope) => () => {
+      if (sameScope(s, scope)) return;
+      scope = s;
+      hooks.onScope?.(s);
+      fitNext = true;
+      if (lastText !== null) void render(lastText);
+    };
+    const items: Parameters<typeof showMenuAt>[2] = [{ label: "Tudo", checked: scope.kind === "all", action: pick(ALL_SCOPE) }];
+    if (c.files.length > 0) {
+      items.push("sep", { label: `Só este arquivo (${ownName})`, checked: scope.kind === "file" && scope.file === null, action: pick({ kind: "file", file: null }) });
+      for (const f of c.files) items.push({ label: `Só ${f}`, checked: scope.kind === "file" && scope.file === f, action: pick({ kind: "file", file: f }) });
+    }
+    if (c.groups.length > 0) {
+      items.push("sep");
+      for (const n of c.groups) items.push({ label: `Grupo ${n}`, checked: scope.kind === "group" && scope.name === n, action: pick({ kind: "group", name: n }) });
+    }
+    const r = scopeBtn.getBoundingClientRect();
+    showMenuAt(r.left, r.bottom + 2, items);
+  });
+  tools.prepend(scopeBtn);
   const noteTip = div("dbml-notetip");
   noteTip.hidden = true;
   host.replaceChildren(svg, message, error, warn, tools, noteTip);
@@ -365,13 +399,19 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
       return; // mantém o último diagrama válido
     }
     error.hidden = true;
-    const d = res.diagram;
+    full = res.diagram;
+    const choices = scopeChoices(full);
+    scope = validScope(scope, full);
+    const d = scopeDiagram(full, scope);
+    scopeBtn.hidden = choices.files.length === 0 && choices.groups.length === 0;
+    scopeBtn.textContent = `Ver: ${scopeLabel(scope, ownName)} ▾`;
+    scopeBtn.title = "Escolher o que ver: tudo, só um arquivo ou só um grupo (o que fica de fora aparece como relações externas)";
     if (d.tables.length === 0) {
       layout = null;
       diagram = null;
       rendered = null;
       g.replaceChildren();
-      message.textContent = "Nenhuma tabela. Escreva, por exemplo: Table usuarios { id int [pk] }";
+      message.textContent = full.tables.length > 0 ? "Nenhuma tabela neste escopo. Escolha outro em \"Ver\"." : "Nenhuma tabela. Escreva, por exemplo: Table usuarios { id int [pk] }";
       return;
     }
     message.textContent = "";
@@ -438,6 +478,15 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     },
     /** Grava já o que está pendente (arrasto e vista): antes de trocar de aba ou fechar o painel. */
     flush,
+    /** O escopo da aba que vai aparecer e o nome do arquivo dela (chamar antes de `show`). */
+    setScope(s: DiagramScope, own: string) {
+      ownName = own;
+      if (sameScope(s, scope)) return;
+      scope = s;
+      fitNext = true;
+      if (lastText !== null && host.classList.contains("on")) void render(lastText);
+      else relayout = true;
+    },
     /** O que o texto inclui mudou (`!include`): desenha de novo o mesmo texto. */
     refresh() {
       if (lastText === null || !host.classList.contains("on")) return;

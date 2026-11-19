@@ -191,6 +191,14 @@ button { font: inherit; color: inherit; }
 .dbml-box { fill: var(--bar); stroke: var(--border); stroke-width: 1; }
 .dbml-head { fill: color-mix(in srgb, var(--accent) 28%, var(--bar)); }
 .dbml-title { fill: var(--fg); font: 600 13px var(--sans); }
+.dbml-scope { font-weight: 600; }
+.cm-include-link { text-decoration: underline dotted; text-underline-offset: 3px; }
+.cm-include-link:hover { cursor: pointer; text-decoration-style: solid; color: var(--accent); }
+.group > .backbar { flex: none; display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 3px 10px; font-size: 12px; line-height: 20px; background: var(--code-bg); border-bottom: 1px solid var(--border); color: var(--muted); }
+.group > .backbar[hidden] { display: none; }
+.backbar button { font: 12px var(--sans); padding: 1px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bar); color: var(--fg); cursor: pointer; }
+.backbar button:hover { background: var(--tab); }
+.dbml-ext { fill: var(--muted); font: 600 11px var(--sans); pointer-events: all; }
 .dbml-col { fill: var(--fg); font: 12px var(--mono); }
 .dbml-pk { fill: var(--accent); font-weight: 700; }
 .dbml-type { fill: var(--muted); font: 12px var(--mono); }

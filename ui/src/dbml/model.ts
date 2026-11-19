@@ -28,10 +28,15 @@ export interface DTable {
   note?: string;
   /** Cor do cabeçalho (`headercolor:`), como veio no texto. */
   color?: string;
+  /** Arquivo incluído (`!include`) de onde a tabela vem; ausente: é do arquivo da aba. */
+  file?: string;
+  /** Só num escopo (`scope.ts`): relações com tabelas que ficaram de fora do que se vê. */
+  external?: { count: number; targets: { id: string; file?: string }[] };
 }
 
 export interface DEnum {
   span?: Span;
+  file?: string;
   id: string;
   schema: string | null;
   name: string;
@@ -160,10 +165,12 @@ export function cardinality(rel: string): { card: Card; label: string } {
 let spanLimit = Number.POSITIVE_INFINITY;
 const spanOf = (t?: RawToken): Span | undefined => (t && t.start.offset < spanLimit ? { from: t.start.offset, to: t.end.offset } : undefined);
 
-export function buildDiagram(raw: RawDb, limit = Number.POSITIVE_INFINITY): Diagram {
+export function buildDiagram(raw: RawDb, limit = Number.POSITIVE_INFINITY, originOf?: (offset: number) => string | null): Diagram {
   spanLimit = limit;
+  const fileOf = (t?: RawToken) => (t && originOf && t.start.offset >= limit ? (originOf(t.start.offset) ?? undefined) : undefined);
   const tables: DTable[] = (raw.tables ?? []).map((t) => ({
     span: spanOf(t.token),
+    file: fileOf(t.token),
     id: tableId(t.schemaName, t.name),
     schema: t.schemaName ?? null,
     name: t.name,
@@ -207,6 +214,7 @@ export function buildDiagram(raw: RawDb, limit = Number.POSITIVE_INFINITY): Diag
   }
   const enums: DEnum[] = (raw.enums ?? []).map((e) => ({
     span: spanOf(e.token),
+    file: fileOf(e.token),
     id: tableId(e.schemaName, e.name),
     schema: e.schemaName ?? null,
     name: e.name,
@@ -237,5 +245,5 @@ export function parseDbml(interpret: Interpreter, text: string, explain?: (offse
   }
   const raw = rep.getValue();
   if (!raw) return { error: { message: "Não foi possível interpretar o DBML.", line: 1, column: 1 } };
-  return { diagram: buildDiagram(raw, text.length) };
+  return { diagram: buildDiagram(raw, text.length, explain ? (o) => explain(o)?.file ?? null : undefined) };
 }

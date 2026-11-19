@@ -401,7 +401,10 @@ export const api = {
   /** Bytes de uma imagem local citada no JSON (só extensões de imagem, até 8 MB). */
   jsonPreviewImage: (value: string, base: string | null) => invoke<ArrayBuffer>("json_preview_image", { value, base }),
   /** Lê os arquivos que o texto inclui com `!include` (e os que eles incluem). `base`: pasta do arquivo da aba. */
-  dbmlIncludes: (text: string, base: string | null) => invoke<{ parts: { file: string; line: number; text: string }[]; issues: { line: number; message: string }[] }>("dbml_includes", { text, base }),
+  dbmlIncludes: (text: string, base: string | null, root: string | null = null, rootText: string | null = null, own: string | null = null) =>
+    invoke<{ parts: { file: string; line: number; text: string; path: string; context?: boolean }[]; issues: { line: number; message: string }[] }>("dbml_includes", { text, base, root, rootText, own }),
+  /** O caminho completo do arquivo de um `!include "x"` (relativo à pasta `base`), ou erro se não existe ou é recusado. */
+  dbmlIncludePath: (written: string, base: string) => invoke<string>("dbml_include_path", { written, base }),
   /** Abre um link (http, https ou mailto) no navegador do sistema. */
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   exportFile: (path: string, bytes: number[]) => invoke<void>("export_file", { path, bytes }),
