@@ -11,7 +11,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { type ImagePlan, allImages, createFileDrop, imageDropText } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type ClosedTab, type Encoding, type Eol, type Language, type LargeHit, type LayoutEdit, type LayoutState, type SaveMode, type Session, type TabState, type ViewMode } from "./api";
-import { insertImage, registerImageHost } from "./mdimage";
+import { acceptsImages, insertImage, registerImageHost } from "./mdimage";
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import { mermaidLanguage } from "./mermaidlang";
 
@@ -2731,7 +2731,7 @@ function createGroup(id: number): Group {
   registerImageHost(view, {
     tabId: () => {
       const t = tabOf(g);
-      return t && t.kind === "text" && !t.large && !t.release_notes ? t.id : null;
+      return acceptsImages(t) ? t!.id : null;
     },
     base: () => dirOf(tabOf(g)?.path ?? null),
     notify: (text) => {
@@ -4282,7 +4282,7 @@ function imageDropTarget(paths: readonly string[], at: { x: number; y: number })
   const el = document.elementFromPoint(at.x, at.y);
   const g = [...groups.values()].find((x) => el && x.el.contains(el)) ?? cur;
   const tab = tabOf(g);
-  if (!tab || tab.kind !== "text" || tab.large || tab.release_notes || effectiveLang(tab) !== "markdown" || g.view.state.readOnly) return null;
+  if (!tab || !acceptsImages(tab) || effectiveLang(tab) !== "markdown" || g.view.state.readOnly) return null;
   const r = g.editorEl.getBoundingClientRect();
   const inEditor = at.x >= r.left && at.x <= r.right && at.y >= r.top && at.y <= r.bottom;
   const pos = (inEditor ? g.view.posAtCoords(at) : null) ?? g.view.state.selection.main.head;

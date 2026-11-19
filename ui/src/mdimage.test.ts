@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const imageSave = vi.fn();
 vi.mock("./api", () => ({ api: { imageSave: (...a: unknown[]) => imageSave(...a), imageRead: vi.fn() } }));
 
-import { clipboardImage, imageMarkdown, imagePaste, insertImage, isRemoteSrc, localSrc, mimeOfSrc, registerImageHost, savedMessage, toDataUri } from "./mdimage";
+import { acceptsImages, clipboardImage, imageMarkdown, imagePaste, insertImage, isRemoteSrc, localSrc, mimeOfSrc, registerImageHost, savedMessage, toDataUri } from "./mdimage";
 
 // o jsdom não mede texto: o CodeMirror precisa disto só para medir
 Range.prototype.getClientRects ??= () => [] as unknown as DOMRectList;
@@ -63,6 +63,16 @@ describe("partes puras", () => {
     expect(clipboardImage(dt([{ type: "text/plain", kind: "string" }, { type: "image/png", file: png }]))).toBe(png);
     expect(clipboardImage(dt([{ type: "text/plain", kind: "string" }]))).toBeNull();
     expect(clipboardImage(null)).toBeNull();
+  });
+
+  it("aba de texto tem o kind ausente e aceita imagem; leitor, nota de versão e arquivo grande não", () => {
+    expect(acceptsImages({})).toBe(true);
+    expect(acceptsImages({ kind: "text" })).toBe(true);
+    expect(acceptsImages({ kind: "pdf" })).toBe(false);
+    expect(acceptsImages({ kind: "unknown" })).toBe(false);
+    expect(acceptsImages({ large: true })).toBe(false);
+    expect(acceptsImages({ release_notes: true })).toBe(false);
+    expect(acceptsImages(undefined)).toBe(false);
   });
 
   it("avisa se reaproveitou ou guardou", () => {

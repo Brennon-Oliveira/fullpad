@@ -19,6 +19,10 @@ export interface ImageHost {
   notify(text: string): void;
 }
 
+/** A aba aceita imagem? Texto editável: o `kind` das abas de texto vem **ausente** (só PDF/EPUB o têm), nunca nota de versão nem arquivo grande. */
+export const acceptsImages = (t: { kind?: string; large?: boolean; release_notes?: boolean } | undefined | null): boolean =>
+  !!t && (t.kind === undefined || t.kind === "text") && !t.large && !t.release_notes;
+
 const hosts = new WeakMap<EditorView, ImageHost>();
 export const registerImageHost = (view: EditorView, host: ImageHost) => void hosts.set(view, host);
 export const imageHostOf = (view: EditorView): ImageHost | undefined => hosts.get(view);
