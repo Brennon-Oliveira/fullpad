@@ -1,11 +1,7 @@
 ## Novidades
 
-- **CSV pergunta o separador quando não consegue descobrir**: o arquivo abre no código e uma faixa em cima oferece vírgula, ponto e vírgula, tab, barra vertical ou um caractere à sua escolha (por exemplo `+`). Ao escolher, a tabela abre. A escolha fica lembrada para aquele arquivo: fechou e abriu de novo, já vem certo.
-- **DBMLX com `!include`**: esquemas divididos em vários arquivos agora abrem. As tabelas e as relações entre os arquivos aparecem no mesmo diagrama, e um erro dentro de um arquivo incluído aparece na linha do `!include`. As anotações de migração (`[add]`, `[drop]`, `[modify: …]`) e o `DiagramView` também são aceitos, e renomear não apaga nenhuma delas.
-- **Ctrl+clique no `!include` abre o arquivo**: o caminho vira link. O arquivo aberto mostra uma faixa "← Voltar para" o arquivo principal e entende as relações com os outros arquivos, sem dar erro de tabela que não existe.
-- **Escolher o que ver no diagrama**: o botão "Ver" mostra tudo, só um arquivo ou só um grupo de tabelas. O que fica de fora não é desenhado, e as tabelas que ficam mostram "↗ N ext." com quantas relações externas têm.
-
-## Correções
-
-- Arquivos DBMLX com `!include` não dão mais o erro "Expect an identifier".
-- CSV muito grande: a pergunta do separador não aparece mais antes de carregar, e a tabela deixa de ficar em branco depois de carregar.
+- **Colar imagem no markdown**: copie um print (ou uma imagem de um site), use Ctrl+V e a imagem entra no texto. O arquivo é guardado numa pasta `imagens/` ao lado do seu arquivo (numa nota solta, na pasta de dados do Fullpad) e um Ctrl+Z desfaz a colagem. Colar a mesma imagem de novo reaproveita o arquivo, sem duplicar.
+- **Arrastar imagem para o editor**: solte um arquivo de imagem do Explorer sobre um markdown e ela entra no ponto onde caiu. Enquanto arrasta, o aviso mostra a linha, a pasta e se a imagem já existe.
+- **Imagens aparecem no markdown**: no texto e no painel renderizado, inclusive com caminho relativo ao arquivo. Um giro aparece enquanto carregam. Ao passar o mouse há botões para **copiar** a imagem e para **remover** do texto (o arquivo fica no disco); o botão direito tem as mesmas ações.
+- **Exportar leva as imagens**: HTML, PDF e "copiar como HTML" embutem as imagens do arquivo, e o HTML continua funcionando em qualquer lugar.
+- **Menu Ajuda**: mostra a versão instalada no fim e ganhou "Código-fonte no GitHub" e "Outras versões".
