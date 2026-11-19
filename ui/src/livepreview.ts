@@ -266,7 +266,7 @@ export function buildPreview(
             if (!url || marks.length < 2 || touches(node.from, node.to)) return false;
             const src = doc.sliceString(url.from, url.to);
             if (!drawable(src)) return false;
-            hide(node.from, node.to, new ImageWidget(src, doc.sliceString(marks[0].to, marks[1].from)));
+            hide(node.from, node.to, new ImageWidget(src, doc.sliceString(marks[0].to, marks[1].from), node.to - node.from));
             return false;
           }
           case "QuoteMark": {

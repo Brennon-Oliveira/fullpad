@@ -157,6 +157,46 @@ describe("colar imagem no editor", () => {
     ro.destroy();
   });
 
+  it("se guardar demora, mostra o giro no lugar e o tira ao colar; o texto digitado enquanto isso não desloca a imagem", async () => {
+    let done: (v: unknown) => void = () => {};
+    imageSave.mockReturnValue(new Promise((r) => (done = r)));
+    const view = make("antes depois");
+    paste(view, dt([{ type: "image/png", file: png() }]));
+    await new Promise((r) => setTimeout(r, 200)); // passa dos 150 ms
+    expect(view.dom.querySelector(".cm-md-spin")).not.toBeNull();
+    view.dispatch({ changes: { from: 0, insert: "XX" } }); // digitou antes do ponto
+    done({ target: "a.png", name: "a.png", folder: "/x", reused: false, size: 3 });
+    await flush();
+    expect(view.dom.querySelector(".cm-md-spin")).toBeNull();
+    expect(view.state.doc.toString()).toBe("XXantes![](a.png) depois");
+    view.destroy();
+  });
+
+  it("guardar rápido não pisca o giro", async () => {
+    imageSave.mockResolvedValue({ target: "a.png", name: "a.png", folder: "/x", reused: false, size: 3 });
+    const view = make();
+    paste(view, dt([{ type: "image/png", file: png() }]));
+    await flush();
+    expect(view.dom.querySelector(".cm-md-spin")).toBeNull();
+    await new Promise((r) => setTimeout(r, 200));
+    expect(view.dom.querySelector(".cm-md-spin")).toBeNull(); // o aviso agendado não aparece depois
+    view.destroy();
+  });
+
+  it("erro ao guardar tira o giro e não mexe no texto", async () => {
+    let fail: (e: unknown) => void = () => {};
+    imageSave.mockReturnValue(new Promise((_, r) => (fail = r)));
+    const view = make();
+    paste(view, dt([{ type: "image/png", file: png() }]));
+    await new Promise((r) => setTimeout(r, 200));
+    expect(view.dom.querySelector(".cm-md-spin")).not.toBeNull();
+    fail("sem espaço");
+    await flush();
+    expect(view.dom.querySelector(".cm-md-spin")).toBeNull();
+    expect(view.state.doc.toString()).toBe("antes depois");
+    view.destroy();
+  });
+
   it("insertImage troca a seleção e desfaz de uma vez", () => {
     const view = make("abc");
     insertImage(view, "x.png", { from: 1, to: 2 });

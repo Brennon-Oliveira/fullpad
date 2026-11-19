@@ -11,7 +11,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { type ImagePlan, allImages, createFileDrop, imageDropText } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type ClosedTab, type Encoding, type Eol, type Language, type LargeHit, type LayoutEdit, type LayoutState, type SaveMode, type Session, type TabState, type ViewMode } from "./api";
-import { acceptsImages, insertImage, registerImageHost } from "./mdimage";
+import { acceptsImages, insertImage, registerImageHost, startPending } from "./mdimage";
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import { mermaidLanguage } from "./mermaidlang";
 
@@ -4331,6 +4331,7 @@ async function dropImages(t: ImageDropTarget, paths: string[]) {
   const targets: string[] = [];
   const problems: string[] = [];
   let reused = 0;
+  const pend = startPending(t.g.view, t.pos); // o giro no ponto de queda, se copiar demorar
   for (const path of paths) {
     try {
       const saved = await api.imageImport(t.tab.id, path, false);
@@ -4341,7 +4342,9 @@ async function dropImages(t: ImageDropTarget, paths: string[]) {
     }
   }
   if (targets.length > 0 && tabOf(t.g)?.id === t.tab.id) {
-    insertImage(t.g.view, targets, { from: Math.min(t.pos, t.g.view.state.doc.length) }, "input.drop");
+    insertImage(t.g.view, targets, { from: Math.min(pend.at(), t.g.view.state.doc.length) }, "input.drop", pend.end());
+  } else {
+    t.g.view.dispatch({ effects: pend.end() });
   }
   const parts = [];
   if (targets.length > 0) parts.push(`${targets.length === 1 ? "Imagem inserida" : `${targets.length} imagens inseridas`}${reused > 0 ? ` (${reused} já existia${reused === 1 ? "" : "m"}: reaproveitada${reused === 1 ? "" : "s"})` : ""}.`);

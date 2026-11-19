@@ -8,9 +8,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const imageRead = vi.fn();
 vi.mock("./api", () => ({ api: { imageRead: (...a: unknown[]) => imageRead(...a), imageSave: vi.fn() } }));
 
-import { clearImageCache } from "./imagepreview";
+const menus: { label?: string; disabled?: boolean }[][] = [];
+vi.mock("./popup", () => ({ showMenuAt: (_x: number, _y: number, items: never[]) => menus.push(items) }));
+
+import { clearImageCache, removeImageAt } from "./imagepreview";
 import { livePreview } from "./livepreview";
 import { registerImageHost } from "./mdimage";
+
+Range.prototype.getClientRects ??= () => [] as unknown as DOMRectList;
+Range.prototype.getBoundingClientRect ??= () => new DOMRect();
 
 const flush = () => new Promise((r) => setTimeout(r, 20));
 
@@ -90,5 +96,88 @@ describe("imagens no live preview", () => {
     await flush();
     expect(imageRead).toHaveBeenCalledTimes(1);
     view.destroy();
+  });
+
+  describe("carregando, copiar e remover", () => {
+    it("mostra um giro no lugar da imagem enquanto ela carrega", async () => {
+      let done: (b: ArrayBuffer) => void = () => {};
+      imageRead.mockReturnValue(new Promise<ArrayBuffer>((r) => (done = r)));
+      const view = make(DOC, DOC.length);
+      expect(view.dom.querySelector(".cm-md-img.loading .cm-md-spin")).not.toBeNull();
+      expect(view.dom.querySelector(".cm-md-img img")).toBeNull();
+      done(new Uint8Array([1]).buffer);
+      await flush();
+      expect(view.dom.querySelector(".cm-md-spin")).toBeNull();
+      expect(view.dom.querySelector(".cm-md-img img")).not.toBeNull();
+      view.destroy();
+    });
+
+    it("ao carregar, traz os botões de copiar e remover", async () => {
+      imageRead.mockResolvedValue(new Uint8Array([1]).buffer);
+      const view = make(DOC, DOC.length);
+      await flush();
+      const btns = [...view.dom.querySelectorAll<HTMLElement>(".cm-md-img-tools button")].map((b) => b.title);
+      expect(btns).toEqual(["Copiar imagem", "Remover imagem do texto"]);
+      view.destroy();
+    });
+
+    it("o × tira a imagem sozinha na linha, com a quebra, e é um passo só", async () => {
+      imageRead.mockResolvedValue(new Uint8Array([1]).buffer);
+      const view = make(DOC, DOC.length);
+      await flush();
+      (view.dom.querySelector(".cm-md-img-btn.danger") as HTMLElement).click();
+      expect(view.state.doc.toString()).toBe("Antes\n\n\nDepois\n");
+      view.destroy();
+    });
+
+    it("no painel só de leitura não há o ×, mas há copiar", async () => {
+      imageRead.mockResolvedValue(new Uint8Array([1]).buffer);
+      const parent = document.body.appendChild(document.createElement("div"));
+      const view = new EditorView({
+        parent,
+        state: EditorState.create({ doc: "", extensions: [markdown({ base: markdownLanguage }), livePreview({ fixed: true }), EditorState.readOnly.of(true)] }),
+      });
+      registerImageHost(view, { tabId: () => null, base: () => "/n", notify: () => {} });
+      view.dispatch({ changes: { from: 0, insert: DOC } });
+      await flush();
+      const btns = [...view.dom.querySelectorAll<HTMLElement>(".cm-md-img-tools button")].map((b) => b.title);
+      expect(btns).toEqual(["Copiar imagem"]);
+      view.destroy();
+    });
+
+    it("o botão direito abre o menu com copiar e remover, sem abrir o do painel", async () => {
+      imageRead.mockResolvedValue(new Uint8Array([1]).buffer);
+      const view = make(DOC, DOC.length);
+      await flush();
+      menus.length = 0;
+      const ev = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+      const outer = vi.fn();
+      view.dom.parentElement!.addEventListener("contextmenu", outer);
+      view.dom.querySelector(".cm-md-img img")!.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(outer).not.toHaveBeenCalled();
+      expect(menus[0]!.filter((i) => typeof i === "object").map((i) => i.label)).toEqual(["Copiar imagem", "Remover imagem do texto"]);
+      view.destroy();
+    });
+
+    it("remover confere que ali ainda há uma imagem e junta com a linha vizinha na última linha", () => {
+      imageRead.mockResolvedValue(new Uint8Array([1]).buffer);
+      const doc = "texto\n![a](x.png)";
+      const view = make(doc, 0);
+      expect(removeImageAt(view, doc.indexOf("!["), "![a](x.png)".length)).toBe(true);
+      expect(view.state.doc.toString()).toBe("texto");
+      expect(removeImageAt(view, 0, 5)).toBe(false); // não é imagem
+      expect(view.state.doc.toString()).toBe("texto");
+      view.destroy();
+    });
+
+    it("imagem no meio do texto: só ela sai", () => {
+      imageRead.mockResolvedValue(new Uint8Array([1]).buffer);
+      const doc = "antes ![a](x.png) depois";
+      const view = make(doc, 0);
+      removeImageAt(view, 6, "![a](x.png)".length);
+      expect(view.state.doc.toString()).toBe("antes  depois");
+      view.destroy();
+    });
   });
 });

@@ -704,9 +704,19 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .cm-md-math.err { color: #d9534f; font-family: var(--mono); font-size: 0.9em; text-align: left; background: color-mix(in srgb, #d33 12%, transparent); border-radius: 3px; padding: 0 3px; }
 .cm-md-math-block.err { display: block; padding: 8px 12px; white-space: pre-wrap; }
 /* imagens do markdown (`![](caminho)`): widget em linha; só padding, nunca margem vertical */
-.cm-md-img { display: inline-block; max-width: 100%; vertical-align: bottom; padding: 2px 0; cursor: pointer; }
+.cm-md-img { position: relative; display: inline-block; max-width: 100%; vertical-align: bottom; padding: 2px 0; cursor: pointer; }
 .cm-md-img img { display: block; max-width: 100%; max-height: 480px; object-fit: contain; border-radius: 4px; }
-.cm-md-img.loading { color: var(--muted); font-size: 0.9em; }
+.cm-md-img.loading { color: var(--muted); font-size: 0.9em; display: inline-flex; align-items: center; gap: 8px; min-width: 64px; min-height: 40px; }
+/* giro de "carregando": no lugar da imagem que ainda carrega e no ponto onde a colada vai entrar */
+.cm-md-spin { flex: none; display: inline-block; width: 18px; height: 18px; border: 2px solid color-mix(in srgb, var(--muted) 35%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: cm-md-spin .8s linear infinite; vertical-align: middle; }
+@keyframes cm-md-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cm-md-spin { animation-duration: 2.4s; } }
+/* copiar e remover: aparecem ao passar o mouse sobre a imagem (ou com o foco nos botões) */
+.cm-md-img-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; opacity: 0; transition: opacity .12s; }
+.cm-md-img:hover .cm-md-img-tools, .cm-md-img-tools:focus-within { opacity: 1; }
+.cm-md-img-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; color: var(--fg); background: color-mix(in srgb, var(--pop) 92%, transparent); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.cm-md-img-btn:hover { background: var(--pop); border-color: var(--accent); }
+.cm-md-img-btn.danger:hover { color: #fff; background: #d9534f; border-color: #d9534f; }
 .cm-md-img.err { color: #d9534f; font-size: 0.9em; background: color-mix(in srgb, #d33 12%, transparent); border-radius: 3px; padding: 0 3px; }
 /* tabelas do markdown no live preview: rolagem horizontal dentro do bloco; só padding vertical */
 .cm-md-table-wrap { position: relative; padding: 14px 4px 4px 14px; overflow-x: auto; }

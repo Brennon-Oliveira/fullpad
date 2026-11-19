@@ -1,5 +1,5 @@
-import { type Extension } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { type Extension, StateEffect, StateField } from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
 import { api } from "./api";
 
 /**
@@ -103,8 +103,97 @@ export function savedMessage(s: { name: string; reused: boolean; size: number })
   return s.reused ? `Imagem já existia (${s.name}): reaproveitada, nada gravado.` : `Imagem guardada: ${s.name} (${humanSize(s.size)}).`;
 }
 
-/** Escreve a imagem no lugar da seleção, numa transação só (um passo no Ctrl+Z). O arquivo não é apagado ao desfazer. */
-export function insertImage(view: EditorView, target: string | readonly string[], at?: { from: number; to?: number }, userEvent = "input.paste") {
+
+// ---- "colando…": um giro no lugar onde a imagem vai entrar, se guardar demorar --------------------
+
+interface Pending {
+  id: number;
+  pos: number;
+  shown: boolean;
+}
+const addPending = StateEffect.define<{ id: number; pos: number }>();
+const showPending = StateEffect.define<number>();
+const donePending = StateEffect.define<number>();
+
+/** O giro de "carregando" (o mesmo da imagem que ainda carrega). */
+export function spinner(label?: string): HTMLElement {
+  const el = document.createElement("span");
+  el.className = "cm-md-spin";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-label", label ?? "Carregando imagem");
+  return el;
+}
+
+class PendingWidget extends WidgetType {
+  eq(other: WidgetType) {
+    return other instanceof PendingWidget;
+  }
+  toDOM() {
+    const el = document.createElement("span");
+    el.className = "cm-md-img loading";
+    el.append(spinner("Guardando a imagem"));
+    el.append(" guardando a imagem…");
+    return el;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
+/** Os pedidos em andamento: a posição acompanha o texto que se digita enquanto a imagem é guardada. */
+export const pendingField = StateField.define<Pending[]>({
+  create: () => [],
+  update(list, tr) {
+    let out = tr.docChanged ? list.map((p) => ({ ...p, pos: tr.changes.mapPos(p.pos, 1) })) : list;
+    for (const e of tr.effects) {
+      if (e.is(addPending)) out = [...out, { id: e.value.id, pos: e.value.pos, shown: false }];
+      else if (e.is(showPending)) out = out.map((p) => (p.id === e.value ? { ...p, shown: true } : p));
+      else if (e.is(donePending)) out = out.filter((p) => p.id !== e.value);
+    }
+    return out;
+  },
+  provide: (f) =>
+    EditorView.decorations.from(f, (list): DecorationSet =>
+      Decoration.set(list.filter((p) => p.shown).map((p) => Decoration.widget({ widget: new PendingWidget(), side: 1 }).range(p.pos))),
+    ),
+});
+
+const SHOW_AFTER_MS = 150; // guardar rápido não pisca: o giro só aparece se demorar
+let pendingSeq = 0;
+
+/** Marca que uma imagem está sendo guardada em `pos`. `end` tira a marca (já com a posição acompanhada). */
+export function startPending(view: EditorView, pos: number) {
+  const id = ++pendingSeq;
+  const safe = (fn: () => void) => {
+    try {
+      fn();
+    } catch {
+      /* o editor foi destruído enquanto guardava */
+    }
+  };
+  safe(() => view.dispatch({ effects: addPending.of({ id, pos }) }));
+  const timer = setTimeout(() => safe(() => view.dispatch({ effects: showPending.of(id) })), SHOW_AFTER_MS);
+  return {
+    /** Onde a imagem entra agora (o texto pode ter andado desde o pedido). */
+    at: (): number => view.state.field(pendingField, false)?.find((p) => p.id === id)?.pos ?? pos,
+    end(extra: readonly StateEffect<unknown>[] = []) {
+      clearTimeout(timer);
+      return [donePending.of(id), ...extra];
+    },
+  };
+}
+
+/**
+ * Escreve a imagem no lugar da seleção, numa transação só (um passo no Ctrl+Z). O arquivo não é apagado ao
+ * desfazer. `effects` entram na mesma transação (para tirar o "colando…" no mesmo instante).
+ */
+export function insertImage(
+  view: EditorView,
+  target: string | readonly string[],
+  at?: { from: number; to?: number },
+  userEvent = "input.paste",
+  effects: readonly StateEffect<unknown>[] = [],
+) {
   const sel = view.state.selection.main;
   const from = at?.from ?? sel.from;
   const to = at ? (at.to ?? at.from) : sel.to;
@@ -112,6 +201,7 @@ export function insertImage(view: EditorView, target: string | readonly string[]
   view.dispatch({
     changes: { from, to, insert: text },
     selection: { anchor: from + text.length },
+    effects: [...effects],
     scrollIntoView: true,
     userEvent,
   });
@@ -120,12 +210,23 @@ export function insertImage(view: EditorView, target: string | readonly string[]
 
 /** Guarda os bytes colados e escreve a imagem no editor; erros viram aviso, nunca exceção solta. */
 export async function pasteImage(view: EditorView, host: ImageHost, tab: string, file: Blob) {
+  const sel = view.state.selection.main;
+  const replaced = view.state.sliceDoc(sel.from, sel.to);
+  const pend = startPending(view, sel.from);
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const saved = await api.imageSave(tab, bytes);
-    insertImage(view, saved.target);
+    const from = pend.at();
+    // colar com texto selecionado troca o texto, como o colar comum, se ele ainda está lá
+    const to = replaced && view.state.sliceDoc(from, from + replaced.length) === replaced ? from + replaced.length : from;
+    insertImage(view, saved.target, { from, to }, "input.paste", pend.end());
     host.notify(savedMessage(saved));
   } catch (e) {
+    try {
+      view.dispatch({ effects: pend.end() });
+    } catch {
+      /* editor destruído */
+    }
     host.notify(`Não foi possível colar a imagem: ${String(e).replace(/^Error: /, "")}`);
   }
 }
@@ -134,7 +235,7 @@ export async function pasteImage(view: EditorView, host: ImageHost, tab: string,
  * Ctrl+V com uma imagem na área de transferência. Só age num editor com aba que aceita imagem (registrado com
  * `registerImageHost`) e fora de leitura; texto, tabelas e Ctrl+Shift+V seguem o caminho de sempre.
  */
-export const imagePaste: Extension = EditorView.domEventHandlers({
+export const imagePaste: Extension = [pendingField, EditorView.domEventHandlers({
   paste(e, view) {
     if (view.state.readOnly) return false;
     const host = hosts.get(view);
@@ -146,4 +247,5 @@ export const imagePaste: Extension = EditorView.domEventHandlers({
     void pasteImage(view, host, tab, file);
     return true;
   },
-});
+}),
+];
