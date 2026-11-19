@@ -428,6 +428,19 @@ Imagem embutida (um SVG pequeno em data URI, que funciona sem rede):
 
 ![Quadrado azul com um ponto](data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%2760%27%3E%3Crect%20width%3D%27120%27%20height%3D%2760%27%20rx%3D%278%27%20fill%3D%27%234f8cff%27%2F%3E%3Ccircle%20cx%3D%2760%27%20cy%3D%2730%27%20r%3D%2714%27%20fill%3D%27white%27%2F%3E%3C%2Fsvg%3E)
 
+### Imagens do disco e imagem colada
+
+Uma imagem **local** aparece desenhada no preview e no painel renderizado: o caminho é relativo à pasta deste
+arquivo (clique na imagem ou passe o cursor por ela para ver o código). Só imagens de arquivo, até 8 MB; endereço
+de rede não é carregado.
+
+![Degradê azul e verde com um quadrado branco](imagens/example/6d836ebed367e003.png)
+
+Para testar a colagem: copie um print, ponha o cursor aqui e use **Ctrl+V**. O Fullpad guarda o arquivo em
+`imagens/example/` (o nome é o hash do conteúdo) e escreve o `![](…)` no cursor, num passo só do Ctrl+Z; colar a mesma
+imagem de novo reaproveita o arquivo. Arrastar um arquivo de imagem do Explorer para o editor faz o mesmo no ponto
+onde ele cai (a prévia mostra a linha e a pasta). Numa nota solta, a imagem vai para a pasta de dados do app.
+
 ## Extras
 
 ### Linha horizontal (três formas)
