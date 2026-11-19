@@ -17,6 +17,8 @@ interface TextMsg {
   title: string;
   cursor: number | null;
   base?: string | null;
+  /** DBML: os arquivos que o `!include` trouxe (lidos pela janela dona). */
+  project?: { parts: { file: string; line: number; text: string }[]; issues: { line: number; message: string }[] } | null;
 }
 
 async function boot() {
@@ -52,9 +54,14 @@ async function boot() {
       onHover: (spans, rev) => void emitTo(owner, `pv-hover:${tab}`, { spans, rev }),
     });
     let first = true;
+    const { loadDbmlService } = await import("./dbml/service");
+    const svc = await loadDbmlService();
     apply = (m) => {
+      // os arquivos que o `!include` da dona traz (ela os leu; esta janela não tem o caminho do arquivo)
+      const changed = svc.setProject(m.project ?? null);
       if (first) panel.show(m.text, true, m.rev);
       else panel.update(m.text, m.rev);
+      if (changed && !first) panel.refresh();
       first = false;
       panel.setCursor(m.cursor, m.rev);
     };

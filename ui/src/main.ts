@@ -23,11 +23,14 @@ interface DiagramPanel {
   /** Só o diagrama DBML: o layout guardado da aba (chamar antes de `show`) e gravar o que está pendente. */
   setLayout?(l: { tables: LayoutState["tables"]; groups?: LayoutState["groups"]; viewport: LayoutState["viewport"]; error: string | null } | null): void;
   flush?(): void;
+  /** Só o diagrama DBML: desenha de novo o texto de agora (os arquivos incluídos mudaram). */
+  refresh?(): void;
   /** Só o diagrama DBML: liga/desliga a edição pelo diagrama (desligado, só se vê). */
   setEditable?(on: boolean): void;
 }
 import type { CsvPanel, LargeCtx } from "./csv/panel";
 import type { LayoutView } from "./dbml/layoutview";
+import type { DbmlProject } from "./dbml/service";
 import type { JsonPanel, TreeFormat } from "./json/panel";
 import { mapCursor } from "./json/format";
 import type { MarkdownPane } from "./mdpreview";
@@ -555,7 +558,7 @@ async function pushPreview(tab: TabState) {
   const text = await textOf(tab.id);
   const showing = groupShowing(tab.id);
   const cursor = showing ? showing.view.state.selection.main.head : null;
-  await emitTo(`preview-${tab.id}`, "pv-text", { text, rev: showing?.rev ?? 0, title: tab.title || "Nova nota", cursor, base: dirOf(tab.path) }).catch(() => {});
+  await emitTo(`preview-${tab.id}`, "pv-text", { text, rev: showing?.rev ?? 0, title: tab.title || "Nova nota", cursor, base: dirOf(tab.path), project: dbmlProjects.get(tab.id) ?? null }).catch(() => {});
 }
 
 function openPreviewWindow(tab: TabState) {
@@ -1329,6 +1332,35 @@ function toggleLayoutView() {
   refreshStatus(false);
 }
 
+// ---- `!include` do dbmlx (arquivos lidos pelo Rust; o parser os vê depois do texto da aba) ----
+
+const dbmlProjects = new Map<string, DbmlProject | null>(); // o que cada aba incluía da última vez (evita piscar ao trocar de aba)
+let dbmlProjectTimer = 0;
+
+/** Lê o que a aba DBML inclui e o entrega ao serviço; se mudou, o erro no editor e o diagrama são refeitos. */
+async function refreshDbmlProject(id: string) {
+  const tab = session.tabs.find((t) => t.id === id);
+  const g = tab ? groupShowing(id) : undefined;
+  if (!tab || !g || effectiveLang(tab) !== "dbml") return;
+  const text = g.view.state.doc.toString();
+  const has = /^[ \t]*!include\b/m.test(text);
+  let project: DbmlProject | null = null;
+  if (has) project = await api.dbmlIncludes(text, dirOf(tab.path)).catch(() => null);
+  if (groupShowing(id) !== g || g.view.state.doc.toString() !== text) return; // mudou enquanto lia: a próxima leitura já está agendada
+  const svc = has ? await (await import("./dbml/service")).loadDbmlService() : (await import("./dbml/service")).peekDbmlService();
+  if (!svc) return;
+  dbmlProjects.set(id, project);
+  if (!svc.setProject(project)) return;
+  void import("@codemirror/lint").then((m) => m.forceLinting(g.view));
+  g.diagram?.refresh?.();
+  if (tab.detached && previewOpen.has(id)) void pushPreview(tab); // a janela separada recebe os incluídos junto do texto
+}
+
+function scheduleDbmlProject(tab: TabState, delay: number) {
+  window.clearTimeout(dbmlProjectTimer);
+  dbmlProjectTimer = window.setTimeout(() => void refreshDbmlProject(tab.id), delay);
+}
+
 /** Mostra/esconde o painel conforme a aba ativa. O módulo só é importado na 1ª vez que um DBML pede. */
 function syncDiagram(textChanged = false) {
   const g = cur;
@@ -1339,6 +1371,11 @@ function syncDiagram(textChanged = false) {
   syncCsvTable(textChanged);
   syncDetached(textChanged);
   const tab = activeTab();
+  if (effectiveLang(tab) === "dbml") {
+    // o que esta aba inclui: o de antes já vale (sem piscar) e a leitura nova vem em seguida
+    void import("./dbml/service").then((m) => m.peekDbmlService()?.setProject(dbmlProjects.get(tab.id) ?? null));
+    scheduleDbmlProject(tab, textChanged ? 500 : 0);
+  }
   // sozinho, o diagrama cobre o painel e o editor (que segue vivo, escondido, com o texto e o histórico) some
   g.bodyEl.classList.toggle("diagramonly", diagramWanted(tab) && viewKind(tab) === "only");
   if (!diagramWanted(tab)) {

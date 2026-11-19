@@ -15,6 +15,10 @@ Project escola_idiomas {
   '''
 }
 
+// Esquema dividido em arquivos: `!include` traz o conteúdo do módulo (caminho relativo a este arquivo).
+// As tabelas aparecem no diagrama e as relações entre os arquivos funcionam. Um erro lá dentro aparece aqui, nesta linha.
+!include "example-modulo.dbmlx"
+
 // ---------- Tipos enumerados ----------
 
 enum nivel_cefr {

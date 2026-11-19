@@ -7,6 +7,9 @@
  */
 import { type Diagram, type DTable, type Span, parseDbml, tableId } from "./model";
 import type { DbmlService } from "./service";
+import { type TextChange, applyChanges, lineChanges } from "./textdiff";
+
+export { type TextChange, applyChanges, lineChanges };
 
 export type SymbolKind = "table" | "column" | "enum" | "value" | "group";
 
@@ -22,11 +25,6 @@ export interface RenameTarget {
   table?: DTable;
 }
 
-export interface TextChange {
-  from: number;
-  to: number;
-  insert: string;
-}
 
 export interface RenameResult {
   changes: TextChange[];
@@ -133,46 +131,6 @@ export function checkName(name: string): string | null {
 /** Como o nome entra no texto: sem aspas quando é um identificador simples. */
 export const quoteName = (name: string) => (/^[A-Za-z_][A-Za-z0-9_$]*$/.test(name) ? name : `"${name.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`);
 
-/** Trocas linha a linha entre dois textos de mesmo número de linhas (o que um renome produz). */
-export function lineChanges(old: string, next: string): TextChange[] {
-  const a = old.split("\n");
-  const b = next.split("\n");
-  if (a.length !== b.length) {
-    let from = 0;
-    const max = Math.min(old.length, next.length);
-    while (from < max && old[from] === next[from]) from++;
-    let tail = 0;
-    while (tail < max - from && old[old.length - 1 - tail] === next[next.length - 1 - tail]) tail++;
-    return from === old.length - tail && from === next.length - tail ? [] : [{ from, to: old.length - tail, insert: next.slice(from, next.length - tail) }];
-  }
-  const out: TextChange[] = [];
-  let pos = 0;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) {
-      const x = a[i];
-      const y = b[i];
-      let p = 0;
-      const max = Math.min(x.length, y.length);
-      while (p < max && x[p] === y[p]) p++;
-      let q = 0;
-      while (q < max - p && x[x.length - 1 - q] === y[y.length - 1 - q]) q++;
-      out.push({ from: pos + p, to: pos + x.length - q, insert: y.slice(p, y.length - q) });
-    }
-    pos += a[i].length + 1;
-  }
-  return out;
-}
-
-export function applyChanges(text: string, changes: TextChange[]): string {
-  let out = "";
-  let at = 0;
-  for (const c of [...changes].sort((x, y) => x.from - y.from)) {
-    out += text.slice(at, c.from) + c.insert;
-    at = c.to;
-  }
-  return out + text.slice(at);
-}
-
 /** As trocas que renomeiam `target` para `newName`, ou o motivo de não dar. */
 export function renameChanges(svc: DbmlService, d: Diagram, text: string, target: RenameTarget, newName: string): RenameResult | { error: string } {
   const bad = checkName(newName);
@@ -203,6 +161,7 @@ export function renameChanges(svc: DbmlService, d: Diagram, text: string, target
       if (owner?.values.some((v) => v.name === newName)) return { error: `Já existe o valor "${newName}" neste enum.` };
     }
     if (target.kind === "group" && d.groups.some((g) => g.name === newName)) return { error: `Já existe o grupo "${newName}".` };
+    if (svc.hasExternalUses(text, target.from + 1)) return { error: "O nome também é usado em um arquivo incluído (!include); renomeie lá também." };
     const sites = new Map<number, number>([[target.from, target.to]]);
     // o provider, sem usos do símbolo, às vezes devolve os do elemento que o contém: só vale o trecho que é o nome
     for (const r of svc.references(text, target.from + 1)) if (r.to > r.from && unquote(text.slice(r.from, r.to)) === target.name) sites.set(r.from, r.to);

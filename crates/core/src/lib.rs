@@ -4,6 +4,7 @@ pub mod atomic;
 pub mod changelog;
 pub mod css;
 pub mod csv;
+pub mod dbmlinc;
 pub mod dbmlx;
 pub mod epub;
 pub mod error;

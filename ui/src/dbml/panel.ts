@@ -17,6 +17,7 @@ const NS = "http://www.w3.org/2000/svg";
 
 interface Libs {
   interpret: Interpreter;
+  explain: (offset: number) => { file: string; line: number } | null;
   dagre: DagreLike;
 }
 
@@ -26,7 +27,7 @@ function loadLibs(): Promise<Libs> {
   libsPromise ??= Promise.all([loadDbmlService(), import("@dagrejs/dagre")]).then(([svc, d]) => {
     const mod = d as unknown as { default?: DagreLike; layout?: unknown };
     const dagre = (typeof mod.layout === "function" ? mod : mod.default) as DagreLike;
-    return { interpret: svc.interpret, dagre };
+    return { interpret: svc.interpret, explain: svc.explain, dagre };
   });
   libsPromise.catch(() => (libsPromise = undefined)); // permite tentar de novo
   return libsPromise;
@@ -357,10 +358,10 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
       return;
     }
     if (my !== seq) return; // chegou texto mais novo
-    const res = parseDbml(libs.interpret, text);
+    const res = parseDbml(libs.interpret, text, libs.explain);
     if (res.error) {
       error.hidden = false;
-      error.textContent = `Linha ${res.error.line}, col. ${res.error.column}: ${res.error.message}`;
+      error.textContent = res.error.file ? `Em ${res.error.file}, linha ${res.error.line}: ${res.error.message}` : `Linha ${res.error.line}, col. ${res.error.column}: ${res.error.message}`;
       return; // mantém o último diagrama válido
     }
     error.hidden = true;
@@ -437,6 +438,13 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     },
     /** Grava já o que está pendente (arrasto e vista): antes de trocar de aba ou fechar o painel. */
     flush,
+    /** O que o texto inclui mudou (`!include`): desenha de novo o mesmo texto. */
+    refresh() {
+      if (lastText === null || !host.classList.contains("on")) return;
+      window.clearTimeout(timer);
+      relayout = false;
+      void render(lastText);
+    },
     /** Texto mudou: renderiza com debounce. */
     update(text: string, rev = 0) {
       latestRev = rev;

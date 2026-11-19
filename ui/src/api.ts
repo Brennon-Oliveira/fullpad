@@ -400,6 +400,8 @@ export const api = {
   csvCell: (tab: string, row: number, col: number) => invoke<CsvCellOut | null>("csv_cell", { tab, row, col }),
   /** Bytes de uma imagem local citada no JSON (só extensões de imagem, até 8 MB). */
   jsonPreviewImage: (value: string, base: string | null) => invoke<ArrayBuffer>("json_preview_image", { value, base }),
+  /** Lê os arquivos que o texto inclui com `!include` (e os que eles incluem). `base`: pasta do arquivo da aba. */
+  dbmlIncludes: (text: string, base: string | null) => invoke<{ parts: { file: string; line: number; text: string }[]; issues: { line: number; message: string }[] }>("dbml_includes", { text, base }),
   /** Abre um link (http, https ou mailto) no navegador do sistema. */
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   exportFile: (path: string, bytes: number[]) => invoke<void>("export_file", { path, bytes }),

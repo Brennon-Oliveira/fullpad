@@ -1549,6 +1549,13 @@ fn json_preview_image(value: String, base: Option<PathBuf>) -> Result<tauri::ipc
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// Lê os arquivos que um `.dbmlx` inclui com `!include "x"` (e os que eles incluem). `base` é a pasta do arquivo
+/// da aba (os caminhos são relativos a ela); sem ela, as diretivas voltam como problema. Só lê, nunca grava.
+#[tauri::command]
+async fn dbml_includes(text: String, base: Option<PathBuf>) -> Result<fullpad_core::dbmlinc::Resolved, String> {
+    tauri::async_runtime::spawn_blocking(move || fullpad_core::dbmlinc::resolve(base.as_deref(), &text)).await.map_err(err)
+}
+
 /// Abre um link no navegador do sistema. Só `http`, `https` e `mailto`: um JSON não pode mandar
 /// o app abrir arquivo nem executar nada.
 #[tauri::command]
@@ -1752,6 +1759,7 @@ fn main() {
             csv_structure,
             json_format,
             json_preview_image,
+            dbml_includes,
             open_url
         ])
         .run(tauri::generate_context!())

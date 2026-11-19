@@ -1,0 +1,26 @@
+// Fullpad — módulo incluído por example.dbmlx (`!include "example-modulo.dbmlx"`).
+// Abra o example.dbmlx: as tabelas daqui aparecem no diagrama dele, e as relações com as tabelas de lá
+// (e o enum nivel_cefr) funcionam. Este arquivo sozinho não fecha (falta pessoas.alunos).
+//
+// Anotações de migração do dbmlx: [add] (nova), [drop] (removida), [modify: ...] (mudou). O Fullpad as aceita
+// e as ignora no diagrama; cada coluna está no estado depois da migração.
+
+Table biblioteca.livros [headercolor: #8e44ad] {
+  id bigint [pk, increment]
+  titulo varchar(200) [not null]
+  idioma_id int
+  nivel nivel_cefr [note: 'O enum vem do arquivo principal']
+  isbn varchar(20) [unique, add]
+  paginas int [modify: type="smallint"]
+  criado_em timestamptz [not null, default: `now()`]
+}
+
+Table biblioteca.emprestimos [add, headercolor: #8e44ad] {
+  id bigint [pk, increment]
+  livro_id bigint [not null]
+  aluno_id bigint [not null, add ref: > pessoas.alunos.id]
+  devolvido boolean [default: false]
+}
+
+Ref: biblioteca.emprestimos.livro_id > biblioteca.livros.id
+Ref: biblioteca.livros.idioma_id > catalogo.idiomas.id

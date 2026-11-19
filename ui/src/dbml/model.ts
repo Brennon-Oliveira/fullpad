@@ -73,6 +73,8 @@ export interface ParseError {
   message: string;
   line: number; // 1-based
   column: number; // 1-based
+  /** O erro está neste arquivo incluído (`!include`); `line` é a linha dele. */
+  file?: string;
 }
 
 export type ParseResult = { diagram: Diagram; error?: undefined } | { diagram?: undefined; error: ParseError };
@@ -131,7 +133,7 @@ export interface RawDb {
 /** Resultado de interpretar um arquivo no @dbml/parse (só o que usamos). */
 export interface Report {
   getValue(): RawDb | undefined;
-  getErrors(): { diagnostic: string; nodeOrToken?: { startPos?: { line: number; column: number } } }[];
+  getErrors(): { diagnostic: string; nodeOrToken?: { startPos?: { line: number; column: number; offset?: number } } }[];
 }
 /** Interpreta um texto DBML. Quem chama monta isso com o `Compiler` do parser (carregado sob demanda). */
 export type Interpreter = (text: string) => Report;
@@ -154,9 +156,12 @@ export function cardinality(rel: string): { card: Card; label: string } {
   return { card: many ? "*" : "1", label: min === "" || min === max ? top : `${min}..${top}` };
 }
 
-const spanOf = (t?: RawToken): Span | undefined => (t ? { from: t.start.offset, to: t.end.offset } : undefined);
+/** `limit`: o fim do texto da aba; o que começa além dele é de arquivo incluído e não tem lugar neste texto. */
+let spanLimit = Number.POSITIVE_INFINITY;
+const spanOf = (t?: RawToken): Span | undefined => (t && t.start.offset < spanLimit ? { from: t.start.offset, to: t.end.offset } : undefined);
 
-export function buildDiagram(raw: RawDb): Diagram {
+export function buildDiagram(raw: RawDb, limit = Number.POSITIVE_INFINITY): Diagram {
+  spanLimit = limit;
   const tables: DTable[] = (raw.tables ?? []).map((t) => ({
     span: spanOf(t.token),
     id: tableId(t.schemaName, t.name),
@@ -220,15 +225,17 @@ export function buildDiagram(raw: RawDb): Diagram {
 }
 
 /** Parseia o texto. Erros de sintaxe voltam como `error` (o chamador mantém o último diagrama válido). */
-export function parseDbml(interpret: Interpreter, text: string): ParseResult {
+export function parseDbml(interpret: Interpreter, text: string, explain?: (offset: number) => { file: string; line: number } | null): ParseResult {
   const rep = interpret(text);
   const errors = rep.getErrors();
   if (errors.length > 0) {
     const e = errors[0];
     const pos = e.nodeOrToken?.startPos;
+    const inc = pos?.offset !== undefined ? explain?.(pos.offset) : null;
+    if (inc) return { error: { message: e.diagnostic, line: inc.line, column: 1, file: inc.file } };
     return { error: { message: e.diagnostic, line: (pos?.line ?? 0) + 1, column: (pos?.column ?? 0) + 1 } };
   }
   const raw = rep.getValue();
   if (!raw) return { error: { message: "Não foi possível interpretar o DBML.", line: 1, column: 1 } };
-  return { diagram: buildDiagram(raw) };
+  return { diagram: buildDiagram(raw, text.length) };
 }
