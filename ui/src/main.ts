@@ -464,7 +464,8 @@ async function syncCsv(tab: TabState) {
     if (showing) withGroup(showing, applyTabConfig);
     return;
   }
-  const st = states.get(tab.id);
+  // o texto de agora: o do editor do painel que mostra a aba (o de `states` é o retrato de quando ela saiu de vista, ou o vazio de antes de carregar)
+  const st = groupShowing(tab.id)?.view.state ?? states.get(tab.id);
   if (!st) return;
   if (tab.large && st.doc.length === 0) return; // a janela de lotes ainda não chegou
   // arquivo (ou nota) vazio não tem o que perguntar: vale a vírgula, como sempre valeu
