@@ -64,6 +64,10 @@ export interface MenuActions {
   checkUpdates(): void;
   releaseNotes(): void;
   changelog(): void;
+  /** A versão instalada (vazia até o app responder). */
+  version(): string;
+  openRepo(): void;
+  openReleases(): void;
   formatJson(): void;
   formatJsonSelection(): void;
   minifyJson(): void;
@@ -467,6 +471,11 @@ export function topMenus(a: MenuActions): { label: () => string; items: () => Me
         { label: "Ver nota de versão", action: a.releaseNotes },
         { label: "Histórico de versões", action: a.changelog },
         { label: "Verificar atualizações…", action: a.checkUpdates },
+        "sep",
+        { label: "Código-fonte no GitHub", action: a.openRepo },
+        { label: "Outras versões", action: a.openReleases },
+        "sep",
+        { label: a.version() ? `Fullpad ${a.version()}` : "Fullpad", disabled: true }, // só informa: não é clicável
       ],
     },
   ];

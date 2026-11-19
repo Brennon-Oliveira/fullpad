@@ -4094,6 +4094,9 @@ const menuActions = {
   checkUpdates: () => void checkUpdates(true),
   releaseNotes: () => void showReleaseNotes(),
   changelog: () => void showChangelog(),
+  version: () => appVersion,
+  openRepo: () => void api.openUrl(REPO_URL),
+  openReleases: () => void api.openUrl(RELEASES_URL),
   undo: () => (undoIn(cur), cur.view.focus()),
   redo: () => (redoIn(cur), cur.view.focus()),
   selectAll: () => (selectAll(cur.view), cur.view.focus()),
@@ -4388,6 +4391,12 @@ window.addEventListener("blur", () => void flush());
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") void flush();
 });
+
+/** A versão instalada, para o fim do menu Ajuda (o menu lê na hora de abrir). */
+let appVersion = "";
+void getVersion().then((v) => (appVersion = v)).catch(() => {});
+const REPO_URL = "https://github.com/Brennon-Oliveira/fullpad";
+const RELEASES_URL = "https://github.com/Brennon-Oliveira/fullpad-releases/releases"; // o repositório público de onde o app se atualiza
 
 async function boot() {
   largeKeys.find = findLarge;
