@@ -2,6 +2,7 @@ import { type Extension, Prec, StateField } from "@codemirror/state";
 import { EditorView, type Tooltip, keymap, showTooltip } from "@codemirror/view";
 import { BLOCK_LABELS, type Block, type Outcome, activeMarks, clearFormat, currentBlock, setBlock, toggleInline, toggleLink } from "./mdformat";
 import { syntaxTree } from "@codemirror/language";
+import { imagePaste } from "./mdimage";
 import { csvToTable, insertTable, pastedTable, tableFromSelection } from "./mdtable";
 import { type MenuItem, showMenu } from "./popup";
 
@@ -179,4 +180,4 @@ const pasteTable = EditorView.domEventHandlers({
   },
 });
 
-export const mdFormatExtension: Extension = [toolbarField, selecting, formatKeys, pasteTable];
+export const mdFormatExtension: Extension = [toolbarField, selecting, formatKeys, imagePaste, pasteTable];

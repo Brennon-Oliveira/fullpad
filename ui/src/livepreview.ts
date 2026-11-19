@@ -8,6 +8,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
+import { ImageWidget, drawable } from "./imagepreview";
 import { makeMathField } from "./mathpreview";
 import { makeTableField } from "./tablepreview";
 import { cachedMermaid, isMermaidInfo, renderMermaid } from "./mermaid/render";
@@ -257,6 +258,16 @@ export function buildPreview(
               }
             }
             return;
+          }
+          case "Image": {
+            // `![alt](caminho)` local vira a imagem; com o cursor tocando, aparece o código. Remota ou sem caminho: texto.
+            const url = node.node.getChild("URL");
+            const marks = node.node.getChildren("LinkMark");
+            if (!url || marks.length < 2 || touches(node.from, node.to)) return false;
+            const src = doc.sliceString(url.from, url.to);
+            if (!drawable(src)) return false;
+            hide(node.from, node.to, new ImageWidget(src, doc.sliceString(marks[0].to, marks[1].from)));
+            return false;
           }
           case "QuoteMark": {
             const line = doc.lineAt(node.from);

@@ -5,6 +5,7 @@ import { codeLanguages } from "./codelangs";
 import { hintExtension, hintLines, isDark, syntaxColors } from "./editor";
 import { linkExtension } from "./links";
 import { livePreview } from "./livepreview";
+import { registerImageHost } from "./mdimage";
 
 /**
  * Painel com o markdown renderizado, só leitura, para ficar ao lado do código (ou numa janela
@@ -14,6 +15,8 @@ import { livePreview } from "./livepreview";
 export interface PaneHooks {
   /** Mouse sobre uma linha do painel: o trecho dela no texto (`null` ao sair). */
   onHover?(span: { from: number; to: number } | null): void;
+  /** A pasta do arquivo, para as imagens de caminho relativo (`null` numa nota solta). */
+  base?(): string | null;
 }
 
 export function createMarkdownPane(host: HTMLElement, hooks: PaneHooks = {}) {
@@ -35,6 +38,8 @@ export function createMarkdownPane(host: HTMLElement, hooks: PaneHooks = {}) {
       ],
     }),
   });
+
+  registerImageHost(view, { tabId: () => null, base: () => hooks.base?.() ?? null, notify: () => {} });
 
   // Destaque de linha, igual ao do diagrama DBML: o mouse aponta a linha no painel e no código; o
   // cursor do código aponta a linha no painel (o mouse tem prioridade enquanto está em cima).

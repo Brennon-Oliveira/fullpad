@@ -6,6 +6,18 @@ export type Language = "auto" | "plain" | "markdown" | "dbml" | "mermaid" | "lat
 export type Eol = "lf" | "crlf";
 /** O que a aba mostra: o editor ("text") ou um leitor só de leitura. "unknown": tipo de uma versão mais nova. */
 export type TabKind = "text" | "pdf" | "epub" | "unknown";
+/** Uma imagem guardada (ou que seria guardada) para o markdown. */
+export interface ImageSaved {
+  /** O destino para `![](…)`: relativo à pasta da nota ou `file:///…` (nota solta). */
+  target: string;
+  /** Nome do arquivo (o hash do conteúdo). */
+  name: string;
+  /** A pasta onde está ou ficará. */
+  folder: string;
+  /** Já havia um arquivo igual: nada foi (ou será) gravado. */
+  reused: boolean;
+  size: number;
+}
 /** Resultado da verificação de um PDF: um trecho comprimido que expande demais é suspeito. */
 export type PdfScan = { verdict: "ok" } | { verdict: "suspicious"; packed: number; unpacked: number; at_least: boolean };
 /** Entrada do sumário de um EPUB: `spine` é o capítulo (posição na ordem de leitura) para onde aponta. */
@@ -400,6 +412,12 @@ export const api = {
   csvCell: (tab: string, row: number, col: number) => invoke<CsvCellOut | null>("csv_cell", { tab, row, col }),
   /** Bytes de uma imagem local citada no JSON (só extensões de imagem, até 8 MB). */
   jsonPreviewImage: (value: string, base: string | null) => invoke<ArrayBuffer>("json_preview_image", { value, base }),
+  /** Os bytes de uma imagem local do markdown (mesmas regras do JSON: só extensões de imagem, até 8 MB). */
+  imageRead: (src: string, base: string | null) => invoke<ArrayBuffer>("json_preview_image", { value: src, base }),
+  /** Guarda a imagem colada na pasta da aba (reaproveita uma igual) e devolve o destino para `![](…)`. */
+  imageSave: (tab: string, bytes: Uint8Array) => invoke<ImageSaved>("image_save", bytes, { headers: { "x-tab": tab } }),
+  /** Copia um arquivo de imagem solto para a pasta da aba. `dryRun`: só diz onde ficaria e se já existe igual. */
+  imageImport: (tab: string, path: string, dryRun: boolean) => invoke<ImageSaved>("image_import", { id: tab, path, dryRun }),
   /** Lê os arquivos que o texto inclui com `!include` (e os que eles incluem). `base`: pasta do arquivo da aba. */
   dbmlIncludes: (text: string, base: string | null, root: string | null = null, rootText: string | null = null, own: string | null = null) =>
     invoke<{ parts: { file: string; line: number; text: string; path: string; context?: boolean }[]; issues: { line: number; message: string }[] }>("dbml_includes", { text, base, root, rootText, own }),

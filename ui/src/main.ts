@@ -8,9 +8,10 @@ import { type UnlistenFn, emit, emitTo, listen as listenAll } from "@tauri-apps/
 import { listenHere as listen } from "./events";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { createFileDrop } from "./filedrop";
+import { type ImagePlan, allImages, createFileDrop, imageDropText } from "./filedrop";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type ClosedTab, type Encoding, type Eol, type Language, type LargeHit, type LayoutEdit, type LayoutState, type SaveMode, type Session, type TabState, type ViewMode } from "./api";
+import { insertImage, registerImageHost } from "./mdimage";
 import { createState, createView, csvHoverMarks, csvSelectionMarks, hintLines, isDark, tabEffects } from "./editor";
 import { mermaidLanguage } from "./mermaidlang";
 
@@ -959,6 +960,7 @@ function syncMdPane(textChanged: boolean) {
     g.mdPane = m.createMarkdownPane(g.mdEl, {
       // mouse sobre uma linha do painel → destaca a linha no código (como no diagrama DBML)
       onHover: (span) => g.view.dispatch({ effects: hintLines(span ? [span] : null) }),
+      base: () => dirOf(tabOf(g)?.path ?? null),
     });
   });
   void g.mdLoading.then(() => {
@@ -2725,6 +2727,18 @@ function createGroup(id: number): Group {
   el.append(tabsEl, diskEl, backEl, csvAskEl, noteEl, largeNoteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
   const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, csvAskEl, backEl, diskEl, readerEl, gateEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
+  // colar imagem no markdown: o editor pergunta a que aba pertence e onde avisar (`mdimage.ts`)
+  registerImageHost(view, {
+    tabId: () => {
+      const t = tabOf(g);
+      return t && t.kind === "text" && !t.large && !t.release_notes ? t.id : null;
+    },
+    base: () => dirOf(tabOf(g)?.path ?? null),
+    notify: (text) => {
+      const t = tabOf(g);
+      if (t) flashDiskInfo(t, text);
+    },
+  });
   const bigOf = () => largeOf(tabOf(g));
   // a barra de rolagem do arquivo vale para o editor e para a tabela (por isso fica no corpo do painel, não no editor)
   const tableShown = () => {
@@ -3541,6 +3555,9 @@ function exportBaseName(tab: TabState): string {
   return suggestedName(tab).replace(/\.[^.]+$/, "");
 }
 
+/** De onde a exportação lê as imagens locais do markdown (a pasta do arquivo da aba). */
+const exportImages = (tab: TabState) => ({ base: dirOf(tab.path), read: api.imageRead });
+
 async function exportHtml() {
   const tab = activeTab();
   if (effectiveLang(tab) !== "markdown") return;
@@ -3551,7 +3568,7 @@ async function exportHtml() {
     });
     if (!path) return;
     const { markdownToHtml } = await import("./mdexport");
-    const html = await markdownToHtml(cur.view.state.doc.toString(), exportBaseName(tab));
+    const html = await markdownToHtml(cur.view.state.doc.toString(), exportBaseName(tab), false, exportImages(tab));
     await api.exportFile(path, Array.from(new TextEncoder().encode(html)));
   } catch (e) {
     await message(String(e), { title: "Não foi possível exportar", kind: "error" });
@@ -3563,7 +3580,7 @@ async function exportPdf() {
   if (effectiveLang(tab) !== "markdown") return;
   try {
     const { printAsPdf } = await import("./mdexport");
-    await printAsPdf(cur.view.state.doc.toString(), exportBaseName(tab));
+    await printAsPdf(cur.view.state.doc.toString(), exportBaseName(tab), exportImages(tab));
   } catch (e) {
     await message(String(e), { title: "Não foi possível exportar", kind: "error" });
   }
@@ -3573,7 +3590,7 @@ async function copyHtml() {
   if (effectiveLang(activeTab()) !== "markdown") return;
   try {
     const { copyAsHtml } = await import("./mdexport");
-    await copyAsHtml(cur.view.state.doc.toString());
+    await copyAsHtml(cur.view.state.doc.toString(), exportImages(activeTab()));
   } catch (e) {
     await message(String(e), { title: "Não foi possível copiar", kind: "error" });
   }
@@ -4245,17 +4262,121 @@ window.addEventListener(
 
 // Arquivos arrastados de fora (o Explorer, por exemplo) para dentro da janela: abrem como no Ctrl+O,
 // com um aviso na tela enquanto o ponteiro está por cima. Arrastar abas é outra coisa (`tabdrag.ts`).
+// Exceção: imagens soltas sobre um markdown viram `![](…)` no ponto onde caem (copiadas para a pasta das
+// imagens da aba, como no Ctrl+V), com a prévia de onde e como vão ficar.
 const fileDrop = createFileDrop();
+const dropCaret = Object.assign(document.createElement("div"), { className: "imgdrop-caret", hidden: true });
+document.body.append(dropCaret);
+
+interface ImageDropTarget {
+  g: Group;
+  tab: TabState;
+  pos: number;
+}
+/** As imagens soltas, a janela de onde vêm e o que se sabe de cada uma por aba (a pasta muda de aba para aba). */
+let imageDrag: { paths: string[]; plans: Map<string, Promise<{ plans: ImagePlan[] | null; error: string | null }>> } | null = null;
+
+/** Onde as imagens cairiam: no markdown do painel sob o ponteiro (no ponto do mouse se está no editor, senão no cursor). */
+function imageDropTarget(paths: readonly string[], at: { x: number; y: number }): ImageDropTarget | null {
+  if (!allImages(paths)) return null;
+  const el = document.elementFromPoint(at.x, at.y);
+  const g = [...groups.values()].find((x) => el && x.el.contains(el)) ?? cur;
+  const tab = tabOf(g);
+  if (!tab || tab.kind !== "text" || tab.large || tab.release_notes || effectiveLang(tab) !== "markdown" || g.view.state.readOnly) return null;
+  const r = g.editorEl.getBoundingClientRect();
+  const inEditor = at.x >= r.left && at.x <= r.right && at.y >= r.top && at.y <= r.bottom;
+  const pos = (inEditor ? g.view.posAtCoords(at) : null) ?? g.view.state.selection.main.head;
+  return { g, tab, pos };
+}
+
+function planImageDrop(tab: TabState, paths: string[]) {
+  const hit = imageDrag!.plans.get(tab.id);
+  if (hit) return hit;
+  const p = Promise.all(paths.map((path) => api.imageImport(tab.id, path, true))).then(
+    (plans) => ({ plans, error: null as string | null }),
+    (e) => ({ plans: null, error: String(e).replace(/^Error: /, "") }),
+  );
+  imageDrag!.plans.set(tab.id, p);
+  return p;
+}
+
+/** Mostra (ou atualiza) o aviso e a barra de onde as imagens cairiam. */
+function paintImageDrop(paths: string[], at: { x: number; y: number }) {
+  const t = imageDropTarget(paths, at);
+  if (!t) {
+    dropCaret.hidden = true;
+    fileDrop.show(paths.length);
+    return;
+  }
+  const line = t.g.view.state.doc.lineAt(t.pos).number;
+  const draw = (r: { plans: ImagePlan[] | null; error: string | null } | null) => {
+    if (!imageDrag) return;
+    const { title, detail } = imageDropText(paths.length, line, r?.plans ?? null, r?.error ?? null);
+    fileDrop.showImage(title, detail);
+  };
+  draw(null);
+  void planImageDrop(t.tab, paths).then((r) => {
+    const now = imageDropTarget(paths, at);
+    if (now?.tab.id === t.tab.id) draw(r);
+  });
+  const c = t.g.view.coordsAtPos(t.pos);
+  if (c) {
+    Object.assign(dropCaret.style, { left: `${c.left - 1}px`, top: `${c.top}px`, height: `${c.bottom - c.top}px` });
+    dropCaret.hidden = false;
+  } else dropCaret.hidden = true;
+}
+
+/** Copia as imagens para a pasta da aba e as escreve no ponto onde caíram (uma transação, um passo no Ctrl+Z). */
+async function dropImages(t: ImageDropTarget, paths: string[]) {
+  const targets: string[] = [];
+  const problems: string[] = [];
+  let reused = 0;
+  for (const path of paths) {
+    try {
+      const saved = await api.imageImport(t.tab.id, path, false);
+      targets.push(saved.target);
+      if (saved.reused) reused++;
+    } catch (e) {
+      problems.push(`${baseName(path)}: ${String(e).replace(/^Error: /, "")}`);
+    }
+  }
+  if (targets.length > 0 && tabOf(t.g)?.id === t.tab.id) {
+    insertImage(t.g.view, targets, { from: Math.min(t.pos, t.g.view.state.doc.length) }, "input.drop");
+  }
+  const parts = [];
+  if (targets.length > 0) parts.push(`${targets.length === 1 ? "Imagem inserida" : `${targets.length} imagens inseridas`}${reused > 0 ? ` (${reused} já existia${reused === 1 ? "" : "m"}: reaproveitada${reused === 1 ? "" : "s"})` : ""}.`);
+  if (problems.length > 0) parts.push(`Não foi possível inserir: ${problems.join("; ")}`);
+  flashDiskInfo(t.tab, parts.join(" "));
+}
+
 void getCurrentWebview().onDragDropEvent((e) => {
   const p = e.payload;
-  if (p.type === "enter") fileDrop.show(p.paths.length);
-  else if (p.type === "drop") {
+  const at = () => {
+    const pos = "position" in p ? p.position : null;
+    const k = window.devicePixelRatio || 1;
+    return pos ? { x: pos.x / k, y: pos.y / k } : { x: -1, y: -1 };
+  };
+  if (p.type === "enter") {
+    imageDrag = allImages(p.paths) ? { paths: p.paths, plans: new Map() } : null;
+    if (imageDrag) paintImageDrop(p.paths, at());
+    else fileDrop.show(p.paths.length);
+  } else if (p.type === "over") {
+    if (imageDrag) paintImageDrop(imageDrag.paths, at());
+  } else if (p.type === "drop") {
+    const target = imageDrag ? imageDropTarget(p.paths, at()) : null;
+    imageDrag = null;
     fileDrop.hide();
+    dropCaret.hidden = true;
     if (p.paths.length > 0) {
       void thisWindow.setFocus();
-      void openPaths(p.paths);
+      if (target) void dropImages(target, p.paths);
+      else void openPaths(p.paths);
     }
-  } else if (p.type === "leave") fileDrop.hide();
+  } else if (p.type === "leave") {
+    imageDrag = null;
+    fileDrop.hide();
+    dropCaret.hidden = true;
+  }
 });
 
 // ---- ciclo de vida ----------------------------------------------------------

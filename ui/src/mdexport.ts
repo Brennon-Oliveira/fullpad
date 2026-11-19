@@ -6,6 +6,7 @@
 import { type MathOutput, loadMath, mathStyles, renderMathSync } from "./latex/render";
 import { MASK, matchMath, maskInlineCode } from "./latex/scan";
 import { isMermaidInfo } from "./mermaid/render";
+import { isRemoteSrc, localSrc, mimeOfSrc, toDataUri } from "./mdimage";
 
 const STYLE = `
 :root { color-scheme: light; }
@@ -22,6 +23,7 @@ table { border-collapse: collapse; }
 th, td { border: 1px solid #d1d9e0; padding: .4em .8em; }
 th { background: #f6f8fa; }
 img { max-width: 100%; }
+.img-missing { color: #59636e; font-style: italic; }
 figure.mermaid { margin: 1em 0; text-align: center; }
 figure.mermaid svg { max-width: 100%; height: auto; }
 figure.math, .math-display { margin: 1em 0; text-align: center; overflow-x: auto; }
@@ -108,12 +110,44 @@ function mathExtension(output: MathOutput) {
 }
 
 /**
+ * De onde vêm as imagens locais (`![](caminho)`) na exportação. Sem isto, o caminho fica como está. Com isto, a
+ * imagem entra como `data:` (o HTML fica autônomo, funciona em qualquer lugar); a que não carrega (ausente, grande
+ * demais, formato recusado) vira o texto alternativo, sem quebrar a exportação.
+ */
+export interface ExportImages {
+  /** A pasta do arquivo da aba (caminhos relativos); `null` numa nota solta. */
+  base: string | null;
+  read(src: string, base: string | null): Promise<ArrayBuffer>;
+}
+
+/** Troca os endereços locais das imagens por `data:` (ou pelo texto alternativo se não der). */
+async function embedImages(tokens: ReturnType<InstanceType<typeof import("marked").Marked>["lexer"]>, md: InstanceType<typeof import("marked").Marked>, images: ExportImages) {
+  const found: { href: string; text: string }[] = [];
+  md.walkTokens(tokens, (t) => {
+    if (t.type !== "image") return;
+    const src = localSrc((t as { href?: string }).href ?? "");
+    if (src && !isRemoteSrc(src)) found.push(t as never);
+  });
+  const done = new Map<string, string | null>();
+  for (const t of found) {
+    const href = t.href;
+    if (!done.has(href)) {
+      const src = localSrc(href);
+      done.set(href, await images.read(src, images.base).then((b) => toDataUri(b, mimeOfSrc(src))).catch(() => null));
+    }
+    const uri = done.get(href);
+    if (uri) t.href = uri;
+    else Object.assign(t, { type: "html", text: `<span class="img-missing">${escapeHtml(t.text || "imagem")}</span>` });
+  }
+}
+
+/**
  * Só o corpo: o markdown convertido em HTML. Blocos ```mermaid saem como diagrama (SVG embutido, tema
  * claro, que é o do papel e do HTML autônomo); se um deles tem erro, fica como bloco de código.
  * `$...$` e `$$...$$` saem como equação: `htmlAndMathml` (precisa do CSS do KaTeX, ver `markdownToHtml`)
  * ou só `mathml` (para colar em outro programa, sem CSS nem fontes). Equação com erro fica como texto.
  */
-export async function markdownToBody(text: string, mathOutput: MathOutput = "htmlAndMathml"): Promise<string> {
+export async function markdownToBody(text: string, mathOutput: MathOutput = "htmlAndMathml", images?: ExportImages): Promise<string> {
   const { Marked } = await import("marked");
   const md = new Marked({ gfm: true });
   if (text.includes("$")) {
@@ -121,6 +155,7 @@ export async function markdownToBody(text: string, mathOutput: MathOutput = "htm
     md.use(mathExtension(mathOutput));
   }
   const tokens = md.lexer(text);
+  if (images) await embedImages(tokens, md, images);
   const diagrams: { lang?: string; text: string; type: string; raw: string }[] = [];
   md.walkTokens(tokens, (t) => {
     if (t.type === "code" && isMermaidInfo(String((t as { lang?: string }).lang ?? ""))) diagrams.push(t as never);
@@ -137,8 +172,8 @@ export async function markdownToBody(text: string, mathOutput: MathOutput = "htm
 }
 
 /** Documento HTML completo e autônomo (estilo embutido, sem dependências externas). */
-export async function markdownToHtml(text: string, title: string, forPrint = false): Promise<string> {
-  const content = await markdownToBody(text);
+export async function markdownToHtml(text: string, title: string, forPrint = false, images?: ExportImages): Promise<string> {
+  const content = await markdownToBody(text, "htmlAndMathml", images);
   const body = forPrint ? printLayout(content) : content;
   const math = content.includes('class="katex') ? await mathStyles() : ""; // CSS e fontes do KaTeX vão junto
   return `<!doctype html>
@@ -157,8 +192,8 @@ ${body}
 }
 
 /** Copia o markdown renderizado: quem cola num e-mail ou documento recebe o texto formatado. */
-export async function copyAsHtml(text: string): Promise<void> {
-  const html = await markdownToBody(text, "mathml"); // sem CSS nem fontes: quem cola não os tem
+export async function copyAsHtml(text: string, images?: ExportImages): Promise<void> {
+  const html = await markdownToBody(text, "mathml", images); // sem CSS nem fontes: quem cola não os tem
   const item = new ClipboardItem({
     "text/html": new Blob([html], { type: "text/html" }),
     "text/plain": new Blob([text], { type: "text/plain" }),
@@ -167,8 +202,8 @@ export async function copyAsHtml(text: string): Promise<void> {
 }
 
 /** Abre a impressão do sistema com o documento renderizado (de lá dá para "Salvar como PDF"). */
-export async function printAsPdf(text: string, title: string): Promise<void> {
-  const html = await markdownToHtml(text, title, true);
+export async function printAsPdf(text: string, title: string, images?: ExportImages): Promise<void> {
+  const html = await markdownToHtml(text, title, true, images);
   const frame = document.createElement("iframe");
   frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
   document.body.appendChild(frame);

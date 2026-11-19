@@ -93,11 +93,14 @@ async function boot() {
     onThemeChange(() => !first && panel.update(last, rev)); // o tema mudou: desenha de novo
   } else {
     const { createMarkdownPane } = await import("./mdpreview");
+    let imgBase: string | null = null; // a pasta do arquivo da aba dona, para as imagens relativas
     const pane = createMarkdownPane(mdEl, {
+      base: () => imgBase,
       onHover: (span) => void emitTo(owner, `pv-hover:${tab}`, { spans: span ? [span] : null, rev }),
     });
     mdEl.classList.add("on");
     apply = (m) => {
+      imgBase = m.base ?? null;
       pane.show(m.text);
       pane.setCursor(m.cursor);
     };

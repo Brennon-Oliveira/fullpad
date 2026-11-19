@@ -543,6 +543,12 @@ body.ghost-only > :not(.ghost-tab) { display: none; }
 .filedrop-box { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 36px; background: var(--pop); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
 .filedrop-icon { font-size: 34px; line-height: 1; color: var(--accent); }
 .filedrop-text { font-size: 16px; font-weight: 600; }
+.filedrop-sub { font-size: 13px; color: var(--muted); max-width: 60ch; text-align: center; word-break: break-all; }
+/* soltar imagem no markdown: o editor fica visível; o aviso vai para baixo e a barra mostra onde cai */
+.filedrop.image { background: none; align-items: flex-end; padding-bottom: 44px; }
+.filedrop.image::before, .filedrop.image .filedrop-icon { display: none; }
+.imgdrop-caret { position: fixed; z-index: 301; width: 3px; background: var(--accent); border-radius: 2px; pointer-events: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.imgdrop-caret[hidden] { display: none; }
 .rd-toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 6px 14px; background: var(--pop); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.35); pointer-events: none; z-index: 5; }
 
 /* ---- leitor de EPUB ---- */
@@ -697,6 +703,11 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .cm-md-math.loading { color: var(--muted); font-family: var(--mono); font-size: 0.9em; }
 .cm-md-math.err { color: #d9534f; font-family: var(--mono); font-size: 0.9em; text-align: left; background: color-mix(in srgb, #d33 12%, transparent); border-radius: 3px; padding: 0 3px; }
 .cm-md-math-block.err { display: block; padding: 8px 12px; white-space: pre-wrap; }
+/* imagens do markdown (`![](caminho)`): widget em linha; só padding, nunca margem vertical */
+.cm-md-img { display: inline-block; max-width: 100%; vertical-align: bottom; padding: 2px 0; cursor: pointer; }
+.cm-md-img img { display: block; max-width: 100%; max-height: 480px; object-fit: contain; border-radius: 4px; }
+.cm-md-img.loading { color: var(--muted); font-size: 0.9em; }
+.cm-md-img.err { color: #d9534f; font-size: 0.9em; background: color-mix(in srgb, #d33 12%, transparent); border-radius: 3px; padding: 0 3px; }
 /* tabelas do markdown no live preview: rolagem horizontal dentro do bloco; só padding vertical */
 .cm-md-table-wrap { position: relative; padding: 14px 4px 4px 14px; overflow-x: auto; }
 .cm-md-table-inner { position: relative; display: inline-block; padding: 0 26px 26px 0; max-width: none; }
