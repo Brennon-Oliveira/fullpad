@@ -296,6 +296,10 @@ describe("hover da coluna", () => {
     const g = setup();
     fire(g.querySelector('[data-r$="b_id"]')!, "mouseenter");
     expect(g.querySelectorAll(".dbml-edge.hl")).toHaveLength(1);
+    // as duas pontas: as duas tabelas em foco e o resto esmaece; as duas colunas acesas
+    expect([...g.querySelectorAll(".dbml-table.foc")].map((e) => e.getAttribute("data-t")).sort()).toEqual(["a", "b"]);
+    expect(g.classList.contains("tblhover")).toBe(true);
+    expect(g.querySelectorAll(".dbml-row.hl")).toHaveLength(2);
     fire(g.querySelector('[data-r$="nome"]')!, "mouseenter");
     expect(g.querySelectorAll(".dbml-edge.hl")).toHaveLength(0);
   });

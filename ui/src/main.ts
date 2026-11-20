@@ -26,6 +26,7 @@ interface DiagramPanel {
   flush?(): void;
   /** Só o diagrama DBML: desenha de novo o texto de agora (os arquivos incluídos mudaram). */
   refresh?(): void;
+  showFile?(file: string): boolean;
   /** Só o diagrama DBML: o que ver (tudo, um arquivo incluído ou um grupo) e o nome do arquivo da aba; chamar antes de `show`. */
   setScope?(scope: DiagramScope, own: string): void;
   /** Só o diagrama DBML: liga/desliga a edição pelo diagrama (desligado, só se vê). */
@@ -1393,6 +1394,9 @@ async function openIncludeFrom(view: CMEditorView, written: string) {
     await message("Salve o arquivo para abrir os incluídos: os caminhos do !include são relativos a ele.", { title: "Abrir incluído", kind: "info" });
     return;
   }
+  // com o diagrama à vista, o Ctrl+clique só troca o que se vê ("Só x.dbmlx"), sem abrir outra aba
+  const rel = written.replace(/\\/g, "/").replace(/^(\.\/)+/, "");
+  if (g && g.diagramKind === "dbml" && diagramWanted(tab) && g.diagram?.showFile?.(rel)) return;
   let target: string;
   try {
     target = await api.dbmlIncludePath(written, dirOf(tab.path)!);
@@ -1408,6 +1412,25 @@ async function openIncludeFrom(view: CMEditorView, written: string) {
   if (child) includeParent.set(child.id, tab.id);
   const cg = child && groupShowing(child.id);
   if (cg) withGroup(cg, () => syncDiagram());
+}
+
+/** Abre um arquivo incluído como dbmlx à parte (a raiz dele é esquecida: compila sozinho, sem o contexto dos outros). */
+async function openIncludeSeparate(g: Group, file: string) {
+  const tab = tabOf(g);
+  const dir = tab && dirOf(tab.path);
+  if (!tab || !tab.path || !dir) return;
+  const sep = tab.path.includes("\\") && !tab.path.includes("/") ? "\\" : "/";
+  const abs = `${dir}${sep}${file.split("/").join(sep)}`;
+  writeString(DBML_ROOTS_KEY, JSON.stringify(withRoot(loadRoots(), abs, abs)));
+  await openPaths([abs]);
+  const t = session.tabs.find((x) => x.path === abs);
+  if (t) {
+    dbmlProjects.delete(t.id);
+    dbmlScopes.delete(t.id);
+    includeParent.delete(t.id);
+    const tg = groupShowing(t.id);
+    if (tg) withGroup(tg, () => syncDiagram());
+  }
 }
 
 /** A faixa "← voltar" de um módulo aberto a partir de outro arquivo. */
@@ -1542,6 +1565,8 @@ function syncDiagram(textChanged = false) {
             onLayoutEdit: (edit) => g.diagramTab && void saveLayoutEdit(g.diagramTab, edit),
             // escolheu o que ver (tudo, um arquivo ou um grupo): vale para esta aba
             onScope: (s) => g.diagramTab && dbmlScopes.set(g.diagramTab, s),
+            // "Ver arquivo separado": abre o incluído como dbmlx à parte, esquecendo a raiz dele
+            onOpenSeparate: (file) => void openIncludeSeparate(g, file),
             onLayoutLive: (edit) => g.diagramTab && previewDragInJson(g.diagramTab, edit),
             // duplo clique no nome (tabela, coluna, enum, valor, grupo) → renomear
             onRename: (decl, at, rev) => void renameSymbolAt(g, decl, "decl", at, rev),

@@ -351,22 +351,29 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
     }
     const on = new Set(byTable);
     const keys = new Set([...byTable].flatMap(ends));
-    const own = rowHover ? ownerOf(rowHover) : undefined;
+    // coluna sob o mouse: a tabela dela e a da outra ponta de cada ligação dela ficam em foco, o resto esmaece
+    const rowTables = new Set<SVGElement>();
     if (rowHover) {
       keys.add(rowHover);
+      const own = ownerOf(rowHover);
+      if (own) rowTables.add(own);
       for (const e of edgeEls) if (ends(e).includes(rowHover)) {
         on.add(e);
-        for (const k of ends(e)) keys.add(k);
+        for (const k of ends(e)) {
+          keys.add(k);
+          const o = ownerOf(k);
+          if (o) rowTables.add(o);
+        }
       }
     }
     mark("hl", keys, on);
     for (const [id, t] of tableEl) {
-      t.classList.toggle("foc", focus.has(t) || t === own);
+      t.classList.toggle("foc", focus.has(t) || rowTables.has(t));
       t.classList.toggle("rel", related.has(t));
       t.classList.toggle("pinned", pins.has(id));
     }
     // uma tabela sem relação, só com o mouse em cima, não esmaece nada; fixada, sempre
-    into.classList.toggle("tblhover", focus.size > 0 && (pins.size > 0 || related.size > 0));
+    into.classList.toggle("tblhover", (focus.size > 0 && (pins.size > 0 || related.size > 0)) || rowTables.size > 1);
   };
   const clearHover = () => {
     hovered = null;
