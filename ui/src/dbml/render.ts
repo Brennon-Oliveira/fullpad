@@ -144,11 +144,16 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
     if (c.span) row.setAttribute("data-col", String(c.span.from)); // botão direito: menu da coluna
     if (c.span) row.setAttribute("data-pick", String(c.span.from));
     g.append(row);
-    const colName = el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy }, c.name);
+    const rk = colKey(t.id, c.name); // o texto e o ícone da linha ficam por cima do retângulo: `data-r` os liga a ela (hover da coluna inteira)
+    const colName = el("text", { class: c.pk ? "dbml-col dbml-pk" : "dbml-col", x: 10, y: cy, "data-r": rk }, c.name);
     if (c.span) colName.setAttribute("data-off", String(c.span.from));
     g.append(colName);
-    g.append(el("text", { class: "dbml-type", x: w - 10, y: cy, "text-anchor": "end" }, c.type));
-    if (c.note) g.append(noteIcon("column", c.span?.from, c.note, w - 10 - c.type.length * TYPE_CHAR_W - 20, HEADER_H + i * ROW_H + (ROW_H - 13) / 2));
+    g.append(el("text", { class: "dbml-type", x: w - 10, y: cy, "text-anchor": "end", "data-r": rk }, c.type));
+    if (c.note) {
+      const ni = noteIcon("column", c.span?.from, c.note, w - 10 - c.type.length * TYPE_CHAR_W - 20, HEADER_H + i * ROW_H + (ROW_H - 13) / 2);
+      ni.setAttribute("data-r", rk);
+      g.append(ni);
+    }
   });
   return g;
 }
@@ -326,6 +331,8 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
    * se liga a uma delas (borda leve); o resto esmaece. Só as ligações das tabelas em foco acendem.
    */
   let hovered: SVGElement | null = null;
+  /** Coluna sob o mouse (em qualquer ponto da linha): só ela e as ligações dela acendem; a tabela dela fica em foco, sem esmaecer nada. */
+  let rowHover: string | null = null;
   const applyFocus = () => {
     const focus = new Set<SVGElement>();
     for (const id of pins) {
@@ -333,18 +340,28 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
       if (e) focus.add(e);
     }
     if (hovered) focus.add(hovered);
-    const on = new Set(edgeEls.filter((e) => ends(e).some((k) => {
+    const byTable = new Set(edgeEls.filter((e) => ends(e).some((k) => {
       const o = ownerOf(k);
       return !!o && focus.has(o);
     })));
     const related = new Set<SVGElement>();
-    for (const e of on) for (const k of ends(e)) {
+    for (const e of byTable) for (const k of ends(e)) {
       const o = ownerOf(k);
       if (o && !focus.has(o)) related.add(o);
     }
-    mark("hl", new Set([...on].flatMap(ends)), on);
+    const on = new Set(byTable);
+    const keys = new Set([...byTable].flatMap(ends));
+    const own = rowHover ? ownerOf(rowHover) : undefined;
+    if (rowHover) {
+      keys.add(rowHover);
+      for (const e of edgeEls) if (ends(e).includes(rowHover)) {
+        on.add(e);
+        for (const k of ends(e)) keys.add(k);
+      }
+    }
+    mark("hl", keys, on);
     for (const [id, t] of tableEl) {
-      t.classList.toggle("foc", focus.has(t));
+      t.classList.toggle("foc", focus.has(t) || t === own);
       t.classList.toggle("rel", related.has(t));
       t.classList.toggle("pinned", pins.has(id));
     }
@@ -353,17 +370,28 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
   };
   const clearHover = () => {
     hovered = null;
+    rowHover = null;
     applyFocus();
     hover(null);
   };
   for (const [k, row] of rowByKey) {
-    row.addEventListener("mouseenter", () => {
-      const on = new Set(edgeEls.filter((e) => ends(e).includes(k)));
-      mark("hl", new Set([k, ...[...on].flatMap(ends)]), on);
-      const sp = spanOfKey.get(k);
-      hover(sp ? [sp] : null);
-    });
-    row.addEventListener("mouseleave", clearHover);
+    const pieces: Element[] = [row, ...[...(row.parentElement?.querySelectorAll("[data-r]") ?? [])].filter((x) => x.getAttribute("data-r") === k)];
+    for (const piece of pieces) {
+      piece.addEventListener("mouseenter", () => {
+        if (rowHover === k) return;
+        rowHover = k;
+        applyFocus();
+        const sp = spanOfKey.get(k);
+        hover(sp ? [sp] : null);
+      });
+      piece.addEventListener("mouseleave", (ev) => {
+        const to = (ev as MouseEvent).relatedTarget as Element | null;
+        if (to && pieces.some((x) => x.contains(to))) return; // passou do retângulo para o texto da mesma linha
+        rowHover = null;
+        applyFocus();
+        hover(null);
+      });
+    }
   }
   for (const { r, g } of edges) {
     g.addEventListener("mouseenter", () => {

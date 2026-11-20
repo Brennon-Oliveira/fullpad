@@ -267,3 +267,36 @@ describe("alfinete nos enums e grupo selecionado", () => {
     expect(g.classList.contains("focusing")).toBe(false);
   });
 });
+
+describe("hover da coluna", () => {
+  const SRC = "Table b { id int [pk] }\nTable a { id int [pk]\n b_id int [not null]\n nome varchar }\nRef: a.b_id > b.id\n";
+  const setup = () => {
+    const d = parseDbml(interpret, SRC).diagram!;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g);
+    return g;
+  };
+  const fire = (n: Element, type: string, related: Element | null = null) =>
+    n.dispatchEvent(new MouseEvent(type, { relatedTarget: related }));
+  it("passar do retângulo para o texto da coluna mantém o hover e põe a tabela em foco", () => {
+    const g = setup();
+    const row = g.querySelector<SVGElement>('.dbml-row[data-k$="nome"]')!;
+    const txt = g.querySelector<SVGElement>('[data-r$="nome"]')!;
+    fire(row, "mouseenter");
+    fire(row, "mouseleave", txt);
+    fire(txt, "mouseenter");
+    expect(row.classList.contains("hl")).toBe(true);
+    expect(row.parentElement!.classList.contains("foc")).toBe(true);
+    expect(g.querySelector(".dbml-edge.hl")).toBeNull();
+    expect(g.classList.contains("tblhover")).toBe(false);
+    fire(txt, "mouseleave", null);
+    expect(g.querySelectorAll(".hl, .foc")).toHaveLength(0);
+  });
+  it("coluna com relação acende só a ligação dela", () => {
+    const g = setup();
+    fire(g.querySelector('[data-r$="b_id"]')!, "mouseenter");
+    expect(g.querySelectorAll(".dbml-edge.hl")).toHaveLength(1);
+    fire(g.querySelector('[data-r$="nome"]')!, "mouseenter");
+    expect(g.querySelectorAll(".dbml-edge.hl")).toHaveLength(0);
+  });
+});
