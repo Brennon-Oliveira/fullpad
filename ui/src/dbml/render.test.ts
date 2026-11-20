@@ -162,6 +162,16 @@ describe("mouse no cabeçalho da tabela", () => {
     expect(g.querySelectorAll(".rel, .hl")).toHaveLength(0);
   });
 
+  it("vale também para tabela sem trecho no texto (vinda de !include)", () => {
+    const d = parseDbml(interpret, SRC).diagram!;
+    for (const t of d.tables) delete t.span;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g);
+    g.querySelector('.dbml-table[data-t="posts"] .dbml-head')!.dispatchEvent(new MouseEvent("mouseenter"));
+    expect(g.classList.contains("tblhover")).toBe(true);
+    expect([...g.querySelectorAll(".dbml-table.rel")].map((e) => e.getAttribute("data-t")).sort()).toEqual(["posts", "users"]);
+  });
+
   it("tabela sem relação não esmaece o diagrama", () => {
     const { g, head, fire } = setup();
     fire(head("livre"), "mouseenter");

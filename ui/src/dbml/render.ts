@@ -335,14 +335,16 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
   for (const en of entries.filter((x) => x.kind === "table" || x.kind === "enum" || x.kind === "group" || x.kind === "value")) {
     const target = en.kind === "table" || en.kind === "enum" ? en.el.querySelectorAll(".dbml-head, .dbml-title") : [en.el];
     for (const t of target) {
-      t.addEventListener("mouseenter", () => {
-        if (en.kind === "table" || en.kind === "enum") markRelated(en.el);
-        hover([en.kind === "value" ? en.span : head(en.span)]);
-      });
-      t.addEventListener("mouseleave", () => {
-        if (en.kind === "table" || en.kind === "enum") markRelated(null);
-        hover(null);
-      });
+      t.addEventListener("mouseenter", () => hover([en.kind === "value" ? en.span : head(en.span)]));
+      t.addEventListener("mouseleave", () => hover(null));
+    }
+  }
+
+  // o destaque das relações vale para toda tabela e enum, também as de arquivo incluído (que não têm `span` no texto da aba)
+  for (const el of tableEl.values()) {
+    for (const t of el.querySelectorAll(".dbml-head, .dbml-title")) {
+      t.addEventListener("mouseenter", () => markRelated(el));
+      t.addEventListener("mouseleave", () => markRelated(null));
     }
   }
 
