@@ -139,3 +139,33 @@ describe("ligação com o código", () => {
     expect(hovered.at(-1)).toBeNull();
   });
 });
+
+describe("mouse no cabeçalho da tabela", () => {
+  const SRC = "Table users { id int [pk] }\nTable posts { id int [pk]\n uid int [ref: > users.id] }\nTable tags { id int [pk] }\nTable livre { id int }\n";
+  const setup = () => {
+    const d = parseDbml(interpret, SRC).diagram!;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g);
+    const head = (id: string) => g.querySelector(`.dbml-table[data-t="${id}"] .dbml-head`)!;
+    const fire = (el: Element, type: string) => el.dispatchEvent(new MouseEvent(type));
+    return { g, head, fire };
+  };
+
+  it("realça as ligações e as tabelas relacionadas e esmaece o resto; ao sair volta ao normal", () => {
+    const { g, head, fire } = setup();
+    fire(head("posts"), "mouseenter");
+    expect(g.classList.contains("tblhover")).toBe(true);
+    expect([...g.querySelectorAll(".dbml-table.rel")].map((e) => e.getAttribute("data-t")).sort()).toEqual(["posts", "users"]);
+    expect(g.querySelectorAll(".dbml-edge.hl")).toHaveLength(1);
+    fire(head("posts"), "mouseleave");
+    expect(g.classList.contains("tblhover")).toBe(false);
+    expect(g.querySelectorAll(".rel, .hl")).toHaveLength(0);
+  });
+
+  it("tabela sem relação não esmaece o diagrama", () => {
+    const { g, head, fire } = setup();
+    fire(head("livre"), "mouseenter");
+    expect(g.classList.contains("tblhover")).toBe(false);
+    expect(g.classList.contains("hovering")).toBe(false);
+  });
+});

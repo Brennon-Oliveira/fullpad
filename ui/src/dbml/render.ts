@@ -231,7 +231,7 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
     return b ? [{ grp, b, g: groupFrame(grp, b) }] : [];
   });
   into.replaceChildren(...groups.map((x) => x.g), ...links, ...edges.map((e) => e.g), ...tables, ...enums); // molduras no fundo, arestas sob as tabelas
-  into.classList.remove("hovering", "focusing");
+  into.classList.remove("hovering", "focusing", "tblhover");
 
   // ---- onde cada elemento está no texto ----
   const entries: Entry[] = [];
@@ -295,8 +295,20 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
 
   // ---- mouse → código ----
   const hover = (spans: Span[] | null) => hooks.onHover?.(spans);
+  /** Mouse no cabeçalho de uma tabela (ou enum): realça as ligações dela e as tabelas do outro lado, esmaece o resto. */
+  const markRelated = (el: SVGElement | null) => {
+    const on = el ? new Set(edgeEls.filter((e) => ends(e).some((k) => ownerOf(k) === el))) : new Set<SVGElement>();
+    const related = new Set<SVGElement>(el ? [el] : []);
+    for (const e of on) for (const k of ends(e)) {
+      const o = ownerOf(k);
+      if (o) related.add(o);
+    }
+    mark("hl", new Set([...on].flatMap(ends)), on);
+    for (const t of tableEl.values()) t.classList.toggle("rel", related.has(t));
+    into.classList.toggle("tblhover", related.size > 1);
+  };
   const clearHover = () => {
-    mark("hl", new Set(), new Set());
+    markRelated(null);
     hover(null);
   };
   for (const [k, row] of rowByKey) {
@@ -323,8 +335,14 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
   for (const en of entries.filter((x) => x.kind === "table" || x.kind === "enum" || x.kind === "group" || x.kind === "value")) {
     const target = en.kind === "table" || en.kind === "enum" ? en.el.querySelectorAll(".dbml-head, .dbml-title") : [en.el];
     for (const t of target) {
-      t.addEventListener("mouseenter", () => hover([en.kind === "value" ? en.span : head(en.span)]));
-      t.addEventListener("mouseleave", () => hover(null));
+      t.addEventListener("mouseenter", () => {
+        if (en.kind === "table" || en.kind === "enum") markRelated(en.el);
+        hover([en.kind === "value" ? en.span : head(en.span)]);
+      });
+      t.addEventListener("mouseleave", () => {
+        if (en.kind === "table" || en.kind === "enum") markRelated(null);
+        hover(null);
+      });
     }
   }
 
