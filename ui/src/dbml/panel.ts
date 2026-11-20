@@ -225,6 +225,14 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     },
     true,
   );
+  // alfinete no cabeçalho: fixa a tabela em destaque (vale também com "Editar" desmarcado)
+  const pins = new Set<string>();
+  svg.addEventListener("click", (e) => {
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 3) return;
+    const pin = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".dbml-pin");
+    const id = pin?.closest(".dbml-table")?.getAttribute("data-t");
+    if (id) rendered?.togglePin(id);
+  });
   svg.addEventListener("click", (e) => {
     if (!editable || !hooks.onNote || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 3) return;
     const icon = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".dbml-noteicon");
@@ -263,7 +271,8 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     (e) => {
       if (e.button !== 0) return;
       const pick = (e.target as Element).closest?.("[data-pick]");
-      if (pick) hooks.onPick?.(Number(pick.getAttribute("data-pick")), renderedRev);
+      const onPin = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".dbml-pin");
+      if (pick && !onPin) hooks.onPick?.(Number(pick.getAttribute("data-pick")), renderedRev);
     },
     true,
   );
@@ -280,7 +289,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
 
   const draw = () => {
     if (!diagram || !layout) return;
-    rendered = renderDiagram(diagram, layout, g, { onHover: (spans) => hooks.onHover?.(spans, renderedRev), onNoteHover: showNoteTip });
+    rendered = renderDiagram(diagram, layout, g, { pins, onHover: (spans) => hooks.onHover?.(spans, renderedRev), onNoteHover: showNoteTip });
     applyFocus(false);
   };
   // ---- arrastar: tabela, grupo (move as tabelas dele) e moldura do grupo (aumenta) ----

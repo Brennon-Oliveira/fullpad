@@ -223,8 +223,17 @@ button { font: inherit; color: inherit; }
 .dbml-group.fc rect { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: none; fill: color-mix(in srgb, var(--accent) 16%, transparent); }
 .focusing:not(.hovering) .dbml-edge:not(.fc) { opacity: .2; }
 .focusing:not(.hovering) .dbml-table:not(.kp), .focusing:not(.hovering) .dbml-enum:not(.kp) { opacity: .45; }
-.tblhover .dbml-table:not(.rel), .tblhover .dbml-enum:not(.rel) { opacity: .25; }
+/* destaque por tabela: em foco (mouse ou fixada) > relacionada > resto esmaecido */
+.tblhover .dbml-table:not(.rel):not(.foc), .tblhover .dbml-enum:not(.rel):not(.foc) { opacity: .25; }
+.dbml-table.foc .dbml-box { stroke: var(--accent); stroke-width: 2.6; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 60%, transparent)); }
+.tblhover .dbml-table.rel .dbml-box, .tblhover .dbml-enum.rel .dbml-box { stroke: color-mix(in srgb, var(--accent) 55%, var(--border)); stroke-width: 1.6; }
 .tblhover .dbml-edge.hl path:not(.dbml-hit) { stroke-width: 2.4; }
+.dbml-pin { color: var(--muted); cursor: pointer; opacity: .35; }
+.dbml-pin path { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.dbml-pin-hit { fill: transparent; stroke: none; }
+.dbml-table:hover .dbml-pin, .dbml-pin:hover { opacity: .9; }
+.dbml-table.pinned .dbml-pin { opacity: 1; color: var(--accent); }
+.dbml-table.pinned .dbml-pin path { fill: currentColor; }
 .cm-hint-line { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
 .dbml-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
 .dbml-error { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 12px; font: 12px var(--mono); background: color-mix(in srgb, #d33 22%, var(--bar)); border-top: 1px solid #d33; }

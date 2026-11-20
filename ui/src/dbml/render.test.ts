@@ -155,11 +155,13 @@ describe("mouse no cabeçalho da tabela", () => {
     const { g, head, fire } = setup();
     fire(head("posts"), "mouseenter");
     expect(g.classList.contains("tblhover")).toBe(true);
-    expect([...g.querySelectorAll(".dbml-table.rel")].map((e) => e.getAttribute("data-t")).sort()).toEqual(["posts", "users"]);
+    const ids = (sel: string) => [...g.querySelectorAll(`.dbml-table${sel}`)].map((e) => e.getAttribute("data-t"));
+    expect(ids(".foc")).toEqual(["posts"]); // a do mouse: destaque forte
+    expect(ids(".rel")).toEqual(["users"]); // a que se liga a ela: destaque leve
     expect(g.querySelectorAll(".dbml-edge.hl")).toHaveLength(1);
     fire(head("posts"), "mouseleave");
     expect(g.classList.contains("tblhover")).toBe(false);
-    expect(g.querySelectorAll(".rel, .hl")).toHaveLength(0);
+    expect(g.querySelectorAll(".foc, .rel, .hl")).toHaveLength(0);
   });
 
   it("vale também para tabela sem trecho no texto (vinda de !include)", () => {
@@ -169,7 +171,7 @@ describe("mouse no cabeçalho da tabela", () => {
     renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g);
     g.querySelector('.dbml-table[data-t="posts"] .dbml-head')!.dispatchEvent(new MouseEvent("mouseenter"));
     expect(g.classList.contains("tblhover")).toBe(true);
-    expect([...g.querySelectorAll(".dbml-table.rel")].map((e) => e.getAttribute("data-t")).sort()).toEqual(["posts", "users"]);
+    expect([...g.querySelectorAll(".dbml-table.foc, .dbml-table.rel")].map((e) => e.getAttribute("data-t")).sort()).toEqual(["posts", "users"]);
   });
 
   it("tabela sem relação não esmaece o diagrama", () => {
@@ -177,5 +179,50 @@ describe("mouse no cabeçalho da tabela", () => {
     fire(head("livre"), "mouseenter");
     expect(g.classList.contains("tblhover")).toBe(false);
     expect(g.classList.contains("hovering")).toBe(false);
+  });
+});
+
+describe("tabelas fixadas", () => {
+  const SRC = "Table users { id int [pk] }\nTable posts { id int [pk]\n uid int [ref: > users.id] }\nTable tags { id int [pk]\n pid int [ref: > posts.id] }\nTable livre { id int }\n";
+  const draw = (pins: Set<string>, g = document.createElementNS("http://www.w3.org/2000/svg", "g")) => {
+    const d = parseDbml(interpret, SRC).diagram!;
+    const r = renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g, { pins });
+    const ids = (sel: string) => [...g.querySelectorAll(`.dbml-table${sel}`)].map((e) => e.getAttribute("data-t")).sort();
+    const head = (id: string) => g.querySelector(`.dbml-table[data-t="${id}"] .dbml-head`)!;
+    return { g, r, ids, head };
+  };
+
+  it("fixar mantém a tabela e as ligadas a ela em destaque mesmo com o mouse em outra", () => {
+    const { g, r, ids, head } = draw(new Set());
+    r.togglePin("users");
+    expect(g.classList.contains("tblhover")).toBe(true);
+    expect(ids(".foc")).toEqual(["users"]);
+    expect(ids(".rel")).toEqual(["posts"]);
+    head("tags").dispatchEvent(new MouseEvent("mouseenter")); // outra tabela ganha destaque forte, a fixada continua
+    expect(ids(".foc")).toEqual(["tags", "users"]);
+    expect(ids(".rel")).toEqual(["posts"]);
+    head("tags").dispatchEvent(new MouseEvent("mouseleave"));
+    expect(ids(".foc")).toEqual(["users"]); // sair do mouse não solta a fixada
+    expect(ids(".pinned")).toEqual(["users"]);
+  });
+
+  it("soltar volta ao normal e a fixação sobrevive a redesenhar", () => {
+    const pins = new Set<string>();
+    const a = draw(pins);
+    a.r.togglePin("posts");
+    const b = draw(pins, a.g); // o painel redesenha (arrasto, texto novo) com o mesmo conjunto
+    expect(b.ids(".foc")).toEqual(["posts"]);
+    expect(b.ids(".rel")).toEqual(["tags", "users"]);
+    b.r.togglePin("posts");
+    expect(b.g.classList.contains("tblhover")).toBe(false);
+    expect(b.g.querySelectorAll(".foc, .rel, .pinned")).toHaveLength(0);
+  });
+
+  it("fixar uma tabela sem relação esmaece as outras; id que sumiu do diagrama sai das fixadas", () => {
+    const pins = new Set(["livre", "fantasma"]);
+    const { g, ids } = draw(pins);
+    expect(g.classList.contains("tblhover")).toBe(true);
+    expect(ids(".foc")).toEqual(["livre"]);
+    expect([...pins]).toEqual(["livre"]);
   });
 });

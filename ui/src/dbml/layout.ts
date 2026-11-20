@@ -4,6 +4,7 @@ export const HEADER_H = 30;
 export const ROW_H = 22;
 const CHAR_W = 7.4;
 const PAD_X = 24;
+const PIN_W = 16; // espaço do alfinete antes do título da tabela (igual a `PIN_W` de render.ts)
 const MIN_W = 170;
 const GROUP_PAD = 12;
 const GROUP_LABEL_H = 14;
@@ -111,9 +112,10 @@ interface GraphLike {
 }
 
 export function tableSize(t: Diagram["tables"][number]): { w: number; h: number } {
-  let chars = t.name.length + (t.schema ? t.schema.length + 1 : 0) + (t.note ? 3 : 0) + (t.external ? 9 : 0); // o ícone da nota e a marca de externos ocupam o fim do cabeçalho
-  for (const c of t.columns) chars = Math.max(chars, c.name.length + c.type.length + 4 + (c.note ? 3 : 0));
-  return { w: Math.max(MIN_W, Math.ceil(chars * CHAR_W) + PAD_X), h: HEADER_H + Math.max(1, t.columns.length) * ROW_H };
+  const title = t.name.length + (t.schema ? t.schema.length + 1 : 0) + (t.note ? 3 : 0) + (t.external ? 9 : 0); // o ícone da nota e a marca de externos ocupam o fim do cabeçalho
+  let w = title * CHAR_W + PIN_W; // o alfinete fica antes do título
+  for (const c of t.columns) w = Math.max(w, (c.name.length + c.type.length + 4 + (c.note ? 3 : 0)) * CHAR_W);
+  return { w: Math.max(MIN_W, Math.ceil(w) + PAD_X), h: HEADER_H + Math.max(1, t.columns.length) * ROW_H };
 }
 
 export function enumSize(e: Diagram["enums"][number]): { w: number; h: number } {

@@ -105,6 +105,18 @@ function edge(ref: DRef, byId: Map<string, DTable>, layout: Layout): SVGGElement
   return g;
 }
 
+/** Alfinete à esquerda do título: fixar a tabela (e as que se ligam a ela) em destaque. O clique é tratado pelo painel (`.dbml-pin`). */
+function pinIcon(ink: string | null): SVGGElement {
+  const g = el("g", { class: "dbml-pin", transform: "translate(5 8) scale(.58)" });
+  g.append(
+    el("rect", { class: "dbml-pin-hit", x: -8, y: -12, width: 40, height: 44 }),
+    el("path", { d: "M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" }),
+  );
+  if (ink) g.setAttribute("style", `color:${ink}`);
+  g.append(el("title", {}, "Fixar em destaque"));
+  return g;
+}
+
 function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGElement {
   const g = el("g", { class: "dbml-table", "data-t": t.id, transform: `translate(${x} ${y})` });
   if (t.span) g.setAttribute("data-pick", String(t.span.from)); // clique: leva o código até aqui
@@ -113,10 +125,11 @@ function tableNode(t: DTable, x: number, y: number, w: number, h: number): SVGGE
   const ink = t.color ? contrastOn(t.color) : null;
   if (t.color && ink) head.setAttribute("style", `fill:${t.color}`);
   g.append(head);
-  const title = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, t.schema ? `${t.schema}.${t.name}` : t.name);
+  const title = el("text", { class: "dbml-title", x: 10 + PIN_W, y: HEADER_H / 2 + 5 }, t.schema ? `${t.schema}.${t.name}` : t.name);
   if (t.span) title.setAttribute("data-off", String(t.span.from)); // duplo clique: renomear (onde a declaração começa)
   if (ink) title.setAttribute("style", `fill:${ink}`);
   g.append(title);
+  g.append(pinIcon(ink));
   if (t.note) g.append(noteIcon("table", t.span?.from, t.note, w - 24, (HEADER_H - 13) / 2));
   if (t.external) {
     // há relações com tabelas que ficaram fora do escopo: a marca diz quantas e o texto de ajuda, com quem
@@ -173,7 +186,14 @@ function groupFrame(grp: DGroup, b: { x: number; y: number; w: number; h: number
   return g;
 }
 
+/** Espaço do alfinete no cabeçalho (o título começa depois dele). */
+export const PIN_W = 16;
+
 export interface RenderHooks {
+  /** Tabelas fixadas em destaque (ids). O chamador guarda o conjunto para valer depois de redesenhar; sem ele, vale só neste desenho. */
+  pins?: Set<string>;
+  /** O conjunto de fixadas mudou (clique no alfinete). */
+  onPins?(pins: Set<string>): void;
   /** Mouse sobre um elemento: trechos do texto que ele representa (`null` ao sair). */
   onHover?(spans: Span[] | null): void;
   /** Mouse sobre o ícone de uma nota (`null` ao sair): o texto e o retângulo do ícone na tela. */
@@ -186,6 +206,8 @@ export interface Rendered {
    * Devolve a caixa dele (coordenadas do layout) para quem quiser trazê-lo à vista.
    */
   focusAt(offset: number | null): Box | null;
+  /** Fixa ou solta uma tabela (clique no alfinete). */
+  togglePin(id: string): void;
 }
 
 type Kind = "row" | "edge" | "table" | "enum" | "value" | "group";
@@ -232,6 +254,8 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
   });
   into.replaceChildren(...groups.map((x) => x.g), ...links, ...edges.map((e) => e.g), ...tables, ...enums); // molduras no fundo, arestas sob as tabelas
   into.classList.remove("hovering", "focusing", "tblhover");
+  const pins = hooks.pins ?? new Set<string>();
+  for (const id of [...pins]) if (!byId.has(id)) pins.delete(id); // tabela que saiu do diagrama não fica fixada
 
   // ---- onde cada elemento está no texto ----
   const entries: Entry[] = [];
@@ -295,20 +319,39 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
 
   // ---- mouse → código ----
   const hover = (spans: Span[] | null) => hooks.onHover?.(spans);
-  /** Mouse no cabeçalho de uma tabela (ou enum): realça as ligações dela e as tabelas do outro lado, esmaece o resto. */
-  const markRelated = (el: SVGElement | null) => {
-    const on = el ? new Set(edgeEls.filter((e) => ends(e).some((k) => ownerOf(k) === el))) : new Set<SVGElement>();
-    const related = new Set<SVGElement>(el ? [el] : []);
+  /**
+   * Destaque por tabela: **em foco** é a que está sob o mouse e as fixadas (borda forte); **relacionada** é quem
+   * se liga a uma delas (borda leve); o resto esmaece. Só as ligações das tabelas em foco acendem.
+   */
+  let hovered: SVGElement | null = null;
+  const applyFocus = () => {
+    const focus = new Set<SVGElement>();
+    for (const id of pins) {
+      const e = tableEl.get(id);
+      if (e) focus.add(e);
+    }
+    if (hovered) focus.add(hovered);
+    const on = new Set(edgeEls.filter((e) => ends(e).some((k) => {
+      const o = ownerOf(k);
+      return !!o && focus.has(o);
+    })));
+    const related = new Set<SVGElement>();
     for (const e of on) for (const k of ends(e)) {
       const o = ownerOf(k);
-      if (o) related.add(o);
+      if (o && !focus.has(o)) related.add(o);
     }
     mark("hl", new Set([...on].flatMap(ends)), on);
-    for (const t of tableEl.values()) t.classList.toggle("rel", related.has(t));
-    into.classList.toggle("tblhover", related.size > 1);
+    for (const [id, t] of tableEl) {
+      t.classList.toggle("foc", focus.has(t));
+      t.classList.toggle("rel", related.has(t));
+      t.classList.toggle("pinned", pins.has(id));
+    }
+    // uma tabela sem relação, só com o mouse em cima, não esmaece nada; fixada, sempre
+    into.classList.toggle("tblhover", focus.size > 0 && (pins.size > 0 || related.size > 0));
   };
   const clearHover = () => {
-    markRelated(null);
+    hovered = null;
+    applyFocus();
     hover(null);
   };
   for (const [k, row] of rowByKey) {
@@ -342,11 +385,18 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
 
   // o destaque das relações vale para toda tabela e enum, também as de arquivo incluído (que não têm `span` no texto da aba)
   for (const el of tableEl.values()) {
-    for (const t of el.querySelectorAll(".dbml-head, .dbml-title")) {
-      t.addEventListener("mouseenter", () => markRelated(el));
-      t.addEventListener("mouseleave", () => markRelated(null));
+    for (const t of el.querySelectorAll(".dbml-head, .dbml-title, .dbml-pin")) {
+      t.addEventListener("mouseenter", () => {
+        hovered = el;
+        applyFocus();
+      });
+      t.addEventListener("mouseleave", () => {
+        hovered = null;
+        applyFocus();
+      });
     }
   }
+  applyFocus(); // o que estava fixado antes de redesenhar volta aceso
 
   for (const icon of into.querySelectorAll<SVGElement>(".dbml-noteicon")) {
     icon.addEventListener("mouseenter", () => hooks.onNoteHover?.({ text: icon.getAttribute("data-note-text") ?? "", rect: icon.getBoundingClientRect(), editable: icon.hasAttribute("data-note") }));
@@ -356,6 +406,12 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
   // ---- cursor do editor → diagrama ----
   let lastFocus: Entry | null = null;
   return {
+    togglePin(id) {
+      if (!tableEl.has(id)) return;
+      if (!pins.delete(id)) pins.add(id);
+      applyFocus();
+      hooks.onPins?.(pins);
+    },
     focusAt(offset) {
       let best: Entry | null = null;
       if (offset !== null) {
