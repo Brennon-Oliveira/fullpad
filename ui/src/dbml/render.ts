@@ -1,4 +1,4 @@
-import { type Box, HEADER_H, type Layout, ROW_H, enumKey, groupKey } from "./layout";
+import { type Box, HEADER_H, type Layout, ROW_H, enumKey, groupKey, groupMembers } from "./layout";
 import { type DEnum, type DGroup, type DRef, type DTable, type Diagram, type Endpoint, type Span, enumOf } from "./model";
 
 /** Altura da faixa do título do grupo que serve de alça para movê-lo. */
@@ -158,9 +158,10 @@ function enumNode(e: DEnum, x: number, y: number, w: number, h: number): SVGGEle
   if (e.span) g.setAttribute("data-pick", String(e.span.from));
   g.append(el("rect", { class: "dbml-box", width: w, height: h, rx: 6 }));
   g.append(el("path", { class: "dbml-head dbml-enum-head", d: `M0,${HEADER_H} V6 a6,6 0 0 1 6,-6 H${w - 6} a6,6 0 0 1 6,6 V${HEADER_H} Z` }));
-  const enumTitle = el("text", { class: "dbml-title", x: 10, y: HEADER_H / 2 + 5 }, `enum ${e.schema ? `${e.schema}.` : ""}${e.name}`);
+  const enumTitle = el("text", { class: "dbml-title", x: 10 + PIN_W, y: HEADER_H / 2 + 5 }, `enum ${e.schema ? `${e.schema}.` : ""}${e.name}`);
   if (e.span) enumTitle.setAttribute("data-off", String(e.span.from));
   g.append(enumTitle);
+  g.append(pinIcon(null));
   if (e.note) g.append(noteIcon("enum", undefined, e.note, w - 24, (HEADER_H - 13) / 2)); // só leitura: editar a nota do enum pelo diagrama ainda não existe
   e.values.forEach((v, i) => {
     g.append(el("rect", { class: "dbml-vrow", "data-v": colKey(enumKey(e.id), v.name), x: 1, y: HEADER_H + i * ROW_H, width: w - 2, height: ROW_H, ...(v.span ? { "data-pick": v.span.from } : {}) }));
@@ -255,7 +256,8 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
   into.replaceChildren(...groups.map((x) => x.g), ...links, ...edges.map((e) => e.g), ...tables, ...enums); // molduras no fundo, arestas sob as tabelas
   into.classList.remove("hovering", "focusing", "tblhover");
   const pins = hooks.pins ?? new Set<string>();
-  for (const id of [...pins]) if (!byId.has(id)) pins.delete(id); // tabela que saiu do diagrama não fica fixada
+  const known = new Set([...d.tables.map((t) => t.id), ...d.enums.map((e) => enumKey(e.id))]);
+  for (const id of [...pins]) if (!known.has(id)) pins.delete(id); // tabela ou enum que saiu do diagrama não fica fixado
 
   // ---- onde cada elemento está no texto ----
   const entries: Entry[] = [];
@@ -424,7 +426,7 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
       lastFocus = best;
       if (!best) {
         mark("fc", new Set(), new Set());
-        for (const el of tableEl.values()) el.classList.remove("fc");
+        for (const el of tableEl.values()) el.classList.remove("fc", "gm");
         return null;
       }
       const keys = new Set(best.keys);
@@ -435,9 +437,23 @@ export function renderDiagram(d: Diagram, layout: Layout, into: SVGGElement, hoo
       } else if (best.kind === "edge") {
         on = new Set([best.el]);
       }
-      const extra = best.kind === "table" || best.kind === "enum" || best.kind === "group" ? [best.el] : [];
+      // grupo selecionado: as tabelas dele ficam em destaque de referência (sem a borda forte) e as ligações entre elas acendem
+      let members: SVGElement[] = [];
+      if (best.kind === "group") {
+        const ids = groupMembers(d, layout.boxes).get(best.el.getAttribute("data-grp") ?? "") ?? [];
+        members = ids.flatMap((id) => tableEl.get(id) ?? []);
+        const inside = new Set(members);
+        on = new Set(edgeEls.filter((e) => ends(e).every((k) => {
+          const o = ownerOf(k);
+          return !!o && inside.has(o);
+        })));
+      }
+      const extra = best.kind === "table" || best.kind === "enum" ? [best.el] : best.kind === "group" ? [best.el, ...members] : [];
       mark("fc", keys, on, extra);
-      for (const el of tableEl.values()) el.classList.toggle("fc", best.kind !== "group" && el === best.el);
+      for (const el of tableEl.values()) {
+        el.classList.toggle("fc", best.kind !== "group" && el === best.el);
+        el.classList.toggle("gm", members.includes(el));
+      }
       if (best.kind === "value") {
         best.el.classList.add("fc");
         const o = best.el.parentElement;

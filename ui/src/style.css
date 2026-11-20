@@ -7,6 +7,7 @@
   --tab: #e5e7eb;
   --border: #d1d5db;
   --accent: #2563eb;
+  --on-accent: #fff;
   --code-bg: #f1f3f5;
   --syn-comment: #6a737d;
   --syn-keyword: #8250df;
@@ -32,6 +33,7 @@
     --tab: #26272b;
     --border: #34363b;
     --accent: #6ea8fe;
+    --on-accent: #0b1220;
     --code-bg: #2a2c31;
     --syn-comment: #7f8794;
     --syn-keyword: #c792ea;
@@ -224,16 +226,22 @@ button { font: inherit; color: inherit; }
 .focusing:not(.hovering) .dbml-edge:not(.fc) { opacity: .2; }
 .focusing:not(.hovering) .dbml-table:not(.kp), .focusing:not(.hovering) .dbml-enum:not(.kp) { opacity: .45; }
 /* destaque por tabela: em foco (mouse ou fixada) > relacionada > resto esmaecido */
-.tblhover .dbml-table:not(.rel):not(.foc), .tblhover .dbml-enum:not(.rel):not(.foc) { opacity: .25; }
-.dbml-table.foc .dbml-box { stroke: var(--accent); stroke-width: 2.6; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 60%, transparent)); }
+.tblhover .dbml-table:not(.rel):not(.foc), .tblhover .dbml-enum:not(.rel):not(.foc) { opacity: .2; }
+.dbml-table.foc .dbml-box, .dbml-enum.foc .dbml-box { stroke: var(--accent); stroke-width: 2.6; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 60%, transparent)); }
 .tblhover .dbml-table.rel .dbml-box, .tblhover .dbml-enum.rel .dbml-box { stroke: color-mix(in srgb, var(--accent) 55%, var(--border)); stroke-width: 1.6; }
 .tblhover .dbml-edge.hl path:not(.dbml-hit) { stroke-width: 2.4; }
+.dbml-table.gm .dbml-box { stroke: color-mix(in srgb, var(--accent) 55%, var(--border)); stroke-width: 1.6; } /* membro do grupo selecionado: referência, sem a borda forte */
+/* fixada: mais forte que a do mouse (cabeçalho sólido na cor de destaque, corpo tingido, borda mais grossa) */
+.dbml-table.pinned .dbml-box, .dbml-enum.pinned .dbml-box { fill: color-mix(in srgb, var(--accent) 12%, var(--bar)); stroke: var(--accent); stroke-width: 3.4; }
+.dbml-table.pinned .dbml-head, .dbml-enum.pinned .dbml-head { fill: var(--accent) !important; }
+.dbml-table.pinned .dbml-title, .dbml-enum.pinned .dbml-title { fill: var(--on-accent) !important; }
+.dbml-table.pinned .dbml-pin, .dbml-enum.pinned .dbml-pin { color: var(--on-accent) !important; }
 .dbml-pin { color: var(--muted); cursor: pointer; opacity: .35; }
 .dbml-pin path { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .dbml-pin-hit { fill: transparent; stroke: none; }
-.dbml-table:hover .dbml-pin, .dbml-pin:hover { opacity: .9; }
-.dbml-table.pinned .dbml-pin { opacity: 1; color: var(--accent); }
-.dbml-table.pinned .dbml-pin path { fill: currentColor; }
+.dbml-table:hover .dbml-pin, .dbml-enum:hover .dbml-pin, .dbml-pin:hover { opacity: .9; }
+.dbml-table.pinned .dbml-pin, .dbml-enum.pinned .dbml-pin { opacity: 1; }
+.dbml-table.pinned .dbml-pin path, .dbml-enum.pinned .dbml-pin path { fill: currentColor; }
 .cm-hint-line { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
 .dbml-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
 .dbml-error { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 12px; font: 12px var(--mono); background: color-mix(in srgb, #d33 22%, var(--bar)); border-top: 1px solid #d33; }

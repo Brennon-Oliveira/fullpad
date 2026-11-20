@@ -173,6 +173,6 @@ describe("a nota do enum no diagrama", () => {
   it("a nota de valor continua com o próprio tooltip nativo, sem ícone", () => {
     const g = desenhar("enum status {\n  ativo [note: 'ligado']\n  Note: 'enum'\n}\nTable t { s status }");
     expect(g.querySelectorAll(".dbml-enum .dbml-noteicon")).toHaveLength(1); // só o do enum
-    expect([...g.querySelectorAll(".dbml-enum title")].map((t) => t.textContent)).toEqual(["ligado"]);
+    expect([...g.querySelectorAll(".dbml-enum title")].filter((t) => !t.closest(".dbml-pin")).map((t) => t.textContent)).toEqual(["ligado"]);
   });
 });

@@ -226,3 +226,44 @@ describe("tabelas fixadas", () => {
     expect([...pins]).toEqual(["livre"]);
   });
 });
+
+describe("alfinete nos enums e grupo selecionado", () => {
+  const SRC = "Table users { id int [pk]\n role papel }\nTable posts { id int [pk]\n uid int [ref: > users.id] }\nTable tags { id int [pk] }\nEnum papel { admin\n user }\nTableGroup blog { users\n posts }\n";
+  const draw = (pins = new Set<string>()) => {
+    const d = parseDbml(interpret, SRC).diagram!;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    const r = renderDiagram(d, layoutDiagram(d, dagre as unknown as DagreLike), g, { pins });
+    const ids = (sel: string) => [...g.querySelectorAll(`.dbml-table${sel}, .dbml-enum${sel}`)].map((e) => e.getAttribute("data-t") ?? e.getAttribute("data-e")).sort();
+    return { g, r, ids, pins };
+  };
+
+  it("o enum tem alfinete: fixar acende ele e as tabelas que o usam", () => {
+    const { g, r, ids } = draw();
+    expect(g.querySelectorAll(".dbml-enum .dbml-pin")).toHaveLength(1);
+    r.togglePin("enum:papel");
+    expect(g.classList.contains("tblhover")).toBe(true);
+    expect(ids(".foc")).toEqual(["enum:papel"]);
+    expect(ids(".rel")).toEqual(["users"]);
+    expect(ids(".pinned")).toEqual(["enum:papel"]);
+  });
+
+  it("fixada que não existe mais (tabela ou enum) sai do conjunto", () => {
+    const { pins } = draw(new Set(["enum:papel", "enum:sumiu", "tags"]));
+    expect([...pins].sort()).toEqual(["enum:papel", "tags"]);
+  });
+
+  it("cursor no grupo: as tabelas dele ficam em referência e as de fora esmaecem; sair desmarca", () => {
+    const { g, r, ids } = draw();
+    const at = SRC.indexOf("TableGroup blog") + 3;
+    r.focusAt(at);
+    expect(g.classList.contains("focusing")).toBe(true);
+    expect(ids(".gm")).toEqual(["posts", "users"]);
+    expect(ids(".kp")).toEqual(["posts", "users"]);
+    expect(ids(".fc")).toEqual([]); // sem a borda forte
+    expect(g.querySelectorAll(".dbml-group.fc")).toHaveLength(1);
+    expect(g.querySelectorAll(".dbml-edge.fc")).toHaveLength(1); // a ref entre as duas
+    r.focusAt(null);
+    expect(ids(".gm")).toEqual([]);
+    expect(g.classList.contains("focusing")).toBe(false);
+  });
+});

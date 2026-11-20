@@ -119,9 +119,9 @@ export function tableSize(t: Diagram["tables"][number]): { w: number; h: number 
 }
 
 export function enumSize(e: Diagram["enums"][number]): { w: number; h: number } {
-  let chars = e.name.length + 5;
-  for (const v of e.values) chars = Math.max(chars, v.name.length + 2);
-  return { w: Math.max(MIN_W - 40, Math.ceil(chars * CHAR_W) + PAD_X), h: HEADER_H + Math.max(1, e.values.length) * ROW_H };
+  let w = (e.name.length + 5) * CHAR_W + PIN_W; // o alfinete fica antes do título
+  for (const v of e.values) w = Math.max(w, (v.name.length + 2) * CHAR_W);
+  return { w: Math.max(MIN_W - 40, Math.ceil(w) + PAD_X), h: HEADER_H + Math.max(1, e.values.length) * ROW_H };
 }
 
 /** Proporção largura/altura que o desenho automático procura (tela larga, não um quadrado exato). */

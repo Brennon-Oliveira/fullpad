@@ -126,6 +126,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
       scope = s;
       hooks.onScope?.(s);
       fitNext = true;
+      forceFit = true;
       if (lastText !== null) void render(lastText);
     };
     const items: Parameters<typeof showMenuAt>[2] = [{ label: "Tudo", checked: scope.kind === "all", action: pick(ALL_SCOPE) }];
@@ -155,6 +156,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   let seq = 0;
   let relayout = false; // o layout mudou e a próxima `show` precisa redesenhar
   let fitNext = true;
+  let forceFit = false; // o escopo foi trocado na mão: enquadra tudo, sem usar a vista salva
   let timer: number | undefined;
 
   // ---- layout guardado ----
@@ -227,12 +229,33 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
   );
   // alfinete no cabeçalho: fixa a tabela em destaque (vale também com "Editar" desmarcado)
   const pins = new Set<string>();
+  // clique (sem arrastar) no cabeçalho de uma tabela ou enum: zoom nela. Espera um instante para não atrapalhar o
+  // duplo clique, que renomeia (o zoom moveria o título no meio dos dois cliques)
+  let zoomTimer = 0;
   svg.addEventListener("click", (e) => {
     if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 3) return;
-    const pin = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".dbml-pin");
-    const id = pin?.closest(".dbml-table")?.getAttribute("data-t");
-    if (id) rendered?.togglePin(id);
+    const at = document.elementFromPoint(e.clientX, e.clientY);
+    // clique no fundo (fora de tabela, enum, grupo e seta): desmarca o que o cursor do código selecionava
+    if (!at?.closest?.(".dbml-table, .dbml-enum, .dbml-group, .dbml-edge")) {
+      cursor = { offset: null, rev: cursor.rev };
+      applyFocus(false);
+      return;
+    }
+    const owner = at?.closest?.(".dbml-table, .dbml-enum");
+    const id = owner?.getAttribute("data-t") ?? owner?.getAttribute("data-e");
+    if (!id) return;
+    if (at?.closest?.(".dbml-pin")) {
+      rendered?.togglePin(id);
+      return;
+    }
+    if (!at?.closest?.(".dbml-head, .dbml-title") || at.closest(".dbml-noteicon, .dbml-ext")) return;
+    window.clearTimeout(zoomTimer);
+    zoomTimer = window.setTimeout(() => {
+      const box = layout?.boxes.get(id);
+      if (box) viewport.focus(box);
+    }, 250);
   });
+  svg.addEventListener("dblclick", () => window.clearTimeout(zoomTimer), true);
   svg.addEventListener("click", (e) => {
     if (!editable || !hooks.onNote || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 3) return;
     const icon = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".dbml-noteicon");
@@ -272,7 +295,13 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
       if (e.button !== 0) return;
       const pick = (e.target as Element).closest?.("[data-pick]");
       const onPin = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".dbml-pin");
-      if (pick && !onPin) hooks.onPick?.(Number(pick.getAttribute("data-pick")), renderedRev);
+      if (pick && !onPin) {
+        const offset = Number(pick.getAttribute("data-pick"));
+        // seleciona já, sem esperar o cursor do código: ele pode estar exatamente aí (depois de desmarcar no fundo, nada dispararia)
+        cursor = { offset, rev: renderedRev };
+        applyFocus(false);
+        hooks.onPick?.(offset, renderedRev);
+      }
     },
     true,
   );
@@ -431,7 +460,10 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     draw();
     if (fitNext) {
       fitNext = false;
-      if (savedView && !layoutError) viewport.set(savedView);
+      const force = forceFit;
+      forceFit = false;
+      // a vista salva é a do desenho que se abriu; ao trocar o escopo na mão ela não serve: enquadra o que se vê
+      if (savedView && !layoutError && !force) viewport.set(savedView);
       else fit();
     }
   }
