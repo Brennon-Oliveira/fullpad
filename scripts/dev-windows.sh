@@ -37,10 +37,11 @@ cp -f "$EXE" "$DEVEXE"
 up=0
 for _ in 1 2 3 4 5 6 7 8 9 10; do
     sleep 1
-    if tasklist.exe | grep -qi 'fullpad-dev.exe'; then up=1; break; fi
+    list=$(tasklist.exe || true)
+    case "$list" in *fullpad-dev.exe*) up=1; break ;; esac
 done
 if [ "$up" = 1 ]; then
-    echo "Fullpad DEV aberto às $(date +%H:%M:%S): $(tasklist.exe | grep -i 'fullpad-dev.exe' | head -1 | awk '{print "PID " $2}')"
+    echo "Fullpad DEV aberto às $(date +%H:%M:%S): $(printf '%s\n' "$list" | grep -i 'fullpad-dev.exe' | head -1 | awk '{print "PID " $2}')"
 else
     echo "Fullpad DEV não ficou aberto: veja /tmp/fullpad-dev.log" >&2
     exit 1
