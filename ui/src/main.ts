@@ -1457,9 +1457,9 @@ async function openIncludeSeparate(g: Group, file: string) {
   const abs = `${dir}${sep}${file.split("/").join(sep)}`;
   // a aba de origem volta a ver o que via antes (a raiz: tudo; um módulo: o próprio arquivo); sem relação nenhuma com o aberto à parte
   const back: DiagramScope = dbmlRootOf(tab) !== null ? { kind: "file", file: null } : { kind: "all" };
+  // só grava o escopo: o painel o aplica quando esta aba for reativada. Mandar o painel desenhar agora seria desenhar o
+  // texto desta aba com o contexto de `!include` de outra (o do arquivo aberto à parte) e o erro ficaria na tela.
   dbmlScopes.set(tab.id, back);
-  g.diagram?.setScope?.(back, tab.title || baseName(tab.path ?? "") || "este arquivo");
-  void syncIncludeView(g, tab);
   writeString(DBML_ROOTS_KEY, JSON.stringify(withRoot(loadRoots(), abs, abs)));
   await openPaths([abs]);
   const t = session.tabs.find((x) => x.path === abs);

@@ -30,7 +30,7 @@ A primeira compilação do `target/dev` é longa (todas as dependências); as se
 
 ## Regra para o agente
 
-Ao terminar um ajuste (testes passando e commit feito): rode `scripts/dev-windows.sh` (com o arquivo em uso, p.ex. o `.dbmlx`), confira que o processo novo subiu e **escreva na resposta** "app DEV fechado e reaberto às HH:MM:SS (processo novo, depois do build das HH:MM)". O hook `Stop` (`scripts/check-build-windows.sh`) cobra o build de desenvolvimento.
+Ao terminar um ajuste (testes passando e commit feito): rode `scripts/dev-windows.sh` (**sem** passar o arquivo se ele já está nas abas restauradas: passá-lo de novo abre uma aba duplicada), confira que o processo novo subiu e **escreva na resposta** "app DEV fechado e reaberto às HH:MM:SS (processo novo, depois do build das HH:MM)". O hook `Stop` (`scripts/check-build-windows.sh`) cobra o build de desenvolvimento.
 
 ## Versão de produção
 
