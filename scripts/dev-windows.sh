@@ -34,8 +34,12 @@ timeout 20 taskkill.exe /F /IM fullpad-dev.exe >/dev/null 2>&1 || true
 sleep 1
 cp -f "$EXE" "$DEVEXE"
 (setsid nohup "./$DEVEXE" "$@" </dev/null >/tmp/fullpad-dev.log 2>&1 &)
-sleep 3
-if tasklist.exe | grep -qi 'fullpad-dev.exe'; then
+up=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 1
+    if tasklist.exe | grep -qi 'fullpad-dev.exe'; then up=1; break; fi
+done
+if [ "$up" = 1 ]; then
     echo "Fullpad DEV aberto às $(date +%H:%M:%S): $(tasklist.exe | grep -i 'fullpad-dev.exe' | head -1 | awk '{print "PID " $2}')"
 else
     echo "Fullpad DEV não ficou aberto: veja /tmp/fullpad-dev.log" >&2
