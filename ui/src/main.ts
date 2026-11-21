@@ -1448,30 +1448,6 @@ async function syncIncludeView(g: Group, tab: TabState | undefined) {
   g.bodyEl.classList.add("incshown");
 }
 
-/** Abre um arquivo incluído como dbmlx à parte (a raiz dele é esquecida: compila sozinho, sem o contexto dos outros). */
-async function openIncludeSeparate(g: Group, file: string) {
-  const tab = tabOf(g);
-  const dir = tab && dirOf(tab.path);
-  if (!tab || !tab.path || !dir) return;
-  const sep = tab.path.includes("\\") && !tab.path.includes("/") ? "\\" : "/";
-  const abs = `${dir}${sep}${file.split("/").join(sep)}`;
-  // a aba de origem volta a ver o que via antes (a raiz: tudo; um módulo: o próprio arquivo); sem relação nenhuma com o aberto à parte
-  const back: DiagramScope = dbmlRootOf(tab) !== null ? { kind: "file", file: null } : { kind: "all" };
-  // só grava o escopo: o painel o aplica quando esta aba for reativada. Mandar o painel desenhar agora seria desenhar o
-  // texto desta aba com o contexto de `!include` de outra (o do arquivo aberto à parte) e o erro ficaria na tela.
-  dbmlScopes.set(tab.id, back);
-  writeString(DBML_ROOTS_KEY, JSON.stringify(withRoot(loadRoots(), abs, abs)));
-  await openPaths([abs]);
-  const t = session.tabs.find((x) => x.path === abs);
-  if (t) {
-    dbmlProjects.delete(t.id);
-    dbmlScopes.delete(t.id);
-    includeParent.delete(t.id);
-    const tg = groupShowing(t.id);
-    if (tg) withGroup(tg, () => syncDiagram());
-  }
-}
-
 /** A faixa "← voltar" de um módulo aberto a partir de outro arquivo. */
 function renderBackBar(g: Group, tab: TabState | undefined) {
   const root = tab && effectiveLang(tab) === "dbml" ? dbmlRootOf(tab) : null;
@@ -1618,8 +1594,6 @@ function syncDiagram(textChanged = false) {
               const t = session.tabs.find((x) => x.id === g.diagramTab);
               if (t) void syncIncludeView(g, t);
             },
-            // "Ver arquivo separado": abre o incluído como dbmlx à parte, esquecendo a raiz dele
-            onOpenSeparate: (file) => void openIncludeSeparate(g, file),
             onLayoutLive: (edit) => g.diagramTab && previewDragInJson(g.diagramTab, edit),
             // duplo clique no nome (tabela, coluna, enum, valor, grupo) → renomear
             onRename: (decl, at, rev) => void renameSymbolAt(g, decl, "decl", at, rev),

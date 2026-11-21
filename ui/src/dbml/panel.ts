@@ -90,8 +90,6 @@ export interface PanelHooks {
   onNote?(info: { decl: number; kind: "table" | "column" }, at: { x: number; y: number }, rev: number): void;
   /** A pessoa escolheu outro escopo (o que ver: tudo, um arquivo ou um grupo). */
   onScope?(scope: DiagramScope): void;
-  /** "Ver arquivo separado": abrir o arquivo incluído que está sendo visto como um dbmlx à parte (sem a raiz). */
-  onOpenSeparate?(file: string): void;
 }
 
 export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
@@ -143,15 +141,6 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     const r = scopeBtn.getBoundingClientRect();
     showMenuAt(r.left, r.bottom + 2, items);
   });
-  const separateBtn = document.createElement("button");
-  separateBtn.className = "dbml-scope";
-  separateBtn.hidden = true;
-  separateBtn.textContent = "Ver arquivo separado";
-  separateBtn.title = "Abre este arquivo incluído numa aba própria, como um dbmlx à parte (sem o contexto do arquivo raiz)";
-  separateBtn.addEventListener("click", () => {
-    if (scope.kind === "file" && scope.file !== null) hooks.onOpenSeparate?.(scope.file);
-  });
-  tools.prepend(separateBtn);
   tools.prepend(scopeBtn);
   const noteTip = div("dbml-notetip");
   noteTip.hidden = true;
@@ -454,7 +443,6 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     const d = scopeDiagram(full, scope);
     scopeBtn.hidden = choices.files.length === 0 && choices.groups.length === 0;
     scopeBtn.textContent = `Ver: ${scopeLabel(scope, ownName)} ▾`;
-    separateBtn.hidden = !(scope.kind === "file" && scope.file !== null);
     scopeBtn.title = "Escolher o que ver: tudo, só um arquivo ou só um grupo (o que fica de fora aparece como relações externas)";
     if (d.tables.length === 0) {
       layout = null;
