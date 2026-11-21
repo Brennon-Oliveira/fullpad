@@ -2177,9 +2177,11 @@ function tabLabel(t: TabState): string {
   return (t.dirty ? "● " : "") + (t.title || "Nova nota");
 }
 
+let isDevBuild = false;
+
 function updateTitle() {
   if (session.active) {
-    void thisWindow.setTitle(`${tabLabel(activeTab())} — Fullpad`);
+    void thisWindow.setTitle(`${tabLabel(activeTab())} — Fullpad${isDevBuild ? " DEV" : ""}`);
     postitBar?.setTitle(tabLabel(activeTab()));
   }
 }
@@ -4475,6 +4477,16 @@ async function boot() {
   const startup = await api.loadStartup();
   session = startup.session;
   onTop = startup.on_top;
+  isDevBuild = !!startup.dev;
+  if (isDevBuild) {
+    // build de desenvolvimento: faixa vermelha e selo "DEV" (nunca confundir com o app instalado)
+    document.body.classList.add("devbuild");
+    const tag = document.createElement("div");
+    tag.className = "devtag";
+    tag.textContent = "DEV";
+    tag.title = "Build de desenvolvimento: usa a pasta de dados fullpad-dev e não se atualiza. O app instalado não é afetado.";
+    document.body.append(tag);
+  }
   if (isPostit) {
     postitBar = mountPostitBar(document.body, { pinned: onTop, onPin: setOnTop, onClose: () => void thisWindow.close() });
     // Esc fecha o post-it (a menos que o editor o tenha usado: fechar a busca, por exemplo)

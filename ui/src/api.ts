@@ -211,6 +211,8 @@ export interface Startup {
   on_top: boolean;
   /** A janela é um post-it (captura rápida). */
   postit: boolean;
+  /** Build de desenvolvimento (convive com o app instalado: outra pasta de dados, sem atualização). */
+  dev?: boolean;
 }
 
 export interface ClosedTab {

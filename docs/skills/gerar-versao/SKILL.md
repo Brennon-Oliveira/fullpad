@@ -125,6 +125,8 @@ pnpm --dir ui exec vitest run
 PUBLISH=0 scripts/release.sh       # build local, Windows e Linux em paralelo: instalador + AppImage/deb/rpm assinados + pacote do Arch (`.pkg.tar.zst`, sem assinatura) + latest.json
 ```
 
+A versão é **de produção**, nunca a de desenvolvimento ([../../rules/build-dev.md](../../rules/build-dev.md)): o `release.sh` já faz `unset TAURI_CONFIG` e não liga a feature `dev-build`, e o `tauri.conf.json` traz o identificador `dev.brennon.fullpad`, o nome "Fullpad", os ícones azuis, a pasta de dados `fullpad`, o atalho global e a atualização. Antes de publicar, confira que o instalador não traz nada de `fullpad-dev`/`icons-dev` (ex.: `strings` no `.exe` ou o nome do instalador `Fullpad_<versão>_x64-setup.exe`) e que `git status` não tem `crates/app/tauri.conf.json` alterado. Não feche nem reabra o app aqui.
+
 Confira que a primeira linha `version` do `Cargo.toml` é a do `[package]`. Falhou um teste ou o build (de Windows **ou** de Linux): pare, desfaça a mudança de versão e as notas (`git checkout crates/app/Cargo.toml Cargo.lock crates/app/release-notes.md crates/app/CHANGELOG.md`) e relate a saída.
 
 ## 7. Commit e tag

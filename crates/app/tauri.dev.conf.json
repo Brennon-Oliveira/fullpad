@@ -1,0 +1,19 @@
+{
+  "productName": "Fullpad Dev",
+  "identifier": "dev.brennon.fullpad.dev",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Fullpad DEV",
+        "width": 960,
+        "height": 640,
+        "maximized": true,
+        "visible": false
+      }
+    ]
+  },
+  "bundle": {
+    "icon": ["icons-dev/32x32.png", "icons-dev/128x128.png", "icons-dev/icon.ico"]
+  }
+}

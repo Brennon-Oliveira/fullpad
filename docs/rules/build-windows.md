@@ -1,6 +1,6 @@
 # Build de Windows após cada ajuste
 
-O produto roda no Windows, mas o desenvolvimento acontece no WSL. Por isso, **ao terminar qualquer ajuste** (feature, correção, mudança de docs que afete o app não conta), gere o build de Windows antes de dar a tarefa por concluída e diga no relatório final se passou ou falhou.
+O produto roda no Windows, mas o desenvolvimento acontece no WSL. **O build do dia a dia é o de desenvolvimento** ([build-dev.md](build-dev.md): `scripts/dev-windows.sh`, outro `.exe`, outra pasta de dados, ícone vermelho; convive com o app instalado), e o que está abaixo em "Como" é o build solto de **produção**, para quando for preciso conferir o binário real. Por isso, **ao terminar qualquer ajuste** (feature, correção, mudança de docs que afete o app não conta), rode `scripts/dev-windows.sh` (compila, fecha o DEV aberto e abre o novo) antes de dar a tarefa por concluída e diga no relatório final se passou ou falhou e a que horas o app DEV foi reaberto.
 
 ## Como
 
@@ -11,7 +11,7 @@ pnpm --dir ui build
 cargo xwin build --release --target x86_64-pc-windows-msvc -p fullpad --features tauri/custom-protocol
 ```
 
-- Saída: `target/x86_64-pc-windows-msvc/release/fullpad.exe`.
+- Saída: `target/x86_64-pc-windows-msvc/release/fullpad.exe` (**produção**: nunca o abra por cima do instalado sem saber, ele usa os mesmos dados).
 - `--features tauri/custom-protocol` é obrigatório: sem ele o `.exe` carrega o servidor de dev (`localhost:1420`) em vez do front embutido. O `cargo tauri build` injeta isso sozinho; o `cargo xwin` não.
 - Isso gera só o `.exe` solto (verificação rápida). O instalador é a seção abaixo.
 - Se o `cargo-xwin` falhar com "Failed to setup clang-cl symlink", o link velho em `~/.cache/cargo-xwin/clang-cl` aponta para um lugar que não existe mais: apague-o e rode de novo.
@@ -20,9 +20,9 @@ cargo xwin build --release --target x86_64-pc-windows-msvc -p fullpad --features
 
 ## Checagem automática
 
-`scripts/check-build-windows.sh` imprime só `ok` ou `pendencia de build` (pendência = algum arquivo que entra no app, em `crates/` ou `ui/src`, é mais novo que o `fullpad.exe`, ou o `.exe` não existe; não depende do git, então pega também mudança commitada sem build). Rode-o ao concluir qualquer ajuste: se disser `pendencia de build`, faça o build acima antes de dar por encerrado.
+`scripts/check-build-windows.sh` imprime só `ok` ou `pendencia de build` (pendência = algum arquivo que entra no app, em `crates/` ou `ui/src`, é mais novo que o `fullpad.exe` **de desenvolvimento** (`target/dev/…`), ou o `.exe` não existe; não depende do git, então pega também mudança commitada sem build). Rode-o ao concluir qualquer ajuste: se disser `pendencia de build`, faça o build acima antes de dar por encerrado.
 
-Um hook `Stop` (`.claude/settings.json`, modo `--hook` do mesmo script) faz essa checagem sozinho: com pendência, impede o agente de encerrar o turno e manda rodar o build. Ele bloqueia **uma vez** por encerramento (`stop_hook_active`), para não prender o agente num laço se o build falhar; nesse caso relate o erro, conforme as regras abaixo.
+Um hook `Stop` (`.claude/settings.json`, modo `--hook` do mesmo script) faz essa checagem sozinho: com pendência, impede o agente de encerrar o turno e manda rodar `scripts/dev-windows.sh`. Ele bloqueia **uma vez** por encerramento (`stop_hook_active`), para não prender o agente num laço se o build falhar; nesse caso relate o erro, conforme as regras abaixo.
 
 ## Regras
 

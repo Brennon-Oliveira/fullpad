@@ -12,7 +12,7 @@ set -u
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT" || exit 0
-EXE=target/x86_64-pc-windows-msvc/release/fullpad.exe
+EXE=target/dev/x86_64-pc-windows-msvc/release/fullpad.exe # o build de desenvolvimento (scripts/dev-windows.sh)
 
 pending() {
     [ -f "$EXE" ] || return 0

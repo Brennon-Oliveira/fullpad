@@ -9,6 +9,8 @@
 #   NOTES="..." / NOTES_FILE=arq  notas da versão (padrão: crates/app/release-notes.md, que também
 #                                 vai embutido no app como a nota de versão)
 set -euo pipefail
+# O instalador é sempre o de produção: nada do build de desenvolvimento (docs/rules/build-dev.md) pode vazar para cá.
+unset TAURI_CONFIG
 
 REPO=Brennon-Oliveira/fullpad-releases
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

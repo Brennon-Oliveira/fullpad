@@ -17,5 +17,11 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 uuid = "1.29.0"
 
+[features]
+# Build de desenvolvimento: outra pasta de dados (`fullpad-dev`), sem atalho global nem atualização automática e com
+# a marca "DEV" na tela. Combina com `TAURI_CONFIG` de `tauri.dev.conf.json` (outro identificador e ícone vermelho).
+# O instalador e a skill `gerar-versao` nunca ligam isto. Ver docs/rules/build-dev.md.
+dev-build = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

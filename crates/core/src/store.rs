@@ -69,11 +69,17 @@ impl Store {
     /// Diretório padrão do SO (`%APPDATA%\fullpad` / `~/.local/share/fullpad`).
     /// `FULLPAD_DATA_DIR` sobrescreve (útil em dev e testes).
     pub fn open_default() -> Result<Self> {
+        Self::open_default_named("fullpad")
+    }
+
+    /// Como `open_default`, com outro nome de pasta (o build de desenvolvimento usa `fullpad-dev`, para nunca
+    /// dividir dados com o app instalado). `FULLPAD_DATA_DIR` ainda sobrescreve tudo.
+    pub fn open_default_named(name: &str) -> Result<Self> {
         if let Some(dir) = std::env::var_os("FULLPAD_DATA_DIR") {
             return Ok(Self::new(dir));
         }
         let base = dirs::data_dir().ok_or(Error::NoDataDir)?;
-        Ok(Self::new(base.join("fullpad")))
+        Ok(Self::new(base.join(name)))
     }
 
     pub fn root(&self) -> &Path {

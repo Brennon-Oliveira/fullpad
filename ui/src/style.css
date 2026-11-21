@@ -839,3 +839,7 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .incview .inccode { flex: 1; min-height: 0; overflow: hidden; }
 .incview .inccode .cm-editor { height: 100%; }
 .incview .inccode .cm-scroller { overflow: auto; }
+
+/* build de desenvolvimento: faixa e selo vermelhos, para nunca confundir com o app instalado */
+body.devbuild::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 3px; background: #e03131; z-index: 99999; pointer-events: none; }
+.devtag { position: fixed; top: 3px; right: 0; padding: 0 8px; font: 700 10px/16px var(--sans); letter-spacing: .08em; color: #fff; background: #e03131; border-radius: 0 0 0 6px; z-index: 99999; pointer-events: none; }

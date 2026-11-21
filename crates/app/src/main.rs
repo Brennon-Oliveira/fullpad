@@ -126,6 +126,9 @@ struct UpdateInfo {
 #[tauri::command]
 async fn check_update(app: AppHandle, state: State<'_, AppState>) -> Result<Option<UpdateInfo>, String> {
     use tauri_plugin_updater::UpdaterExt;
+    if DEV_BUILD {
+        return Ok(None); // o build de desenvolvimento nunca se atualiza (trocaria o app pelo instalador de produção)
+    }
     let update = app.updater().map_err(err)?.check().await.map_err(err)?;
     let info = update.as_ref().map(|u| UpdateInfo {
         version: u.version.clone(),
@@ -223,6 +226,8 @@ struct Startup {
     on_top: bool,
     /// A janela é um post-it (captura rápida): sem abas nem barra de status, só a nota.
     postit: bool,
+    /// Build de desenvolvimento (marca "DEV" na tela e no título).
+    dev: bool,
 }
 
 #[derive(Serialize)]
@@ -311,7 +316,7 @@ fn load_startup(state: State<AppState>, window: WebviewWindow) -> Result<Startup
         None => String::new(),
     };
     let layout = session.layout_of(&label);
-    Ok(Startup { session: view, active_text, layout, on_top: session.on_top_of(&label), postit: session.is_postit(&label) })
+    Ok(Startup { session: view, active_text, layout, on_top: session.on_top_of(&label), postit: session.is_postit(&label), dev: DEV_BUILD })
 }
 
 #[tauri::command]
@@ -1672,10 +1677,13 @@ fn linux_env() {
     }
 }
 
+/// Build de desenvolvimento (`--features dev-build`): convive com o app instalado sem dividir nada com ele.
+const DEV_BUILD: bool = cfg!(feature = "dev-build");
+
 fn main() {
     #[cfg(target_os = "linux")]
     linux_env();
-    let store = Store::open_default().expect("diretório de dados indisponível");
+    let store = if DEV_BUILD { Store::open_default_named("fullpad-dev") } else { Store::open_default() }.expect("diretório de dados indisponível");
 
     tauri::Builder::default()
         // Segunda execução reaproveita a janela já aberta.
@@ -1730,7 +1738,8 @@ fn main() {
                 build_window(app.handle(), &label, session.geometry_of(&label), None)?;
             }
             // atalho global; se outro programa já o usa, o app segue normal (o menu continua abrindo o post-it)
-            {
+            // (o build de desenvolvimento não registra: tomaria o atalho do app instalado)
+            if !DEV_BUILD {
                 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
                 let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN);
                 if let Err(e) = app.global_shortcut().register(shortcut) {

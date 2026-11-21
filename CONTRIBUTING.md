@@ -74,6 +74,8 @@ cd crates/app && cargo tauri build      # instalador / binário
 > `FULLPAD_DATA_DIR=/tmp/fullpad-dev cargo tauri dev`
 > Os dados reais ficam em `%APPDATA%\fullpad` (Windows) e `~/.local/share/fullpad` (Linux).
 
+Para rodar o seu build **sem tocar nos dados de um Fullpad instalado**, use o build de desenvolvimento (`--features dev-build`: pasta `fullpad-dev`, outro identificador e ícone vermelho; veja [`docs/rules/build-dev.md`](docs/rules/build-dev.md)).
+
 Se você desenvolve no **WSL**, só o `core` e a interface compilam nativamente (faltam bibliotecas do webkit para o `app`). O `.exe` de Windows sai por cross-compile; os passos estão em [`docs/rules/build-windows.md`](docs/rules/build-windows.md). Isso é uma tarefa do mantenedor depois do merge: **você não precisa gerar o instalador para abrir um PR**, basta passar nos testes e no `pnpm --dir ui build`.
 
 ## Como o código está organizado
