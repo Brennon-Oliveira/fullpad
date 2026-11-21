@@ -160,6 +160,8 @@ interface Group {
   noteEl: HTMLElement;
   csvAskEl: HTMLElement;
   backEl: HTMLElement;
+  incEl: HTMLElement; // código do arquivo incluído que o diagrama mostra (somente leitura), no lugar do editor
+  inc?: import("./dbml/incview").IncludeView;
   /** Faixa de aviso: o arquivo da aba mudou fora do Fullpad, ou sumiu. */
   diskEl: HTMLElement;
   csv?: CsvPanel;
@@ -1364,6 +1366,7 @@ async function refreshDbmlProject(id: string) {
   const svc = has ? await (await import("./dbml/service")).loadDbmlService() : (await import("./dbml/service")).peekDbmlService();
   if (!svc) return;
   dbmlProjects.set(id, project);
+  void syncIncludeView(g, tab);
   if (!svc.setProject(project)) return;
   void import("@codemirror/lint").then((m) => m.forceLinting(g.view));
   g.diagram?.refresh?.();
@@ -1412,6 +1415,37 @@ async function openIncludeFrom(view: CMEditorView, written: string) {
   if (child) includeParent.set(child.id, tab.id);
   const cg = child && groupShowing(child.id);
   if (cg) withGroup(cg, () => syncDiagram());
+}
+
+/**
+ * "Ver: Só x.dbmlx": o código acompanha o diagrama. O texto do arquivo incluído (já lido pelo Rust) aparece,
+ * somente leitura, no lugar do editor; a faixa dele volta ao que a aba via antes (a raiz, ou o próprio arquivo de um módulo).
+ */
+async function syncIncludeView(g: Group, tab: TabState | undefined) {
+  const sc = tab && effectiveLang(tab) === "dbml" && diagramWanted(tab) ? scopeOf(tab) : null;
+  const part = sc && sc.kind === "file" && sc.file !== null ? dbmlProjects.get(tab!.id)?.parts.find((p) => p.file === sc.file) : undefined;
+  if (!tab || !sc || sc.kind !== "file" || !part) {
+    g.inc?.hide();
+    g.bodyEl.classList.remove("incshown");
+    return;
+  }
+  const isModule = dbmlRootOf(tab) !== null;
+  if (!g.inc) {
+    const m = await import("./dbml/incview");
+    if (g.inc) return;
+    g.inc = m.createIncludeView(g.incEl, () => {
+      const t = tabOf(g);
+      if (!t) return;
+      const back: DiagramScope = dbmlRootOf(t) !== null ? { kind: "file", file: null } : { kind: "all" };
+      dbmlScopes.set(t.id, back);
+      g.diagram?.setScope?.(back, t.title || baseName(t.path ?? "") || "este arquivo");
+      g.diagram?.refresh?.();
+      void syncIncludeView(g, t);
+    });
+  }
+  if (tabOf(g)?.id !== tab.id) return; // trocou de aba enquanto carregava
+  g.inc.show(part.file, part.text, `← Voltar para ${isModule ? baseName(tab.path ?? "") || "este arquivo" : baseName(tab.path ?? "") || "a raiz"}`);
+  g.bodyEl.classList.add("incshown");
 }
 
 /** Abre um arquivo incluído como dbmlx à parte (a raiz dele é esquecida: compila sozinho, sem o contexto dos outros). */
@@ -1492,6 +1526,7 @@ function syncDiagram(textChanged = false) {
     scheduleDbmlProject(tab, textChanged ? 500 : 0);
   }
   renderBackBar(g, tab);
+  void syncIncludeView(g, tab);
   // sozinho, o diagrama cobre o painel e o editor (que segue vivo, escondido, com o texto e o histórico) some
   g.bodyEl.classList.toggle("diagramonly", diagramWanted(tab) && viewKind(tab) === "only");
   if (!diagramWanted(tab)) {
@@ -1564,7 +1599,12 @@ function syncDiagram(textChanged = false) {
             // tabela arrastada ou vista mexida → grava no layout da aba que está na tela
             onLayoutEdit: (edit) => g.diagramTab && void saveLayoutEdit(g.diagramTab, edit),
             // escolheu o que ver (tudo, um arquivo ou um grupo): vale para esta aba
-            onScope: (s) => g.diagramTab && dbmlScopes.set(g.diagramTab, s),
+            onScope: (s) => {
+              if (!g.diagramTab) return;
+              dbmlScopes.set(g.diagramTab, s);
+              const t = session.tabs.find((x) => x.id === g.diagramTab);
+              if (t) void syncIncludeView(g, t);
+            },
             // "Ver arquivo separado": abre o incluído como dbmlx à parte, esquecendo a raiz dele
             onOpenSeparate: (file) => void openIncludeSeparate(g, file),
             onLayoutLive: (edit) => g.diagramTab && previewDragInJson(g.diagramTab, edit),
@@ -2738,7 +2778,8 @@ function createGroup(id: number): Group {
   const readerEl = div("reader");
   const gateEl = div("largegate");
   const outlineEl = div("outline");
-  bodyEl.append(editorEl, layoutEl, mdEl, diagramEl, jsonEl, csvEl, readerEl, gateEl, outlineEl);
+  const incEl = div("incview");
+  bodyEl.append(editorEl, incEl, layoutEl, mdEl, diagramEl, jsonEl, csvEl, readerEl, gateEl, outlineEl);
   const noteEl = div("note");
   noteEl.hidden = true;
   const diskEl = div("diskbar");
@@ -2751,7 +2792,7 @@ function createGroup(id: number): Group {
   largeNoteEl.hidden = true;
   el.append(tabsEl, diskEl, backEl, csvAskEl, noteEl, largeNoteEl, bodyEl);
   const view = createView(editorEl, createState("", 0, onEditorUpdate));
-  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, csvAskEl, backEl, diskEl, readerEl, gateEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
+  const g: Group = { id, el, tabsEl, bodyEl, editorEl, diagramEl, layoutEl, layoutTab: null, mdEl, jsonEl, csvEl, noteEl, csvAskEl, backEl, incEl, diskEl, readerEl, gateEl, view, active: null, rev: 0, diagramTab: null, jsonTab: null, csvTab: null, csvPrefix: 0, csvTopLine: null, outlineEl, outline: undefined as unknown as Outline, olItems: [], olKey: "", olToken: 0, largeNoteEl, largeTab: null, largeScroll: undefined as unknown as LargeScroll, largeFind: undefined as unknown as LargeFind };
   // colar imagem no markdown: o editor pergunta a que aba pertence e onde avisar (`mdimage.ts`)
   registerImageHost(view, {
     tabId: () => {

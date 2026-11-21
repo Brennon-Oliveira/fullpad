@@ -830,3 +830,12 @@ body.floating #gsearch, .preview-only #gsearch { display: none; }
 .gate-modal-title { font-weight: 600; }
 .gate-modal-input { width: 100%; box-sizing: border-box; }
 .gate-modal .rd-actions { justify-content: flex-end; margin-top: 0; }
+
+/* código do arquivo incluído que o diagrama mostra ("Ver: Só x.dbmlx"): no lugar do editor, só leitura */
+.body > .incview { display: none; }
+.body.incshown:not(.diagramonly):not(.tableonly):not(.layoutjson) > .incview { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.body.incshown:not(.diagramonly):not(.tableonly):not(.layoutjson) > .editor { display: none !important; }
+.incview .incbar { border-top: 0; }
+.incview .inccode { flex: 1; min-height: 0; overflow: hidden; }
+.incview .inccode .cm-editor { height: 100%; }
+.incview .inccode .cm-scroller { overflow: auto; }
