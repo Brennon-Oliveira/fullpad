@@ -1455,6 +1455,11 @@ async function openIncludeSeparate(g: Group, file: string) {
   if (!tab || !tab.path || !dir) return;
   const sep = tab.path.includes("\\") && !tab.path.includes("/") ? "\\" : "/";
   const abs = `${dir}${sep}${file.split("/").join(sep)}`;
+  // a aba de origem volta a ver o que via antes (a raiz: tudo; um módulo: o próprio arquivo); sem relação nenhuma com o aberto à parte
+  const back: DiagramScope = dbmlRootOf(tab) !== null ? { kind: "file", file: null } : { kind: "all" };
+  dbmlScopes.set(tab.id, back);
+  g.diagram?.setScope?.(back, tab.title || baseName(tab.path ?? "") || "este arquivo");
+  void syncIncludeView(g, tab);
   writeString(DBML_ROOTS_KEY, JSON.stringify(withRoot(loadRoots(), abs, abs)));
   await openPaths([abs]);
   const t = session.tabs.find((x) => x.path === abs);
@@ -1522,7 +1527,14 @@ function syncDiagram(textChanged = false) {
   const tab = activeTab();
   if (effectiveLang(tab) === "dbml") {
     // o que esta aba inclui: o de antes já vale (sem piscar) e a leitura nova vem em seguida
-    void import("./dbml/service").then((m) => m.peekDbmlService()?.setProject(dbmlProjects.get(tab.id) ?? null));
+    void import("./dbml/service").then((m) => {
+      // o contexto de `!include` é um só por janela: ao voltar a esta aba o dela é restaurado e, se era outro, tudo é refeito
+      // (sem isso o diagrama desenhado antes disso ficava com os erros de "tabela não existe")
+      if (!m.peekDbmlService()?.setProject(dbmlProjects.get(tab.id) ?? null)) return;
+      if (activeTab()?.id !== tab.id) return;
+      g.diagram?.refresh?.();
+      void import("@codemirror/lint").then((l) => l.forceLinting(g.view));
+    });
     scheduleDbmlProject(tab, textChanged ? 500 : 0);
   }
   renderBackBar(g, tab);
