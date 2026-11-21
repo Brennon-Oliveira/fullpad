@@ -22,13 +22,13 @@ interface DiagramPanel {
   setCursor(offset: number | null, rev: number): void;
   hide(): void;
   /** Só o diagrama DBML: o layout guardado da aba (chamar antes de `show`) e gravar o que está pendente. */
-  setLayout?(l: { tables: LayoutState["tables"]; groups?: LayoutState["groups"]; viewport: LayoutState["viewport"]; error: string | null } | null): void;
+  setLayout?(l: { tables: LayoutState["tables"]; groups?: LayoutState["groups"]; viewport: LayoutState["viewport"]; error: string | null } | null, rerender?: boolean): void;
   flush?(): void;
   /** Só o diagrama DBML: desenha de novo o texto de agora (os arquivos incluídos mudaram). */
   refresh?(): void;
   showFile?(file: string): boolean;
   /** Só o diagrama DBML: o que ver (tudo, um arquivo incluído ou um grupo) e o nome do arquivo da aba; chamar antes de `show`. */
-  setScope?(scope: DiagramScope, own: string): void;
+  setScope?(scope: DiagramScope, own: string, rerender?: boolean): void;
   /** Só o diagrama DBML: liga/desliga a edição pelo diagrama (desligado, só se vê). */
   setEditable?(on: boolean): void;
 }
@@ -1567,10 +1567,11 @@ function syncDiagram(textChanged = false) {
         void loadLayout(t.id).then(() => syncDiagram());
         return;
       }
-      g.diagram.setLayout(l ? { tables: l.tables, groups: l.groups, viewport: l.viewport, error: l.error } : null);
+      // trocando de aba, o texto do painel ainda é o da anterior: nada de redesenhá-lo agora (o `show` abaixo desenha o certo)
+      g.diagram.setLayout(l ? { tables: l.tables, groups: l.groups, viewport: l.viewport, error: l.error } : null, g.diagramTab === tab.id);
     }
     g.diagram.setEditable?.(diagramEdit);
-    g.diagram.setScope?.(scopeOf(t), t.title || baseName(t.path ?? "") || "este arquivo");
+    g.diagram.setScope?.(scopeOf(t), t.title || baseName(t.path ?? "") || "este arquivo", g.diagramTab === tab.id);
     if (textChanged && g.diagramTab === tab.id) g.diagram.update(text, g.rev);
     else g.diagram.show(text, g.diagramTab !== tab.id, g.rev);
     g.diagramTab = tab.id;

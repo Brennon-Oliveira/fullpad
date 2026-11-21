@@ -509,7 +509,7 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
      * O layout guardado da aba que vai aparecer (chamar antes de `show`; `null` se a aba não guarda
      * layout). Se for outro que o de agora e o texto continua o mesmo, redesenha já.
      */
-    setLayout(l: PanelLayout | null) {
+    setLayout(l: PanelLayout | null, rerender = true) {
       flush();
       const key = JSON.stringify(l && [l.tables, l.groups, l.error]);
       layoutOn = l !== null;
@@ -523,7 +523,8 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
       if (key === layoutKey) return;
       layoutKey = key;
       relayout = true;
-      if (lastText !== null && host.classList.contains("on")) {
+      // `rerender = false` (troca de aba): o texto de agora ainda é o da aba anterior; quem chama vai dar `show` com o novo
+      if (rerender && lastText !== null && host.classList.contains("on")) {
         window.clearTimeout(timer);
         relayout = false;
         void render(lastText);
@@ -532,12 +533,12 @@ export function createDiagramPanel(host: HTMLElement, hooks: PanelHooks = {}) {
     /** Grava já o que está pendente (arrasto e vista): antes de trocar de aba ou fechar o painel. */
     flush,
     /** O escopo da aba que vai aparecer e o nome do arquivo dela (chamar antes de `show`). */
-    setScope(s: DiagramScope, own: string) {
+    setScope(s: DiagramScope, own: string, rerender = true) {
       ownName = own;
       if (sameScope(s, scope)) return;
       scope = s;
       fitNext = true;
-      if (lastText !== null && host.classList.contains("on")) void render(lastText);
+      if (rerender && lastText !== null && host.classList.contains("on")) void render(lastText);
       else relayout = true;
     },
     /** Passa a ver só um arquivo incluído (Ctrl+clique no `!include`); `false` se o diagrama não o conhece. */
